@@ -1,49 +1,22 @@
-// app/api/sprint-series/[sessionId]/route.ts
-import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
 
-type SprintSeriesRow = {
-  rep_index: number | null;
-  series: {
-    t: number[];
-    x: number[];
-    v: number[];
-    a: number[];
-    f: number[];
-    p: number[];
-  } | null;
-};
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
 
-export async function GET(
-  _req: Request,
-  { params }: { params: { sessionId: string } }
-) {
-  const { sessionId } = params;
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url)
+  const sessionId = searchParams.get('sessionId')
+  if (!sessionId) return NextResponse.json({ error: 'sessionId required' }, { status: 400 })
 
-  try {
-    const { data, error } = await supabaseAdmin
-      .from("sprint_time_series")
-      .select("rep_index, series")
-      .eq("session_id", sessionId)
-      .order("rep_index", { ascending: true });
+  const { data, error } = await supabase
+    .from('sprint_time_series')
+    .select('*')
+    .eq('session_id', sessionId)
+    .order('rep_index')
 
-    if (error) {
-      console.error("[sprint-series] DB error:", error);
-      return NextResponse.json(
-        { error: "Failed to load sprint time-series" },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json(
-      { data: (data ?? []) as SprintSeriesRow[] },
-      { status: 200 }
-    );
-  } catch (err: any) {
-    console.error("[sprint-series] Unexpected error:", err);
-    return NextResponse.json(
-      { error: "Unexpected server error" },
-      { status: 500 }
-    );
-  }
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json(data)
 }
