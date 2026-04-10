@@ -1,67 +1,37 @@
-// app/api/athletes/route.ts
-import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
 
-export async function POST(req: Request) {
-  try {
-    const body = await req.json();
-    const {
-      fullName,
-      dateOfBirth, // "YYYY-MM-DD"
-      gender,
-      organisationId,
-    } = body;
+export const dynamic = 'force-dynamic'
 
-    if (!fullName) {
-      return NextResponse.json(
-        { error: "fullName is required" },
-        { status: 400 }
-      );
-    }
+export async function GET(req: NextRequest) {
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
 
-    const { data, error } = await supabaseAdmin
-      .from("athletes")
-      .insert({
-        full_name: fullName,
-        date_of_birth: dateOfBirth ?? null,
-        gender: gender ?? null,
-        organisation_id: organisationId ?? null,
-      })
-      .select("id")
-      .single();
+  const { data, error } = await supabase
+    .from('athletes')
+    .select('*')
+    .order('last_name')
 
-    if (error) {
-      console.error("[POST /api/athletes] Insert error:", error);
-      return NextResponse.json(
-        { error: "Failed to create athlete", details: error.message },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({ success: true, athleteId: data.id });
-  } catch (err: any) {
-    console.error("[POST /api/athletes] Unexpected error:", err);
-    return NextResponse.json(
-      { error: "Unexpected error", details: String(err?.message ?? err) },
-      { status: 500 }
-    );
-  }
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json(data)
 }
 
-// (optional) list athletes for staff dash
-export async function GET() {
-  const { data, error } = await supabaseAdmin
-    .from("athletes")
-    .select("id, full_name, date_of_birth, gender, organisation_id")
-    .order("full_name", { ascending: true });
+export async function POST(req: NextRequest) {
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
 
-  if (error) {
-    console.error("[GET /api/athletes] error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch athletes", details: error.message },
-      { status: 500 }
-    );
-  }
+  const body = await req.json()
 
-  return NextResponse.json({ athletes: data });
+  const { data, error } = await supabase
+    .from('athletes')
+    .insert(body)
+    .select()
+    .single()
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json(data)
 }
