@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { createClient } from "@supabase/supabase-js";
@@ -62,9 +62,20 @@ export default function StaffDashboardPage() {
   }
 
   useEffect(() => {
-    loadAthletes();
-    loadSessions();
+    void (async () => {
+      await loadAthletes();
+      await loadSessions();
+    })();
   }, []);
+
+  const athleteNameMap = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const a of athletes) {
+      const name = `${a.first_name ?? ""} ${a.last_name ?? ""}`.trim();
+      m.set(a.id, name || "Unnamed athlete");
+    }
+    return m;
+  }, [athletes]);
 
   // Upload handler
   async function onFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
@@ -253,7 +264,13 @@ export default function StaffDashboardPage() {
               <p className="text-xs text-slate-500">No sessions yet.</p>
             ) : (
               <div className="space-y-3">
-                {sessions.map((s) => (
+                {sessions.map((s) => {
+                  const displayName =
+                    s.athlete_id != null
+                      ? athleteNameMap.get(s.athlete_id) ??
+                        "Unknown athlete"
+                      : "Unknown athlete";
+                  return (
                   <Link
                     href={`/dashboard/session/${s.id}`}
                     key={s.id}
@@ -261,7 +278,7 @@ export default function StaffDashboardPage() {
                   >
                     <div className="flex justify-between text-sm">
                       <span className="font-medium">
-                        Athlete {s.athlete_id?.slice(0, 6)}…
+                        {displayName}
                       </span>
                       <span className="text-lime-300 text-xs">
                         {s.test_type || "1080 Sprint"}
@@ -274,7 +291,8 @@ export default function StaffDashboardPage() {
                       <span>{s.id.slice(0, 8)}…</span>
                     </div>
                   </Link>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

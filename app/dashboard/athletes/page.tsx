@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, ChangeEvent } from "react";
+import { useEffect, useMemo, useState, ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -34,6 +34,13 @@ type Athlete = {
   tags?: string[] | null;
 };
 
+/** Seed / placeholder rows used in development */
+function isPlaceholderTestAthlete(a: Athlete): boolean {
+  const f = (a.first_name ?? "").trim().toLowerCase();
+  const l = (a.last_name ?? "").trim().toLowerCase();
+  return f === "test" && l === "athlete";
+}
+
 type Session = {
   id: string;
   athlete_id: string | null;
@@ -60,6 +67,10 @@ export default function DashboardPage() {
   // Tag filtering
   const [activeTag, setActiveTag] = useState<string | null>(null);
 
+  const [athleteIdsWithSession, setAthleteIdsWithSession] = useState<
+    Set<string>
+  >(() => new Set());
+
   // ---------- Load athletes + sessions ----------
   useEffect(() => {
     async function load() {
@@ -83,6 +94,22 @@ export default function DashboardPage() {
 
       setAthletes((athletesData ?? []) as Athlete[]);
 
+      // Distinct athletes that have at least one session (for roster filtering)
+      const { data: sessionAthleteRows, error: sessionAthletesError } =
+        await supabase.from("sessions").select("athlete_id");
+
+      if (sessionAthletesError) {
+        console.error(sessionAthletesError);
+      } else {
+        setAthleteIdsWithSession(
+          new Set(
+            (sessionAthleteRows ?? [])
+              .map((r) => r.athlete_id)
+              .filter((id): id is string => typeof id === "string" && id !== "")
+          )
+        );
+      }
+
       // Recent sessions
       const { data: sessionsData, error: sessionsError } = await supabase
         .from("sessions")
@@ -105,19 +132,26 @@ export default function DashboardPage() {
   }, []);
 
   // ---------- Derived data ----------
-  const totalAthletes = athletes.length;
+  const rosterAthletes = useMemo(
+    () =>
+      athletes.filter(
+        (a) =>
+          !isPlaceholderTestAthlete(a) && athleteIdsWithSession.has(a.id)
+      ),
+    [athletes, athleteIdsWithSession]
+  );
+
+  const totalAthletes = rosterAthletes.length;
   const totalSessions = sessions.length;
 
   const allTags = Array.from(
-    new Set(
-      athletes.flatMap((a) => (a.tags ?? []) as string[])
-    )
+    new Set(rosterAthletes.flatMap((a) => (a.tags ?? []) as string[]))
   ).sort();
 
   const filteredAthletes =
     activeTag == null
-      ? athletes
-      : athletes.filter((a) =>
+      ? rosterAthletes
+      : rosterAthletes.filter((a) =>
           (a.tags ?? []).includes(activeTag)
         );
 
