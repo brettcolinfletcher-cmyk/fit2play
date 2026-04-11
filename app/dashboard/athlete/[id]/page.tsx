@@ -31,6 +31,7 @@ import {
   isForcePlateType,
   isSprint1080,
   pctChange,
+  pctChangeLowerIsBetter,
   readinessBullets,
   readinessComponents,
   readinessLabel,
@@ -226,7 +227,7 @@ export default function AthleteProfilePage() {
     latestSprint?.peakSpeed ?? null,
     prevSprint?.peakSpeed ?? null
   );
-  const split10Delta = pctChange(
+  const split10Delta = pctChangeLowerIsBetter(
     latestSprint?.split10m ?? null,
     prevSprint?.split10m ?? null
   );
@@ -810,6 +811,15 @@ function MetricCard({
   unit: string;
   delta: number | null;
 }) {
+  const deltaColor =
+    delta == null
+      ? "text-slate-800"
+      : delta > 0
+        ? "text-emerald-600"
+        : delta < 0
+          ? "text-red-600"
+          : "text-slate-800";
+
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
@@ -826,7 +836,7 @@ function MetricCard({
       <p className="mt-2 text-xs text-slate-600">
         {delta != null ? (
           <>
-            <span className="font-medium tabular-nums text-slate-800">
+            <span className={`font-medium tabular-nums ${deltaColor}`}>
               {formatPct(delta)}
             </span>{" "}
             vs previous session

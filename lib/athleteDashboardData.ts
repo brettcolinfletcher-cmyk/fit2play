@@ -186,8 +186,24 @@ export function pctChange(
   return ((current - previous) / previous) * 100;
 }
 
-export const BENCHMARK_PEAK_SPEED_MS = 9.0;
-export const BENCHMARK_JUMP_HEIGHT_CM = 40;
+/**
+ * Percent change for metrics where lower raw values are better (split times).
+ * Negates {@link pctChange} so a faster time (lower seconds) reads as a positive %.
+ */
+export function pctChangeLowerIsBetter(
+  current: number | null,
+  previous: number | null
+): number | null {
+  const raw = pctChange(current, previous);
+  if (raw == null) return null;
+  return -raw;
+}
+
+/** Reference line on sprint charts — rehab-appropriate target */
+export const BENCHMARK_PEAK_SPEED_MS = 7.5;
+
+/** Reference line on jump charts — rehab-appropriate target */
+export const BENCHMARK_JUMP_HEIGHT_CM = 30;
 
 const FP_TYPES = new Set([
   "force_plate",
