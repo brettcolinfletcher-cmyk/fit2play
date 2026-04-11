@@ -5,11 +5,6 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import DashboardNav from "@/components/DashboardNav";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
-
 type Athlete = {
   id: string;
   first_name: string | null;
@@ -366,10 +361,17 @@ export default function ForcePlateUploadPage() {
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const [legProtocol, setLegProtocol] = useState<string>("double_leg");
+  const [movementOverride, setMovementOverride] = useState<string>("auto");
+
   // load athletes
   useEffect(() => {
     async function load() {
       setLoadingAthletes(true);
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      );
       const { data, error } = await supabase
         .from("athletes")
         .select("id, first_name, last_name")
@@ -409,7 +411,11 @@ export default function ForcePlateUploadPage() {
 
     try {
         const text = await file.text();
-      const { metrics, subTestType } = parseHawkinCsv(text);
+      const { metrics, subTestType: detectedSubtype } = parseHawkinCsv(text);
+      const subTestType =
+        movementOverride === "auto"
+          ? detectedSubtype
+          : (movementOverride as "cmj" | "dj" | "imtp" | "calf" | "other");
 
       const res = await fetch("/api/upload-forceplate", {
         method: "POST",
@@ -418,7 +424,8 @@ export default function ForcePlateUploadPage() {
           athleteId,
           fileName: file.name,
           metrics,
-          subTestType, // "cmj" | "dj" | "imtp" | "other" | null
+          subTestType,
+          testSubType: legProtocol,
         }),
       });
       
@@ -447,7 +454,7 @@ export default function ForcePlateUploadPage() {
       <DashboardNav />
 
       <section className="mx-auto max-w-3xl px-6 pt-8 pb-20">
-        <header className="mb-6 flex items-center justify-between gap-3">
+        <header className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-xl font-semibold tracking-tight">
               Add force plate test (Hawkin)
@@ -458,12 +465,22 @@ export default function ForcePlateUploadPage() {
             </p>
           </div>
 
-          <button
-            onClick={() => router.push("/dashboard/staff")}
-            className="text-[0.7rem] text-slate-400 hover:text-lime-300"
-          >
-            ← Back to dashboard
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => router.push("/dashboard/add-test")}
+              className="text-[0.7rem] text-slate-400 hover:text-lime-300"
+            >
+              ← All test types
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push("/dashboard/staff")}
+              className="text-[0.7rem] text-slate-400 hover:text-lime-300"
+            >
+              Staff dashboard
+            </button>
+          </div>
         </header>
 
         {error && (
@@ -478,6 +495,37 @@ export default function ForcePlateUploadPage() {
         )}
 
         <div className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/70 p-5 text-xs">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <p className="mb-1 text-[0.7rem] text-slate-400">Movement</p>
+              <select
+                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-[0.8rem]"
+                value={movementOverride}
+                onChange={(e) => setMovementOverride(e.target.value)}
+              >
+                <option value="auto">Auto (from CSV)</option>
+                <option value="cmj">CMJ</option>
+                <option value="dj">Drop jump</option>
+                <option value="imtp">IMTP</option>
+                <option value="calf">Isometric calf raise</option>
+              </select>
+            </div>
+            <div>
+              <p className="mb-1 text-[0.7rem] text-slate-400">Leg / protocol</p>
+              <select
+                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-[0.8rem]"
+                value={legProtocol}
+                onChange={(e) => setLegProtocol(e.target.value)}
+              >
+                <option value="double_leg">Double leg</option>
+                <option value="single_leg">Single leg</option>
+                <option value="left_first">Left first</option>
+                <option value="right_first">Right first</option>
+                <option value="bilateral">Bilateral</option>
+              </select>
+            </div>
+          </div>
+
           {/* Athlete selector */}
           <div>
             <p className="mb-1 text-[0.7rem] text-slate-400">Athlete</p>

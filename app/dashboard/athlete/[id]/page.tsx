@@ -28,8 +28,9 @@ import {
   BENCHMARK_PEAK_SPEED_MS,
   computeReadinessScore,
   formatTestTypeLabel,
+  isDynamometerType,
   isForcePlateType,
-  isSprint1080,
+  isSprintLikeType,
   pctChange,
   pctChangeLowerIsBetter,
   readinessBullets,
@@ -37,6 +38,11 @@ import {
   readinessLabel,
   readinessRingColor,
 } from "@/lib/athleteDashboardData";
+import PerformanceBandPill from "@/components/PerformanceBandPill";
+import {
+  resolveBandForMetric,
+  type NormalizedPerformanceBand,
+} from "@/lib/performanceBands";
 
 type AthleteRow = {
   id: string;
@@ -72,7 +78,7 @@ function formatPct(p: number | null): string {
 }
 
 function keyResultsLine(s: NormalizedSession): string {
-  if (isSprint1080(s.testType)) {
+  if (isSprintLikeType(s.testType)) {
     const parts: string[] = [];
     if (s.peakSpeed != null) {
       parts.push(`Peak ${s.peakSpeed.toFixed(2)} m/s`);
@@ -89,6 +95,16 @@ function keyResultsLine(s: NormalizedSession): string {
     }
     if (s.rsi != null) {
       parts.push(`RSI ${s.rsi.toFixed(2)}`);
+    }
+    return parts.length ? parts.join(" · ") : "—";
+  }
+  if (isDynamometerType(s.testType)) {
+    const parts: string[] = [];
+    if (s.dynoPeakForce != null) {
+      parts.push(`PF ${s.dynoPeakForce.toFixed(0)} N`);
+    }
+    if (s.dynoRfd != null) {
+      parts.push(`RFD ${s.dynoRfd.toFixed(0)}`);
     }
     return parts.length ? parts.join(" · ") : "—";
   }
@@ -116,6 +132,9 @@ export default function AthleteProfilePage() {
   });
   const [injurySaving, setInjurySaving] = useState(false);
   const [injuryError, setInjuryError] = useState<string | null>(null);
+  const [performanceBands, setPerformanceBands] = useState<
+    NormalizedPerformanceBand[]
+  >([]);
 
   const loadData = useCallback(async () => {
     if (!athleteId) return;
@@ -129,14 +148,19 @@ export default function AthleteProfilePage() {
         setAthlete(null);
         setSessions([]);
         setInjuries([]);
+        setPerformanceBands([]);
         return;
       }
       setAthlete(json.athlete as AthleteRow);
       setSessions((json.sessions as NormalizedSession[]) ?? []);
       setInjuries((json.injuries as InjuryRow[]) ?? []);
+      setPerformanceBands(
+        (json.performanceBands as NormalizedPerformanceBand[]) ?? []
+      );
     } catch {
       setLoadError("Failed to load athlete");
       setAthlete(null);
+      setPerformanceBands([]);
     } finally {
       setLoading(false);
     }
@@ -158,7 +182,7 @@ export default function AthleteProfilePage() {
   const sprintChrono = useMemo(
     () =>
       sessions
-        .filter((s) => isSprint1080(s.testType))
+        .filter((s) => isSprintLikeType(s.testType))
         .sort(
           (a, b) =>
             new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
@@ -453,6 +477,11 @@ export default function AthleteProfilePage() {
                 }
                 unit="m/s"
                 delta={peakDelta}
+                band={resolveBandForMetric(
+                  "peakSpeed",
+                  latestSprint?.peakSpeed ?? null,
+                  performanceBands
+                )}
               />
               <MetricCard
                 title="10m split"
@@ -463,6 +492,11 @@ export default function AthleteProfilePage() {
                 }
                 unit="s"
                 delta={split10Delta}
+                band={resolveBandForMetric(
+                  "split10m",
+                  latestSprint?.split10m ?? null,
+                  performanceBands
+                )}
               />
               <MetricCard
                 title="Jump height"
@@ -473,6 +507,18 @@ export default function AthleteProfilePage() {
                 }
                 unit="cm"
                 delta={jhDelta}
+                band={
+                  resolveBandForMetric(
+                    "fp_jump_height_cm_best",
+                    latestFp?.jumpHeightCm ?? null,
+                    performanceBands
+                  ) ??
+                  resolveBandForMetric(
+                    "jump_height_cm",
+                    latestFp?.jumpHeightCm ?? null,
+                    performanceBands
+                  )
+                }
               />
               <MetricCard
                 title="RSI"
@@ -481,6 +527,11 @@ export default function AthleteProfilePage() {
                 }
                 unit=""
                 delta={rsiDelta}
+                band={resolveBandForMetric(
+                  "fp_rsi_best",
+                  latestFp?.rsi ?? null,
+                  performanceBands
+                )}
               />
             </div>
 
@@ -805,11 +856,13 @@ function MetricCard({
   value,
   unit,
   delta,
+  band,
 }: {
   title: string;
   value: string;
   unit: string;
   delta: number | null;
+  band?: ReturnType<typeof resolveBandForMetric>;
 }) {
   const deltaColor =
     delta == null
@@ -825,14 +878,17 @@ function MetricCard({
       <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
         {title}
       </p>
-      <p className="mt-2 text-2xl font-semibold tabular-nums text-slate-900">
-        {value}
-        {unit ? (
-          <span className="ml-1 text-base font-normal text-slate-500">
-            {unit}
-          </span>
-        ) : null}
-      </p>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <p className="text-2xl font-semibold tabular-nums text-slate-900">
+          {value}
+          {unit ? (
+            <span className="ml-1 text-base font-normal text-slate-500">
+              {unit}
+            </span>
+          ) : null}
+        </p>
+        {band ? <PerformanceBandPill band={band} /> : null}
+      </div>
       <p className="mt-2 text-xs text-slate-600">
         {delta != null ? (
           <>

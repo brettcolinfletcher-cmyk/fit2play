@@ -4,12 +4,10 @@ import Link from "next/link";
 
 export default function AddTestMenu({ onClose }: { onClose: () => void }) {
   const menu = [
+    { label: "All test types…", href: "/dashboard/add-test" },
     { label: "1080 Sprint", href: "/dashboard/add-test/1080" },
     { label: "Force Plate (Hawkin)", href: "/dashboard/add-test/forceplate" },
-    { label: "EMG Test", href: "/dashboard/add-test/emg" },
-    { label: "GPS Test", href: "/dashboard/add-test/gps" },
-    { label: "NordBord Test", href: "/dashboard/add-test/nordbord" },
-    { label: "Custom Test", href: "/dashboard/add-test/custom" }
+    { label: "Handheld Dynamometer", href: "/dashboard/add-test/dynamometer" },
   ];
 
   return (

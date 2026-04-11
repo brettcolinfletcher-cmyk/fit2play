@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { normalizeSessionRow } from "@/lib/athleteDashboardData";
 import type { NormalizedSession } from "@/lib/athleteDashboardData";
+import {
+  normalizePerformanceBandRow,
+  type NormalizedPerformanceBand,
+} from "@/lib/performanceBands";
 
 export const dynamic = "force-dynamic";
 
@@ -66,9 +70,22 @@ export async function GET(
     return NextResponse.json({ error: injError.message }, { status: 500 });
   }
 
+  const { data: bandRows, error: bandError } = await supabase
+    .from("performance_bands")
+    .select("*");
+
+  const performanceBands: NormalizedPerformanceBand[] = [];
+  if (!bandError && bandRows) {
+    for (const row of bandRows) {
+      const n = normalizePerformanceBandRow(row as Record<string, unknown>);
+      if (n) performanceBands.push(n);
+    }
+  }
+
   return NextResponse.json({
     athlete,
     sessions,
     injuries: injuries ?? [],
+    performanceBands,
   });
 }

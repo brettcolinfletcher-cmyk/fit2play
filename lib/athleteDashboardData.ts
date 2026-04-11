@@ -4,12 +4,27 @@ export type NormalizedSession = {
   sessionId: string;
   createdAt: string;
   testType: string | null;
+  testSubType: string | null;
   fileName: string | null;
   peakSpeed: number | null;
   split10m: number | null;
   split20m: number | null;
+  split05m: number | null;
+  totalTime: number | null;
+  maxAcceleration: number | null;
+  maxDeceleration: number | null;
   jumpHeightCm: number | null;
   rsi: number | null;
+  fpConcentricImpulse: number | null;
+  fpEccentricImpulse: number | null;
+  fpPeakBrakingForce: number | null;
+  fpPeakPropulsiveForce: number | null;
+  isometricPeakForce: number | null;
+  isometricRfd: number | null;
+  dynoPeakForce: number | null;
+  dynoRfd: number | null;
+  /** Normalized from view or metrics keys */
+  dynoAsymmetryPct: number | null;
 };
 
 function clamp(v: number, min: number, max: number) {
@@ -57,10 +72,23 @@ export function normalizeSessionRow(raw: Record<string, unknown>): NormalizedSes
     sessionId,
     createdAt,
     testType: pickStr(raw, ["test_type", "testType"]),
+    testSubType: pickStr(raw, ["test_sub_type", "testSubType"]),
     fileName: pickStr(raw, ["file_name", "fileName"]),
-    peakSpeed: pickNum(raw, ["peakSpeed", "peak_speed"]),
+    peakSpeed: pickNum(raw, ["peakSpeed", "peak_speed", "topSpeed", "top_speed"]),
     split10m: pickNum(raw, ["split10m", "split_10m"]),
     split20m: pickNum(raw, ["split20m", "split_20m"]),
+    split05m: pickNum(raw, ["split05m", "split_0_5m", "split5m", "split_5m"]),
+    totalTime: pickNum(raw, ["total_time", "totalTime", "time_s", "Time [s]"]),
+    maxAcceleration: pickNum(raw, [
+      "max_acceleration",
+      "maxAcceleration",
+      "MaxAcceleration",
+    ]),
+    maxDeceleration: pickNum(raw, [
+      "max_deceleration",
+      "maxDeceleration",
+      "MaxDeceleration",
+    ]),
     jumpHeightCm: pickNum(raw, [
       "fp_jump_height_cm_best",
       "jump_height_cm",
@@ -68,6 +96,33 @@ export function normalizeSessionRow(raw: Record<string, unknown>): NormalizedSes
       "jump_height",
     ]),
     rsi: pickNum(raw, ["fp_rsi_best", "rsi", "fpRsiBest"]),
+    fpConcentricImpulse: pickNum(raw, [
+      "fp_concentric_impulse",
+      "fpConcentricImpulse",
+    ]),
+    fpEccentricImpulse: pickNum(raw, [
+      "fp_eccentric_impulse",
+      "fpEccentricImpulse",
+    ]),
+    fpPeakBrakingForce: pickNum(raw, [
+      "fp_peak_braking_force",
+      "fpPeakBrakingForce",
+    ]),
+    fpPeakPropulsiveForce: pickNum(raw, [
+      "fp_peak_propulsive_force",
+      "fpPeakPropulsiveForce",
+    ]),
+    isometricPeakForce: pickNum(raw, [
+      "isometric_peak_force",
+      "isometricPeakForce",
+    ]),
+    isometricRfd: pickNum(raw, ["isometric_rfd", "isometricRfd"]),
+    dynoPeakForce: pickNum(raw, ["dyno_peak_force", "dynoPeakForce"]),
+    dynoRfd: pickNum(raw, ["dyno_rfd", "dynoRfd"]),
+    dynoAsymmetryPct: pickNum(raw, [
+      "dyno_asymmetry_pct",
+      "dynoAsymmetryPct",
+    ]),
   };
 }
 
@@ -210,6 +265,13 @@ const FP_TYPES = new Set([
   "force_plate_dj",
   "force_plate_cmj",
   "force_plate_imtp",
+  "force_plate_calf",
+]);
+
+const DYNO_TYPES = new Set([
+  "handheld_dynamometer",
+  "dyno",
+  "dynamometer",
 ]);
 
 export function isForcePlateType(t: string | null): boolean {
@@ -217,18 +279,31 @@ export function isForcePlateType(t: string | null): boolean {
   return FP_TYPES.has(t);
 }
 
+export function isDynamometerType(t: string | null): boolean {
+  if (!t) return false;
+  return DYNO_TYPES.has(t) || t.startsWith("dyno_");
+}
+
 export function isSprint1080(t: string | null): boolean {
   return t === "1080_sprint";
+}
+
+export function isSprintLikeType(t: string | null): boolean {
+  if (!t) return false;
+  return t === "1080_sprint" || t.startsWith("cod_");
 }
 
 export function formatTestTypeLabel(t: string | null): string {
   if (!t) return "—";
   const map: Record<string, string> = {
     "1080_sprint": "1080 Sprint",
+    cod_5_10_5: "1080 COD (5-10-5)",
     force_plate: "Force plate",
     force_plate_dj: "Force plate (DJ)",
     force_plate_cmj: "Force plate (CMJ)",
     force_plate_imtp: "Force plate (IMTP)",
+    force_plate_calf: "Force plate (calf raise)",
+    handheld_dynamometer: "Handheld dynamometer",
   };
   return map[t] ?? t.replace(/_/g, " ");
 }

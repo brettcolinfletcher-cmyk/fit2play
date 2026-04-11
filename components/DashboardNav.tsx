@@ -25,6 +25,11 @@ export default function DashboardNav() {
       label: "Athletes",
       active: pathname.startsWith("/dashboard/athletes"),
     },
+    {
+      href: "/dashboard/add-test",
+      label: "Add test",
+      active: pathname.startsWith("/dashboard/add-test"),
+    },
   ];
 
   if (athleteId) {

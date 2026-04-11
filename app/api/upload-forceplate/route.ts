@@ -7,7 +7,9 @@ type UploadForceplateBody = {
   athleteId: string
   fileName?: string | null
   metrics: Record<string, number | null>
-  subTestType?: "cmj" | "dj" | "imtp" | "other" | null
+  subTestType?: "cmj" | "dj" | "imtp" | "calf" | "other" | null
+  testSubType?: string | null
+  test_sub_type?: string | null
 }
 
 export async function POST(req: Request) {
@@ -17,7 +19,7 @@ export async function POST(req: Request) {
   )
   try {
     const body = (await req.json()) as UploadForceplateBody
-    const { athleteId, fileName, metrics, subTestType } = body || {}
+    const { athleteId, fileName, metrics, subTestType, testSubType, test_sub_type } = body || {}
 
     if (!athleteId) return NextResponse.json({ error: "Missing athleteId" }, { status: 400 })
     if (!metrics || typeof metrics !== "object") return NextResponse.json({ error: "Missing or invalid metrics" }, { status: 400 })
@@ -26,10 +28,21 @@ export async function POST(req: Request) {
     if (subTestType === "cmj") testType = "force_plate_cmj"
     else if (subTestType === "dj") testType = "force_plate_dj"
     else if (subTestType === "imtp") testType = "force_plate_imtp"
+    else if (subTestType === "calf") testType = "force_plate_calf"
+
+    const legOrProtocol =
+      (typeof testSubType === "string" && testSubType) ||
+      (typeof test_sub_type === "string" && test_sub_type) ||
+      null
 
     const { data: session, error: sessionError } = await supabaseAdmin
       .from("sessions")
-      .insert({ athlete_id: athleteId, test_type: testType, file_name: fileName ?? null })
+      .insert({
+        athlete_id: athleteId,
+        test_type: testType,
+        test_sub_type: legOrProtocol,
+        file_name: fileName ?? null,
+      })
       .select("id")
       .single()
 
