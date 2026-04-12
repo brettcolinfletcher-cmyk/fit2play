@@ -69,6 +69,14 @@ function parseHawkinCsv(text: string): ParsedHawkin {
   const fuzzyIdx = (fragment: string) =>
     headerLower.findIndex((h) => h.includes(fragment.toLowerCase()));
 
+  const fuzzyAny = (...fragments: string[]): number => {
+    for (const frag of fragments) {
+      const idx = fuzzyIdx(frag);
+      if (idx >= 0) return idx;
+    }
+    return -1;
+  };
+
   const num = (cols: string[], idx: number) =>
     idx >= 0 && idx < cols.length ? Number(cols[idx]) : NaN;
 
@@ -118,15 +126,19 @@ function parseHawkinCsv(text: string): ParsedHawkin {
       ? exactIdx("Propulsive RFD (N/s)")
       : fuzzyIdx("propulsive rfd");
 
-  const idxBrakingImp =
-    exactIdx("Braking Impulse (N*s)") >= 0
-      ? exactIdx("Braking Impulse (N*s)")
-      : fuzzyIdx("braking impulse");
+  const idxBrakingImp = fuzzyAny(
+    "braking net impulse",
+    "braking impulse",
+    "eccentric net impulse",
+    "eccentric impulse"
+  );
 
-  const idxPropulsiveImp =
-    exactIdx("Propulsive Impulse (N*s)") >= 0
-      ? exactIdx("Propulsive Impulse (N*s)")
-      : fuzzyIdx("propulsive impulse");
+  const idxPropulsiveImp = fuzzyAny(
+    "propulsive net impulse",
+    "propulsive impulse",
+    "concentric net impulse",
+    "concentric impulse"
+  );
 
   const idxBodyMass =
     exactIdx("Body Mass (kg)") >= 0
@@ -138,15 +150,8 @@ function parseHawkinCsv(text: string): ParsedHawkin {
       ? exactIdx("Body Weight (N)")
       : fuzzyIdx("body weight");
 
-  const idxConcNs =
-    exactIdx("Concentric Impulse (Ns)") >= 0
-      ? exactIdx("Concentric Impulse (Ns)")
-      : fuzzyIdx("concentric impulse");
-
-  const idxEccNs =
-    exactIdx("Eccentric Impulse (Ns)") >= 0
-      ? exactIdx("Eccentric Impulse (Ns)")
-      : fuzzyIdx("eccentric impulse");
+  const idxConcNs = idxPropulsiveImp >= 0 ? idxPropulsiveImp : fuzzyAny("concentric impulse");
+  const idxEccNs  = idxBrakingImp >= 0    ? idxBrakingImp    : fuzzyAny("eccentric impulse");
 
   const idxPeakBraking =
     exactIdx("Peak Braking Force (N)") >= 0
@@ -511,11 +516,9 @@ function parseHawkinCsv(text: string): ParsedHawkin {
 
   const hasLegCol = idxLeg >= 0;
   for (const r of rows) {
-    if (!hasLegCol) {
-      bilateralRows.push(r);
-      continue;
-    }
-    let side = normLegCell(r.leg);
+    let side: "left" | "right" | "bilateral" = hasLegCol
+      ? normLegCell(r.leg)
+      : "bilateral";
     const trialText = r.trialName ?? r.rawLabel;
     const inferred = inferLegFromTrialName(trialText);
     if (side === "bilateral" && inferred) {

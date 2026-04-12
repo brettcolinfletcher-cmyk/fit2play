@@ -1,164 +1,828 @@
-/**
- * Resolve performance band labels from `performance_bands` rows.
- * Supports flexible column names from Supabase.
- */
+"use client";
 
-export type NormalizedPerformanceBand = {
-  metricKey: string;
-  /** When set, this band row applies only to that session test_type (e.g. force_plate_cmj). */
-  testType: string | null;
-  label: string;
-  minValue: number | null;
-  maxValue: number | null;
-  sortOrder: number;
+import { useEffect, useState, ChangeEvent } from "react";
+import { useRouter } from "next/navigation";
+import { createClient } from "@supabase/supabase-js";
+import DashboardNav from "@/components/DashboardNav";
+
+type Athlete = {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
 };
 
-function pickNum(v: unknown): number | null {
-  if (v == null) return null;
-  if (typeof v === "number" && !Number.isNaN(v)) return v;
-  if (typeof v === "string" && v !== "") {
-    const n = Number(v);
-    return Number.isNaN(n) ? null : n;
+// ───────────────── Hawkin CSV parsing ─────────────────
+
+type HawkinSubtype = "cmj" | "dj" | "imtp" | "calf" | "other" | null;
+
+type ParsedHawkin = {
+  metrics: Record<string, number | null>;
+  subTestType: HawkinSubtype;
+};
+
+function splitCsvLine(line: string): string[] {
+  const out: string[] = [];
+  let cur = "";
+  let q = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === '"') {
+      q = !q;
+      continue;
+    }
+    if (!q && c === ",") {
+      out.push(cur.trim());
+      cur = "";
+      continue;
+    }
+    cur += c;
   }
+  out.push(cur.trim());
+  return out;
+}
+
+/** When Leg is blank/bilateral but trial name encodes side (Hawkins exports). */
+function inferLegFromTrialName(s: string | undefined): "left" | "right" | null {
+  if (!s?.trim()) return null;
+  const u = s.trim().toUpperCase().replace(/\s+/g, " ");
+  if (u.startsWith("BEST RIGHT") || u.includes("DJ_SL_R")) return "right";
+  if (u.startsWith("BEST LEFT") || u.includes("DJ_SL_L")) return "left";
   return null;
 }
 
-function pickStr(v: unknown): string | null {
-  if (v == null) return null;
-  if (typeof v === "string") return v;
-  return null;
-}
+function parseHawkinCsv(text: string): ParsedHawkin {
+  const lines = text
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
 
-export function normalizePerformanceBandRow(
-  raw: Record<string, unknown>
-): NormalizedPerformanceBand | null {
-  const metricKey =
-    pickStr(raw.metric_key) ??
-    pickStr(raw.metricKey) ??
-    pickStr(raw["metric_key"]);
-  const testTypeRaw =
-    pickStr(raw.test_type) ??
-    pickStr(raw.testType) ??
-    pickStr(raw["test_type"]);
-  const testType =
-    testTypeRaw != null && testTypeRaw.trim() !== ""
-      ? testTypeRaw.trim()
-      : null;
-  const label =
-    pickStr(raw.band_label) ??
-    pickStr(raw.label) ??
-    pickStr(raw.band) ??
-    pickStr(raw.name);
-  if (!metricKey || !label) return null;
-
-  return {
-    metricKey,
-    testType,
-    label,
-    minValue: pickNum(raw.min_value ?? raw.min ?? raw.range_min),
-    maxValue: pickNum(raw.max_value ?? raw.max ?? raw.range_max),
-    sortOrder: pickNum(raw.sort_order ?? raw.priority ?? raw.order) ?? 0,
-  };
-}
-
-/** Tailwind text + optional ring for band label (Fit2Play palette). */
-export function bandLabelToClasses(label: string): {
-  text: string;
-  bg: string;
-  ring: string;
-} {
-  const l = label.trim().toLowerCase();
-  if (l.includes("elite"))
-    return {
-      text: "text-emerald-700",
-      bg: "bg-emerald-500/15",
-      ring: "ring-emerald-500/40",
-    };
-  if (l.includes("good"))
-    return {
-      text: "text-yellow-700",
-      bg: "bg-yellow-400/15",
-      ring: "ring-yellow-400/50",
-    };
-  if (l.includes("fair"))
-    return {
-      text: "text-orange-800",
-      bg: "bg-orange-400/15",
-      ring: "ring-orange-400/50",
-    };
-  if (l.includes("poor"))
-    return {
-      text: "text-red-700",
-      bg: "bg-red-500/15",
-      ring: "ring-red-500/40",
-    };
-  return {
-    text: "text-slate-700",
-    bg: "bg-slate-500/10",
-    ring: "ring-slate-400/30",
-  };
-}
-
-/**
- * Pick the matching band for a numeric value.
- * A row matches if (min is null or value >= min) and (max is null or value <= max).
- * When multiple match, lowest sort_order wins; tie-breaker: longer label (more specific).
- */
-export function matchPerformanceBand(
-  metricKey: string,
-  value: number,
-  bands: NormalizedPerformanceBand[],
-  sessionTestType?: string | null
-): NormalizedPerformanceBand | null {
-  const key = metricKey.trim();
-  const forMetric = bands.filter((b) => b.metricKey === key);
-  if (!forMetric.length) return null;
-
-  const tt = sessionTestType?.trim() || null;
-  const specific =
-    tt != null
-      ? forMetric.filter((b) => b.testType != null && b.testType === tt)
-      : [];
-  const generic = forMetric.filter((b) => b.testType == null || b.testType === "");
-
-  const candidates = specific.length ? specific : generic;
-  if (!candidates.length) return null;
-
-  const matches = candidates.filter((b) => {
-    const okMin = b.minValue == null || value >= b.minValue;
-    const okMax = b.maxValue == null || value <= b.maxValue;
-    return okMin && okMax;
-  });
-
-  const pool = matches.length ? matches : candidates;
-  return [...pool].sort((a, b) => {
-    if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
-    return b.label.length - a.label.length;
-  })[0];
-}
-
-/** Default TopSpeed / peakSpeed bands when DB has no row (rehab context). */
-export function defaultPeakSpeedBand(
-  peakSpeedMps: number
-): { label: string } | null {
-  if (Number.isNaN(peakSpeedMps)) return null;
-  if (peakSpeedMps >= 7.5) return { label: "Elite" };
-  if (peakSpeedMps >= 7.0) return { label: "Good" };
-  if (peakSpeedMps >= 6.0) return { label: "Fair" };
-  return { label: "Poor" };
-}
-
-export function resolveBandForMetric(
-  metricKey: string,
-  value: number | null,
-  bands: NormalizedPerformanceBand[],
-  sessionTestType?: string | null
-): NormalizedPerformanceBand | { label: string } | null {
-  if (value == null || Number.isNaN(value)) return null;
-  const fromDb = matchPerformanceBand(metricKey, value, bands, sessionTestType);
-  if (fromDb) return fromDb;
-  if (metricKey === "peakSpeed" || metricKey === "topSpeed") {
-    return defaultPeakSpeedBand(value);
+  if (lines.length < 2) {
+    throw new Error("CSV looks empty or has no data rows");
   }
-  return null;
+
+  const header = splitCsvLine(lines[0]).map((h) => h.trim());
+  const headerLower = header.map((h) => h.toLowerCase());
+
+  const exactIdx = (name: string) =>
+    header.findIndex((h) => h === name);
+
+  const fuzzyIdx = (fragment: string) =>
+    headerLower.findIndex((h) => h.includes(fragment.toLowerCase()));
+
+  const num = (cols: string[], idx: number) =>
+    idx >= 0 && idx < cols.length ? Number(cols[idx]) : NaN;
+
+  // Core columns
+  const idxJumpHeight =
+    exactIdx("Jump Height (cm)") >= 0
+      ? exactIdx("Jump Height (cm)")
+      : fuzzyIdx("jump height");
+
+  const idxPeakForce =
+    exactIdx("Peak Force (N)") >= 0
+      ? exactIdx("Peak Force (N)")
+      : fuzzyIdx("peak force");
+
+  const idxPeakPower =
+    exactIdx("Peak Power (W)") >= 0
+      ? exactIdx("Peak Power (W)")
+      : fuzzyIdx("peak power");
+
+  const idxContactTime =
+    exactIdx("Contact Time (s)") >= 0
+      ? exactIdx("Contact Time (s)")
+      : fuzzyIdx("contact time");
+
+  const idxFlightTime =
+    exactIdx("Flight Time (s)") >= 0
+      ? exactIdx("Flight Time (s)")
+      : fuzzyIdx("flight time");
+
+  const idxRsi =
+    exactIdx("RSI") >= 0 ? exactIdx("RSI") : fuzzyIdx("rsi");
+
+  const idxRsiModified =
+    exactIdx("RSI Modified") >= 0
+      ? exactIdx("RSI Modified")
+      : exactIdx("RSI Mod") >= 0
+        ? exactIdx("RSI Mod")
+        : fuzzyIdx("rsimod");
+
+  const idxBrakingRfd =
+    exactIdx("Braking RFD (N/s)") >= 0
+      ? exactIdx("Braking RFD (N/s)")
+      : fuzzyIdx("braking rfd");
+
+  const idxPropulsiveRfd =
+    exactIdx("Propulsive RFD (N/s)") >= 0
+      ? exactIdx("Propulsive RFD (N/s)")
+      : fuzzyIdx("propulsive rfd");
+
+  const idxBrakingImp =
+    exactIdx("Braking Impulse (N*s)") >= 0
+      ? exactIdx("Braking Impulse (N*s)")
+      : fuzzyIdx("braking impulse");
+
+  const idxPropulsiveImp =
+    exactIdx("Propulsive Impulse (N*s)") >= 0
+      ? exactIdx("Propulsive Impulse (N*s)")
+      : fuzzyIdx("propulsive impulse");
+
+  const idxBodyMass =
+    exactIdx("Body Mass (kg)") >= 0
+      ? exactIdx("Body Mass (kg)")
+      : fuzzyIdx("body mass");
+
+  const idxBodyWeightN =
+    exactIdx("Body Weight (N)") >= 0
+      ? exactIdx("Body Weight (N)")
+      : fuzzyIdx("body weight");
+
+  const idxConcNs =
+    exactIdx("Concentric Impulse (Ns)") >= 0
+      ? exactIdx("Concentric Impulse (Ns)")
+      : fuzzyIdx("concentric impulse");
+
+  const idxEccNs =
+    exactIdx("Eccentric Impulse (Ns)") >= 0
+      ? exactIdx("Eccentric Impulse (Ns)")
+      : fuzzyIdx("eccentric impulse");
+
+  const idxPeakBraking =
+    exactIdx("Peak Braking Force (N)") >= 0
+      ? exactIdx("Peak Braking Force (N)")
+      : fuzzyIdx("peak braking");
+
+  const idxPeakPropulsive =
+    exactIdx("Peak Propulsive Force (N)") >= 0
+      ? exactIdx("Peak Propulsive Force (N)")
+      : fuzzyIdx("peak propulsive");
+
+  const idxLeg = exactIdx("Leg");
+
+  const idxTrialName = exactIdx("Trial Name");
+
+  // Left / Right columns (names are guesses based on typical Hawkin exports)
+  const idxPeakForceL = fuzzyIdx("peak force left");
+  const idxPeakForceR = fuzzyIdx("peak force right");
+
+  const idxConcImpL = fuzzyIdx("propulsive impulse left");
+  const idxConcImpR = fuzzyIdx("propulsive impulse right");
+
+  const idxEccImpL = fuzzyIdx("braking impulse left");
+  const idxEccImpR = fuzzyIdx("braking impulse right");
+
+  const idxMeanForceL = fuzzyIdx("mean force left");
+  const idxMeanForceR = fuzzyIdx("mean force right");
+
+  // Test type column (CMJ / Drop Jump / IMTP etc.)
+  const idxTestTypeCol =
+    exactIdx("Test Type") >= 0
+      ? exactIdx("Test Type")
+      : fuzzyIdx("test type");
+
+  type Row = {
+    rawLabel?: string;
+    trialName?: string;
+    jumpHeight?: number;
+    peakForce?: number;
+    peakPower?: number;
+    contactTime?: number;
+    flightTime?: number;
+    rsi?: number;
+    rsiMod?: number;
+    brakingRfd?: number;
+    propulsiveRfd?: number;
+    brakingImpulse?: number;
+    propulsiveImpulse?: number;
+    bodyMass?: number;
+
+    peakForceL?: number;
+    peakForceR?: number;
+    concImpL?: number;
+    concImpR?: number;
+    eccImpL?: number;
+    eccImpR?: number;
+    meanForceL?: number;
+    meanForceR?: number;
+
+    leg?: string;
+    concNs?: number;
+    eccNs?: number;
+    peakBraking?: number;
+    peakPropulsive?: number;
+    bodyWeightN?: number;
+  };
+
+  const rows: Row[] = [];
+
+  for (let i = 1; i < lines.length; i++) {
+    const cols = splitCsvLine(lines[i]);
+    if (!cols.length) continue;
+
+    const row: Row = {};
+
+    if (idxTestTypeCol >= 0 && idxTestTypeCol < cols.length) {
+      row.rawLabel = cols[idxTestTypeCol];
+    }
+    if (idxTrialName >= 0 && idxTrialName < cols.length) {
+      row.trialName = cols[idxTrialName];
+    } else if (cols[0] && inferLegFromTrialName(cols[0])) {
+      row.trialName = cols[0];
+    }
+
+    if (idxJumpHeight >= 0) {
+      const v = num(cols, idxJumpHeight);
+      if (!Number.isNaN(v)) row.jumpHeight = v;
+    }
+    if (idxPeakForce >= 0) {
+      const v = num(cols, idxPeakForce);
+      if (!Number.isNaN(v)) row.peakForce = v;
+    }
+    if (idxPeakPower >= 0) {
+      const v = num(cols, idxPeakPower);
+      if (!Number.isNaN(v)) row.peakPower = v;
+    }
+    if (idxContactTime >= 0) {
+      const v = num(cols, idxContactTime);
+      if (!Number.isNaN(v)) row.contactTime = v;
+    }
+    if (idxFlightTime >= 0) {
+      const v = num(cols, idxFlightTime);
+      if (!Number.isNaN(v)) row.flightTime = v;
+    }
+    if (idxRsi >= 0) {
+      const v = num(cols, idxRsi);
+      if (!Number.isNaN(v)) row.rsi = v;
+    }
+    if (idxRsiModified >= 0) {
+      const v = num(cols, idxRsiModified);
+      if (!Number.isNaN(v)) row.rsiMod = v;
+    }
+    if (idxBrakingRfd >= 0) {
+      const v = num(cols, idxBrakingRfd);
+      if (!Number.isNaN(v)) row.brakingRfd = v;
+    }
+    if (idxPropulsiveRfd >= 0) {
+      const v = num(cols, idxPropulsiveRfd);
+      if (!Number.isNaN(v)) row.propulsiveRfd = v;
+    }
+    if (idxBrakingImp >= 0) {
+      const v = num(cols, idxBrakingImp);
+      if (!Number.isNaN(v)) row.brakingImpulse = v;
+    }
+    if (idxPropulsiveImp >= 0) {
+      const v = num(cols, idxPropulsiveImp);
+      if (!Number.isNaN(v)) row.propulsiveImpulse = v;
+    }
+    if (idxBodyMass >= 0) {
+      const v = num(cols, idxBodyMass);
+      if (!Number.isNaN(v)) row.bodyMass = v;
+    }
+    if (idxBodyWeightN >= 0) {
+      const v = num(cols, idxBodyWeightN);
+      if (!Number.isNaN(v)) row.bodyWeightN = v;
+    }
+    if (idxConcNs >= 0) {
+      const v = num(cols, idxConcNs);
+      if (!Number.isNaN(v)) row.concNs = v;
+    }
+    if (idxEccNs >= 0) {
+      const v = num(cols, idxEccNs);
+      if (!Number.isNaN(v)) row.eccNs = v;
+    }
+    if (idxPeakBraking >= 0) {
+      const v = num(cols, idxPeakBraking);
+      if (!Number.isNaN(v)) row.peakBraking = v;
+    }
+    if (idxPeakPropulsive >= 0) {
+      const v = num(cols, idxPeakPropulsive);
+      if (!Number.isNaN(v)) row.peakPropulsive = v;
+    }
+    if (idxLeg >= 0 && idxLeg < cols.length) {
+      row.leg = cols[idxLeg];
+      if (
+        row.leg === "Right" ||
+        row.leg === "Left" ||
+        row.leg?.trim().toLowerCase() === "right" ||
+        row.leg?.trim().toLowerCase() === "left"
+      ) {
+        console.log("[hawkin-csv] Leg column", {
+          rowIndex: i,
+          leg: row.leg,
+          trialName: row.trialName,
+          testTypeCol: row.rawLabel,
+        });
+      }
+    }
+
+    // Left / right
+    if (idxPeakForceL >= 0) {
+      const v = num(cols, idxPeakForceL);
+      if (!Number.isNaN(v)) row.peakForceL = v;
+    }
+    if (idxPeakForceR >= 0) {
+      const v = num(cols, idxPeakForceR);
+      if (!Number.isNaN(v)) row.peakForceR = v;
+    }
+
+    if (idxConcImpL >= 0) {
+      const v = num(cols, idxConcImpL);
+      if (!Number.isNaN(v)) row.concImpL = v;
+    }
+    if (idxConcImpR >= 0) {
+      const v = num(cols, idxConcImpR);
+      if (!Number.isNaN(v)) row.concImpR = v;
+    }
+
+    if (idxEccImpL >= 0) {
+      const v = num(cols, idxEccImpL);
+      if (!Number.isNaN(v)) row.eccImpL = v;
+    }
+    if (idxEccImpR >= 0) {
+      const v = num(cols, idxEccImpR);
+      if (!Number.isNaN(v)) row.eccImpR = v;
+    }
+
+    if (idxMeanForceL >= 0) {
+      const v = num(cols, idxMeanForceL);
+      if (!Number.isNaN(v)) row.meanForceL = v;
+    }
+    if (idxMeanForceR >= 0) {
+      const v = num(cols, idxMeanForceR);
+      if (!Number.isNaN(v)) row.meanForceR = v;
+    }
+
+    if (Object.keys(row).length > 0) {
+      rows.push(row);
+    }
+  }
+
+  if (rows.length === 0) {
+    throw new Error(
+      "Could not find any recognised Hawkin columns. Check the export format."
+    );
+  }
+
+  function normLegCell(s: string | undefined): "left" | "right" | "bilateral" {
+    if (!s || !s.trim()) return "bilateral";
+    const t = s.trim().toLowerCase();
+    if (t === "left" || t === "l") return "left";
+    if (t === "right" || t === "r") return "right";
+    if (t === "bilateral" || t === "both" || t === "double") return "bilateral";
+    return "bilateral";
+  }
+
+  function pickBestJump(bucket: Row[]): Row | null {
+    const withJh = bucket.filter((r) => r.jumpHeight != null);
+    if (!withJh.length) return null;
+    return withJh.reduce((acc, r) =>
+      r.jumpHeight != null &&
+      (acc.jumpHeight == null || r.jumpHeight > acc.jumpHeight)
+        ? r
+        : acc
+    );
+  }
+
+  function pickBestForce(bucket: Row[]): Row | null {
+    const withPf = bucket.filter((r) => r.peakForce != null);
+    if (!withPf.length) return null;
+    return withPf.reduce((acc, r) =>
+      r.peakForce != null &&
+      (acc.peakForce == null || r.peakForce > acc.peakForce)
+        ? r
+        : acc
+    );
+  }
+
+  function pickBestRow(bucket: Row[]): Row | null {
+    if (!bucket.length) return null;
+    const j = pickBestJump(bucket);
+    if (j) return j;
+    const f = pickBestForce(bucket);
+    if (f) return f;
+    return bucket[0];
+  }
+
+  function mergeRow(
+    out: Record<string, number | null>,
+    row: Row,
+    side: "bilateral" | "left" | "right"
+  ) {
+    const jhKey =
+      side === "bilateral"
+        ? "fp_jump_height_cm_best"
+        : side === "left"
+          ? "fp_jump_height_cm_left"
+          : "fp_jump_height_cm_right";
+    const rsiKey =
+      side === "bilateral"
+        ? "fp_rsi_best"
+        : side === "left"
+          ? "fp_rsi_left"
+          : "fp_rsi_right";
+    const pfKey =
+      side === "bilateral"
+        ? "fp_peak_force_n_best"
+        : side === "left"
+          ? "fp_peak_force_n_left"
+          : "fp_peak_force_n_right";
+    const concKey =
+      side === "bilateral"
+        ? "fp_concentric_impulse"
+        : side === "left"
+          ? "fp_concentric_impulse_left"
+          : "fp_concentric_impulse_right";
+    const eccKey =
+      side === "bilateral"
+        ? "fp_eccentric_impulse"
+        : side === "left"
+          ? "fp_eccentric_impulse_left"
+          : "fp_eccentric_impulse_right";
+
+    if (row.jumpHeight != null) out[jhKey] = row.jumpHeight;
+    const rsiVal = row.rsiMod ?? row.rsi;
+    if (rsiVal != null) out[rsiKey] = rsiVal;
+    if (row.peakForce != null) out[pfKey] = row.peakForce;
+    if (row.concNs != null) out[concKey] = row.concNs;
+    else if (
+      row.propulsiveImpulse != null &&
+      side === "bilateral" &&
+      out.fp_concentric_impulse == null
+    )
+      out.fp_concentric_impulse = row.propulsiveImpulse;
+    if (row.eccNs != null) out[eccKey] = row.eccNs;
+    else if (
+      row.brakingImpulse != null &&
+      side === "bilateral" &&
+      out.fp_eccentric_impulse == null
+    )
+      out.fp_eccentric_impulse = row.brakingImpulse;
+
+    if (side === "bilateral") {
+      if (row.peakPower != null) out.fp_peak_power_w_best = row.peakPower;
+      if (row.contactTime != null) out.fp_contact_time_s_best = row.contactTime;
+      if (row.flightTime != null) out.fp_flight_time_s_best = row.flightTime;
+      if (row.rsiMod != null) out.fp_rsimod_best = row.rsiMod;
+      if (row.brakingRfd != null) out.fp_braking_rfd_n_s_best = row.brakingRfd;
+      if (row.propulsiveRfd != null)
+        out.fp_propulsive_rfd_n_s_best = row.propulsiveRfd;
+      if (row.brakingImpulse != null)
+        out.fp_braking_impulse_n_s_best = row.brakingImpulse;
+      if (row.propulsiveImpulse != null)
+        out.fp_propulsive_impulse_n_s_best = row.propulsiveImpulse;
+      if (row.bodyMass != null) out.fp_body_mass_kg = row.bodyMass;
+      else if (row.bodyWeightN != null)
+        out.fp_body_mass_kg = row.bodyWeightN / 9.80665;
+      if (row.peakBraking != null)
+        out.fp_peak_braking_force = row.peakBraking;
+      if (row.peakPropulsive != null)
+        out.fp_peak_propulsive_force = row.peakPropulsive;
+
+      if (row.peakForceL != null) out.fp_peak_force_l_n_best = row.peakForceL;
+      if (row.peakForceR != null) out.fp_peak_force_r_n_best = row.peakForceR;
+      if (row.concImpL != null) out.fp_conc_impulse_l_n_s_best = row.concImpL;
+      if (row.concImpR != null) out.fp_conc_impulse_r_n_s_best = row.concImpR;
+      if (row.eccImpL != null) out.fp_ecc_impulse_l_n_s_best = row.eccImpL;
+      if (row.eccImpR != null) out.fp_ecc_impulse_r_n_s_best = row.eccImpR;
+      if (row.meanForceL != null) out.fp_mean_force_l_n_best = row.meanForceL;
+      if (row.meanForceR != null) out.fp_mean_force_r_n_best = row.meanForceR;
+    } else {
+      if (row.peakBraking != null) {
+        out[
+          side === "left"
+            ? "fp_peak_braking_force_left"
+            : "fp_peak_braking_force_right"
+        ] = row.peakBraking;
+      }
+      if (row.peakPropulsive != null) {
+        out[
+          side === "left"
+            ? "fp_peak_propulsive_force_left"
+            : "fp_peak_propulsive_force_right"
+        ] = row.peakPropulsive;
+      }
+    }
+  }
+
+  const leftRows: Row[] = [];
+  const rightRows: Row[] = [];
+  const bilateralRows: Row[] = [];
+
+  const hasLegCol = idxLeg >= 0;
+  for (const r of rows) {
+    let side: "left" | "right" | "bilateral" = hasLegCol
+      ? normLegCell(r.leg)
+      : "bilateral";
+    const trialText = r.trialName ?? r.rawLabel;
+    const inferred = inferLegFromTrialName(trialText);
+    if (side === "bilateral" && inferred) {
+      side = inferred;
+      console.log("[hawkin-csv] trial name → leg bucket", {
+        trialText,
+        inferred,
+        legCell: r.leg,
+      });
+    }
+    if (side === "left") leftRows.push(r);
+    else if (side === "right") {
+      console.log("[hawkin-csv] right bucket", {
+        trialText,
+        legCell: r.leg,
+        jumpHeight: r.jumpHeight,
+        peakForce: r.peakForce,
+      });
+      rightRows.push(r);
+    } else bilateralRows.push(r);
+  }
+
+  const bestBilateral = pickBestRow(bilateralRows);
+  const bestLeft = pickBestRow(leftRows);
+  const bestRight = pickBestRow(rightRows);
+  const bestForLabel =
+    bestBilateral ?? bestLeft ?? bestRight ?? rows[0];
+
+  const label = bestForLabel.rawLabel?.toLowerCase() || "";
+  let subTestType: HawkinSubtype = null;
+
+  if (label.includes("cmj")) subTestType = "cmj";
+  else if (label.includes("drop") || label.includes("dj"))
+    subTestType = "dj";
+  else if (label.includes("calf")) subTestType = "calf";
+  else if (label.includes("imtp") || label.includes("isometric"))
+    subTestType = "imtp";
+  else if (label) subTestType = "other";
+
+  const asymPct = (left?: number, right?: number): number | null => {
+    if (left == null || right == null) return null;
+    const max = Math.max(left, right);
+    if (!isFinite(max) || max === 0) return null;
+    return (Math.abs(left - right) / max) * 100;
+  };
+
+  const metrics: Record<string, number | null> = {};
+
+  if (bestBilateral) mergeRow(metrics, bestBilateral, "bilateral");
+  if (bestLeft) mergeRow(metrics, bestLeft, "left");
+  if (bestRight) mergeRow(metrics, bestRight, "right");
+
+  const b = bestBilateral ?? bestForLabel;
+  if (b) {
+    metrics.fp_peak_force_lr_asym_pct_best = asymPct(
+      b.peakForceL,
+      b.peakForceR
+    );
+    metrics.fp_conc_impulse_lr_asym_pct_best = asymPct(
+      b.concImpL,
+      b.concImpR
+    );
+    metrics.fp_ecc_impulse_lr_asym_pct_best = asymPct(b.eccImpL, b.eccImpR);
+    metrics.fp_mean_force_lr_asym_pct_best = asymPct(
+      b.meanForceL,
+      b.meanForceR
+    );
+  }
+
+  return { metrics, subTestType };
+}
+
+export default function ForcePlateUploadPage() {
+  const router = useRouter();
+
+  const [athletes, setAthletes] = useState<Athlete[]>([]);
+  const [loadingAthletes, setLoadingAthletes] = useState(true);
+  const [athleteId, setAthleteId] = useState<string>("");
+
+  const [file, setFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const [legProtocol, setLegProtocol] = useState<string>("double_leg");
+  const [movementOverride, setMovementOverride] = useState<string>("auto");
+
+  // load athletes
+  useEffect(() => {
+    async function load() {
+      setLoadingAthletes(true);
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      );
+      const { data, error } = await supabase
+        .from("athletes")
+        .select("id, first_name, last_name")
+        .order("last_name", { ascending: true });
+
+      if (error) {
+        console.error(error);
+        setError("Failed to load athletes");
+      } else {
+        setAthletes((data ?? []) as Athlete[]);
+      }
+      setLoadingAthletes(false);
+    }
+    load();
+  }, []);
+
+  function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0] ?? null;
+    setFile(f);
+    setStatus(null);
+    setError(null);
+  }
+
+  async function handleUpload() {
+    if (!athleteId) {
+      setError("Please select an athlete");
+      return;
+    }
+    if (!file) {
+      setError("Please choose a CSV file");
+      return;
+    }
+
+    setUploading(true);
+    setError(null);
+    setStatus(null);
+
+    try {
+        const text = await file.text();
+      const { metrics, subTestType: detectedSubtype } = parseHawkinCsv(text);
+      const subTestType =
+        movementOverride === "auto"
+          ? detectedSubtype
+          : (movementOverride as "cmj" | "dj" | "imtp" | "calf" | "other");
+
+      const res = await fetch("/api/upload-forceplate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          athleteId,
+          fileName: file.name,
+          metrics,
+          subTestType,
+          testSubType: legProtocol,
+        }),
+      });
+      
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        console.error("[forceplate upload] API error:", data);
+        throw new Error(data?.error || "Upload failed");
+      }
+
+      const data = await res.json();
+      setStatus("Force plate session created");
+
+      if (data.sessionId) {
+        router.push(`/dashboard/session/${data.sessionId}`);
+      }
+    } catch (err: any) {
+      console.error(err);
+      setError(err?.message ?? "Unexpected upload error");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <main className="min-h-screen bg-slate-950 text-slate-50">
+      <DashboardNav />
+
+      <section className="mx-auto max-w-3xl px-6 pt-8 pb-20">
+        <header className="mb-6 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-semibold tracking-tight">
+              Add force plate test (Hawkin)
+            </h1>
+            <p className="mt-1 text-xs text-slate-400">
+              Select an athlete and upload a Hawkin Dynamics CSV export. We’ll
+              create a &quot;force_plate&quot; session and store key metrics.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => router.push("/dashboard/add-test")}
+              className="text-[0.7rem] text-slate-400 hover:text-lime-300"
+            >
+              ← All test types
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push("/dashboard/staff")}
+              className="text-[0.7rem] text-slate-400 hover:text-lime-300"
+            >
+              Staff dashboard
+            </button>
+          </div>
+        </header>
+
+        {error && (
+          <div className="mb-4 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-100">
+            {error}
+          </div>
+        )}
+        {status && (
+          <div className="mb-4 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-100">
+            {status}
+          </div>
+        )}
+
+        <div className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/70 p-5 text-xs">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <p className="mb-1 text-[0.7rem] text-slate-400">Movement</p>
+              <select
+                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-[0.8rem]"
+                value={movementOverride}
+                onChange={(e) => setMovementOverride(e.target.value)}
+              >
+                <option value="auto">Auto (from CSV)</option>
+                <option value="cmj">CMJ</option>
+                <option value="dj">Drop jump</option>
+                <option value="imtp">IMTP</option>
+                <option value="calf">Isometric calf raise</option>
+              </select>
+            </div>
+            <div>
+              <p className="mb-1 text-[0.7rem] text-slate-400">Leg / protocol</p>
+              <select
+                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-[0.8rem]"
+                value={legProtocol}
+                onChange={(e) => setLegProtocol(e.target.value)}
+              >
+                <option value="double_leg">Double leg</option>
+                <option value="single_leg">Single leg</option>
+                <option value="left_first">Left first</option>
+                <option value="right_first">Right first</option>
+                <option value="bilateral">Bilateral</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Athlete selector */}
+          <div>
+            <p className="mb-1 text-[0.7rem] text-slate-400">Athlete</p>
+            {loadingAthletes ? (
+              <p className="text-[0.7rem] text-slate-500">
+                Loading athletes…
+              </p>
+            ) : (
+              <select
+                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-[0.8rem]"
+                value={athleteId}
+                onChange={(e) => setAthleteId(e.target.value)}
+              >
+                <option value="">Select athlete…</option>
+                {athletes.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {`${a.first_name ?? ""} ${a.last_name ?? ""}`.trim() ||
+                      a.id.slice(0, 8)}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          {/* File input */}
+          <div>
+            <p className="mb-1 text-[0.7rem] text-slate-400">
+              Hawkin CSV file
+            </p>
+            <input
+              type="file"
+              accept=".csv,text/csv"
+              onChange={handleFileChange}
+              className="w-full text-[0.75rem] text-slate-200 file:mr-3 file:rounded-full file:border-none file:bg-lime-400 file:px-3 file:py-1 file:text-[0.7rem] file:font-semibold file:text-slate-950 hover:file:brightness-110"
+            />
+            {file && (
+              <p className="mt-1 text-[0.7rem] text-slate-500">
+                Selected: {file.name}
+              </p>
+            )}
+          </div>
+
+          <div className="flex items-center justify-between gap-3 pt-2">
+            <button
+              type="button"
+              onClick={handleUpload}
+              disabled={uploading}
+              className="rounded-full bg-lime-400 px-4 py-1.5 text-xs font-semibold text-slate-950 hover:brightness-110 disabled:opacity-60"
+            >
+              {uploading ? "Uploading…" : "Create force plate session"}
+            </button>
+          </div>
+        </div>
+
+        <p className="mt-4 text-[0.7rem] text-slate-500">
+          If the CSV headers from Hawkin don&apos;t match (e.g. different
+          labels for &quot;Peak Force&quot; or &quot;Jump Height&quot;), we can
+          tweak the parser in this file to align with your exact export format.
+        </p>
+      </section>
+    </main>
+  );
 }
