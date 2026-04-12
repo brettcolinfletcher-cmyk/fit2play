@@ -264,17 +264,39 @@ export function pctChange(
   return ((current - previous) / previous) * 100;
 }
 
+/** Metric keys where a lower numeric value is better (sprint times, total time). */
+export const LOWER_IS_BETTER_METRIC_KEYS = new Set([
+  "split10m",
+  "split_10m",
+  "split20m",
+  "split_20m",
+  "split5m",
+  "split_5m",
+  "split05m",
+  "split_0_5m",
+  "total_time",
+  "totalTime",
+  "time_s",
+]);
+
 /**
- * Percent change for metrics where lower raw values are better (split times).
- * Negates {@link pctChange} so a faster time (lower seconds) reads as a positive %.
+ * Percent change for metrics where lower raw values are better (e.g. split times in seconds).
+ * Faster (current &lt; previous) yields a positive %; slower yields negative.
  */
 export function pctChangeLowerIsBetter(
   current: number | null,
   previous: number | null
 ): number | null {
-  const raw = pctChange(current, previous);
-  if (raw == null) return null;
-  return -raw;
+  if (
+    current == null ||
+    previous == null ||
+    Number.isNaN(current) ||
+    Number.isNaN(previous)
+  ) {
+    return null;
+  }
+  if (Math.abs(previous) < 1e-12) return null;
+  return ((previous - current) / previous) * 100;
 }
 
 /** Reference line on sprint charts — rehab-appropriate target */

@@ -20,6 +20,36 @@ type ParsedHawkin = {
   subTestType: HawkinSubtype;
 };
 
+function splitCsvLine(line: string): string[] {
+  const out: string[] = [];
+  let cur = "";
+  let q = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === '"') {
+      q = !q;
+      continue;
+    }
+    if (!q && c === ",") {
+      out.push(cur.trim());
+      cur = "";
+      continue;
+    }
+    cur += c;
+  }
+  out.push(cur.trim());
+  return out;
+}
+
+/** When Leg is blank/bilateral but trial name encodes side (Hawkins exports). */
+function inferLegFromTrialName(s: string | undefined): "left" | "right" | null {
+  if (!s?.trim()) return null;
+  const u = s.trim().toUpperCase().replace(/\s+/g, " ");
+  if (u.startsWith("BEST RIGHT") || u.includes("DJ_SL_R")) return "right";
+  if (u.startsWith("BEST LEFT") || u.includes("DJ_SL_L")) return "left";
+  return null;
+}
+
 function parseHawkinCsv(text: string): ParsedHawkin {
   const lines = text
     .split(/\r?\n/)
@@ -30,8 +60,7 @@ function parseHawkinCsv(text: string): ParsedHawkin {
     throw new Error("CSV looks empty or has no data rows");
   }
 
-  const headerRaw = lines[0].split(",");
-  const header = headerRaw.map((h) => h.trim());
+  const header = splitCsvLine(lines[0]).map((h) => h.trim());
   const headerLower = header.map((h) => h.toLowerCase());
 
   const exactIdx = (name: string) =>
@@ -72,10 +101,12 @@ function parseHawkinCsv(text: string): ParsedHawkin {
   const idxRsi =
     exactIdx("RSI") >= 0 ? exactIdx("RSI") : fuzzyIdx("rsi");
 
-  const idxRsiMod =
-    exactIdx("RSI Mod") >= 0
-      ? exactIdx("RSI Mod")
-      : fuzzyIdx("rsimod");
+  const idxRsiModified =
+    exactIdx("RSI Modified") >= 0
+      ? exactIdx("RSI Modified")
+      : exactIdx("RSI Mod") >= 0
+        ? exactIdx("RSI Mod")
+        : fuzzyIdx("rsimod");
 
   const idxBrakingRfd =
     exactIdx("Braking RFD (N/s)") >= 0
@@ -127,8 +158,9 @@ function parseHawkinCsv(text: string): ParsedHawkin {
       ? exactIdx("Peak Propulsive Force (N)")
       : fuzzyIdx("peak propulsive");
 
-  const idxLeg =
-    exactIdx("Leg") >= 0 ? exactIdx("Leg") : fuzzyIdx("leg");
+  const idxLeg = exactIdx("Leg");
+
+  const idxTrialName = exactIdx("Trial Name");
 
   // Left / Right columns (names are guesses based on typical Hawkin exports)
   const idxPeakForceL = fuzzyIdx("peak force left");
@@ -151,6 +183,7 @@ function parseHawkinCsv(text: string): ParsedHawkin {
 
   type Row = {
     rawLabel?: string;
+    trialName?: string;
     jumpHeight?: number;
     peakForce?: number;
     peakPower?: number;
@@ -184,13 +217,18 @@ function parseHawkinCsv(text: string): ParsedHawkin {
   const rows: Row[] = [];
 
   for (let i = 1; i < lines.length; i++) {
-    const cols = lines[i].split(",").map((c) => c.trim());
+    const cols = splitCsvLine(lines[i]);
     if (!cols.length) continue;
 
     const row: Row = {};
 
     if (idxTestTypeCol >= 0 && idxTestTypeCol < cols.length) {
       row.rawLabel = cols[idxTestTypeCol];
+    }
+    if (idxTrialName >= 0 && idxTrialName < cols.length) {
+      row.trialName = cols[idxTrialName];
+    } else if (cols[0] && inferLegFromTrialName(cols[0])) {
+      row.trialName = cols[0];
     }
 
     if (idxJumpHeight >= 0) {
@@ -217,8 +255,8 @@ function parseHawkinCsv(text: string): ParsedHawkin {
       const v = num(cols, idxRsi);
       if (!Number.isNaN(v)) row.rsi = v;
     }
-    if (idxRsiMod >= 0) {
-      const v = num(cols, idxRsiMod);
+    if (idxRsiModified >= 0) {
+      const v = num(cols, idxRsiModified);
       if (!Number.isNaN(v)) row.rsiMod = v;
     }
     if (idxBrakingRfd >= 0) {
@@ -263,6 +301,19 @@ function parseHawkinCsv(text: string): ParsedHawkin {
     }
     if (idxLeg >= 0 && idxLeg < cols.length) {
       row.leg = cols[idxLeg];
+      if (
+        row.leg === "Right" ||
+        row.leg === "Left" ||
+        row.leg?.trim().toLowerCase() === "right" ||
+        row.leg?.trim().toLowerCase() === "left"
+      ) {
+        console.log("[hawkin-csv] Leg column", {
+          rowIndex: i,
+          leg: row.leg,
+          trialName: row.trialName,
+          testTypeCol: row.rawLabel,
+        });
+      }
     }
 
     // Left / right
@@ -464,10 +515,27 @@ function parseHawkinCsv(text: string): ParsedHawkin {
       bilateralRows.push(r);
       continue;
     }
-    const L = normLegCell(r.leg);
-    if (L === "left") leftRows.push(r);
-    else if (L === "right") rightRows.push(r);
-    else bilateralRows.push(r);
+    let side = normLegCell(r.leg);
+    const trialText = r.trialName ?? r.rawLabel;
+    const inferred = inferLegFromTrialName(trialText);
+    if (side === "bilateral" && inferred) {
+      side = inferred;
+      console.log("[hawkin-csv] trial name → leg bucket", {
+        trialText,
+        inferred,
+        legCell: r.leg,
+      });
+    }
+    if (side === "left") leftRows.push(r);
+    else if (side === "right") {
+      console.log("[hawkin-csv] right bucket", {
+        trialText,
+        legCell: r.leg,
+        jumpHeight: r.jumpHeight,
+        peakForce: r.peakForce,
+      });
+      rightRows.push(r);
+    } else bilateralRows.push(r);
   }
 
   const bestBilateral = pickBestRow(bilateralRows);

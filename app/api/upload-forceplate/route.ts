@@ -47,6 +47,11 @@ export async function POST(req: Request) {
       rawMetrics as Record<string, unknown>
     );
 
+    console.log(
+      "[upload-forceplate] normalized metric keys:",
+      Object.keys(metrics)
+    );
+
     let testType = "force_plate";
     if (subTestType === "cmj") testType = "force_plate_cmj";
     else if (subTestType === "dj") testType = "force_plate_dj";

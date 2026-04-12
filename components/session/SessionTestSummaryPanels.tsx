@@ -28,13 +28,20 @@ function MetricValueWithBand({
   metricKey,
   numericValue,
   bands,
+  sessionTestType,
 }: {
   valueText: string;
   metricKey: string;
   numericValue: number | null;
   bands: NormalizedPerformanceBand[];
+  sessionTestType?: string | null;
 }) {
-  const band = resolveBandForMetric(metricKey, numericValue, bands);
+  const band = resolveBandForMetric(
+    metricKey,
+    numericValue,
+    bands,
+    sessionTestType
+  );
   return (
     <div className="flex flex-wrap items-center gap-2">
       <span>{valueText}</span>
@@ -66,9 +73,11 @@ function getMap(
 export function SessionSummaryLrTable({
   metrics,
   bands,
+  sessionTestType,
 }: {
   metrics: Metric[];
   bands: NormalizedPerformanceBand[];
+  sessionTestType?: string | null;
 }) {
   const summaryOnly = useMemo(
     () => metrics.filter((m) => m.rep_index == null),
@@ -134,7 +143,8 @@ export function SessionSummaryLrTable({
                           band={resolveBandForMetric(
                             row.bandKey,
                             row.both ?? row.left ?? row.right,
-                            bands
+                            bands,
+                            sessionTestType
                           )}
                         />
                       </td>
@@ -178,7 +188,8 @@ export function SessionSummaryLrTable({
                             band={resolveBandForMetric(
                               m.key,
                               m.value,
-                              bands
+                              bands,
+                              sessionTestType
                             )}
                           />
                         </td>
@@ -300,11 +311,13 @@ function JumpRowCells({
   map,
   singleLeg,
   bands,
+  sessionTestType,
 }: {
   row: JumpRowDef;
   map: SummaryMap;
   singleLeg: boolean;
   bands: NormalizedPerformanceBand[];
+  sessionTestType?: string | null;
 }) {
   const L = getMap(map, row.left);
   const R = getMap(map, row.right);
@@ -322,6 +335,7 @@ function JumpRowCells({
             metricKey={row.left[0]}
             numericValue={L}
             bands={bands}
+            sessionTestType={sessionTestType}
           />
         </td>
         <td className="py-2 px-2">
@@ -330,6 +344,7 @@ function JumpRowCells({
             metricKey={row.right[0]}
             numericValue={R}
             bands={bands}
+            sessionTestType={sessionTestType}
           />
         </td>
         <td className={`py-2 px-2 tabular-nums ${asymmetryCellClass(asym)}`}>
@@ -346,6 +361,7 @@ function JumpRowCells({
         metricKey={row.bandKey}
         numericValue={B}
         bands={bands}
+        sessionTestType={sessionTestType}
       />
     </td>
   );
@@ -354,10 +370,12 @@ function JumpRowCells({
 export function ForcePlateJumpPanel({
   metrics,
   testSubType,
+  sessionTestType,
   bands,
 }: {
   metrics: Metric[];
   testSubType: string | null | undefined;
+  sessionTestType?: string | null;
   bands: NormalizedPerformanceBand[];
 }) {
   const summary = useMemo(
@@ -397,6 +415,7 @@ export function ForcePlateJumpPanel({
                   map={summary}
                   singleLeg={singleLeg}
                   bands={bands}
+                  sessionTestType={sessionTestType}
                 />
               </tr>
             ))}
@@ -419,10 +438,12 @@ const ISO_PEAK_RIGHT = [
 export function ForcePlateIsoPanel({
   metrics,
   testSubType,
+  sessionTestType,
   bands,
 }: {
   metrics: Metric[];
   testSubType: string | null | undefined;
+  sessionTestType?: string | null;
   bands: NormalizedPerformanceBand[];
 }) {
   const map = useMemo(
@@ -540,6 +561,7 @@ export function ForcePlateIsoPanel({
                           metricKey={row.lk}
                           numericValue={row.L}
                           bands={bands}
+                          sessionTestType={sessionTestType}
                         />
                       </td>
                       <td className="py-2 px-2">
@@ -552,6 +574,7 @@ export function ForcePlateIsoPanel({
                           metricKey={row.rk}
                           numericValue={row.R}
                           bands={bands}
+                          sessionTestType={sessionTestType}
                         />
                       </td>
                       <td
@@ -571,6 +594,7 @@ export function ForcePlateIsoPanel({
                         metricKey={row.bandKey}
                         numericValue={row.both}
                         bands={bands}
+                        sessionTestType={sessionTestType}
                       />
                     </td>
                   )}
@@ -709,6 +733,7 @@ function DynoMetricRow({
   decimals,
   suffix,
   bands,
+  sessionTestType,
 }: {
   label: string;
   bandKey: string;
@@ -718,6 +743,7 @@ function DynoMetricRow({
   decimals: number;
   suffix?: string;
   bands: NormalizedPerformanceBand[];
+  sessionTestType?: string | null;
 }) {
   const hasPair =
     L != null &&
@@ -736,6 +762,7 @@ function DynoMetricRow({
             metricKey={`${bandKey}_left`}
             numericValue={L}
             bands={bands}
+            sessionTestType={sessionTestType}
           />
         </td>
         <td className="py-2 px-2">
@@ -744,6 +771,7 @@ function DynoMetricRow({
             metricKey={`${bandKey}_right`}
             numericValue={R}
             bands={bands}
+            sessionTestType={sessionTestType}
           />
         </td>
         <td className={`py-2 px-2 tabular-nums ${asymmetryCellClass(asym)}`}>
@@ -762,6 +790,7 @@ function DynoMetricRow({
           metricKey={bandKey}
           numericValue={both}
           bands={bands}
+          sessionTestType={sessionTestType}
         />
       </td>
     </tr>
@@ -771,9 +800,11 @@ function DynoMetricRow({
 export function DynamometerSummaryPanel({
   metrics,
   bands,
+  sessionTestType,
 }: {
   metrics: Metric[];
   bands: NormalizedPerformanceBand[];
+  sessionTestType?: string | null;
 }) {
   const map = useMemo(
     () =>
@@ -824,6 +855,7 @@ export function DynamometerSummaryPanel({
                     decimals={0}
                     suffix=" N"
                     bands={bands}
+                    sessionTestType={sessionTestType}
                   />
                   <DynoMetricRow
                     label="RFD (N/s)"
@@ -834,6 +866,7 @@ export function DynamometerSummaryPanel({
                     decimals={0}
                     suffix=" N/s"
                     bands={bands}
+                    sessionTestType={sessionTestType}
                   />
                   {g.manualAsymmetryPct != null &&
                   g.lrPeakAsym == null &&

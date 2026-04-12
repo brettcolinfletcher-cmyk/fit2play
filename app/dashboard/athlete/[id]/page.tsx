@@ -577,7 +577,8 @@ export default function AthleteProfilePage() {
                 band={resolveBandForMetric(
                   "peakSpeed",
                   latestSprint?.peakSpeed ?? null,
-                  performanceBands
+                  performanceBands,
+                  latestSprint?.testType ?? null
                 )}
               />
               <MetricCard
@@ -595,7 +596,8 @@ export default function AthleteProfilePage() {
                 band={resolveBandForMetric(
                   "split10m",
                   latestSprint?.split10m ?? null,
-                  performanceBands
+                  performanceBands,
+                  latestSprint?.testType ?? null
                 )}
               />
               <MetricCard
@@ -611,12 +613,14 @@ export default function AthleteProfilePage() {
                   resolveBandForMetric(
                     "fp_jump_height_cm_best",
                     latestFpJump?.jumpHeightCm ?? null,
-                    performanceBands
+                    performanceBands,
+                    latestFpJump?.testType ?? null
                   ) ??
                   resolveBandForMetric(
                     "jump_height_cm",
                     latestFpJump?.jumpHeightCm ?? null,
-                    performanceBands
+                    performanceBands,
+                    latestFpJump?.testType ?? null
                   )
                 }
               />
@@ -630,7 +634,8 @@ export default function AthleteProfilePage() {
                 band={resolveBandForMetric(
                   "fp_rsi_best",
                   latestFpRsi?.rsi ?? null,
-                  performanceBands
+                  performanceBands,
+                  latestFpRsi?.testType ?? null
                 )}
               />
             </div>
@@ -1041,6 +1046,15 @@ function MetricCard({
           : "text-slate-800";
   }
 
+  const displayDelta =
+    deltaTone === "lowerIsBetterRaw" &&
+    currentNumeric != null &&
+    previousNumeric != null &&
+    !Number.isNaN(currentNumeric) &&
+    !Number.isNaN(previousNumeric)
+      ? pctChangeLowerIsBetter(currentNumeric, previousNumeric)
+      : delta;
+
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
@@ -1058,10 +1072,10 @@ function MetricCard({
         {band ? <PerformanceBandPill band={band} /> : null}
       </div>
       <p className="mt-2 text-xs text-slate-600">
-        {delta != null ? (
+        {displayDelta != null ? (
           <>
             <span className={`font-medium tabular-nums ${deltaColor}`}>
-              {formatPct(delta)}
+              {formatPct(displayDelta)}
             </span>{" "}
             vs previous session
           </>

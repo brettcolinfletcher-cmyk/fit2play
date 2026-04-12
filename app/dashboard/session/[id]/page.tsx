@@ -120,13 +120,20 @@ function MetricValueWithBand({
   metricKey,
   numericValue,
   bands,
+  sessionTestType,
 }: {
   valueText: string;
   metricKey: string;
   numericValue: number | null;
   bands: NormalizedPerformanceBand[];
+  sessionTestType?: string | null;
 }) {
-  const band = resolveBandForMetric(metricKey, numericValue, bands);
+  const band = resolveBandForMetric(
+    metricKey,
+    numericValue,
+    bands,
+    sessionTestType
+  );
   return (
     <div className="flex flex-wrap items-center gap-2">
       <span>{valueText}</span>
@@ -459,6 +466,7 @@ export default function SessionPage() {
                             metricKey="total_time"
                             numericValue={excelTotalTime}
                             bands={performanceBands}
+                            sessionTestType={session.test_type}
                           />
                         </td>
                         <td className="py-2 pr-4">
@@ -471,6 +479,7 @@ export default function SessionPage() {
                             metricKey="peakSpeed"
                             numericValue={excelPeakSpeed}
                             bands={performanceBands}
+                            sessionTestType={session.test_type}
                           />
                         </td>
                         <td className="py-2 pr-4">
@@ -483,6 +492,7 @@ export default function SessionPage() {
                             metricKey="split5m"
                             numericValue={excelSplit05}
                             bands={performanceBands}
+                            sessionTestType={session.test_type}
                           />
                         </td>
                         <td className="py-2 pr-4">
@@ -495,6 +505,7 @@ export default function SessionPage() {
                             metricKey="max_acceleration"
                             numericValue={excelMaxAccel}
                             bands={performanceBands}
+                            sessionTestType={session.test_type}
                           />
                         </td>
                       </tr>
@@ -520,6 +531,7 @@ export default function SessionPage() {
                         metricKey={m.key}
                         numericValue={m.value}
                         bands={performanceBands}
+                        sessionTestType={session.test_type}
                       />
                     </div>
                   ))}
@@ -582,6 +594,7 @@ export default function SessionPage() {
               <ForcePlateJumpPanel
                 metrics={metrics}
                 testSubType={session.test_sub_type}
+                sessionTestType={session.test_type}
                 bands={performanceBands}
               />
             )}
@@ -590,6 +603,7 @@ export default function SessionPage() {
               <ForcePlateIsoPanel
                 metrics={metrics}
                 testSubType={session.test_sub_type}
+                sessionTestType={session.test_type}
                 bands={performanceBands}
               />
             )}
@@ -598,12 +612,14 @@ export default function SessionPage() {
               <DynamometerSummaryPanel
                 metrics={metrics}
                 bands={performanceBands}
+                sessionTestType={session.test_type}
               />
             )}
 
             <SessionSummaryLrTable
               metrics={metrics}
               bands={performanceBands}
+              sessionTestType={session.test_type}
             />
           </>
         )}

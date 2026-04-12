@@ -51,6 +51,8 @@ function isRsiModifiedLabel(label: string): boolean {
 /**
  * Map incoming metrics (verbose labels or canonical keys) to canonical keys.
  */
+const CANON_FORCEPLATE_KEY = /^(fp_|isometric_)[a-z0-9_]+$/;
+
 export function normalizeForceplateMetrics(
   raw: Record<string, unknown>
 ): MetricMap {
@@ -59,16 +61,17 @@ export function normalizeForceplateMetrics(
   let rsiModified: number | null = null;
 
   for (const [rawKey, rawVal] of Object.entries(raw)) {
-    const trimmed = rawKey.trim();
+    const k = rawKey.trim();
+    const mappedVerbose = VERBOSE_FORCEPLATE_KEY_MAP[k];
     const mapped =
-      VERBOSE_FORCEPLATE_KEY_MAP[trimmed] ??
-      VERBOSE_FORCEPLATE_KEY_MAP[rawKey] ??
-      trimmed;
+      mappedVerbose ?? (CANON_FORCEPLATE_KEY.test(k) ? k : null);
+    if (mapped == null) continue;
+
     const v = num(rawVal);
     if (v == null) continue;
 
     if (mapped === "fp_rsi_best") {
-      if (isRsiModifiedLabel(trimmed)) rsiModified = v;
+      if (isRsiModifiedLabel(k)) rsiModified = v;
       else rsiPlain = v;
       continue;
     }

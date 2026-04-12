@@ -5,6 +5,8 @@
 
 export type NormalizedPerformanceBand = {
   metricKey: string;
+  /** When set, this band row applies only to that session test_type (e.g. force_plate_cmj). */
+  testType: string | null;
   label: string;
   minValue: number | null;
   maxValue: number | null;
@@ -34,6 +36,14 @@ export function normalizePerformanceBandRow(
     pickStr(raw.metric_key) ??
     pickStr(raw.metricKey) ??
     pickStr(raw["metric_key"]);
+  const testTypeRaw =
+    pickStr(raw.test_type) ??
+    pickStr(raw.testType) ??
+    pickStr(raw["test_type"]);
+  const testType =
+    testTypeRaw != null && testTypeRaw.trim() !== ""
+      ? testTypeRaw.trim()
+      : null;
   const label =
     pickStr(raw.band_label) ??
     pickStr(raw.label) ??
@@ -43,6 +53,7 @@ export function normalizePerformanceBandRow(
 
   return {
     metricKey,
+    testType,
     label,
     minValue: pickNum(raw.min_value ?? raw.min ?? raw.range_min),
     maxValue: pickNum(raw.max_value ?? raw.max ?? raw.range_max),
@@ -96,10 +107,21 @@ export function bandLabelToClasses(label: string): {
 export function matchPerformanceBand(
   metricKey: string,
   value: number,
-  bands: NormalizedPerformanceBand[]
+  bands: NormalizedPerformanceBand[],
+  sessionTestType?: string | null
 ): NormalizedPerformanceBand | null {
   const key = metricKey.trim();
-  const candidates = bands.filter((b) => b.metricKey === key);
+  const forMetric = bands.filter((b) => b.metricKey === key);
+  if (!forMetric.length) return null;
+
+  const tt = sessionTestType?.trim() || null;
+  const specific =
+    tt != null
+      ? forMetric.filter((b) => b.testType != null && b.testType === tt)
+      : [];
+  const generic = forMetric.filter((b) => b.testType == null || b.testType === "");
+
+  const candidates = specific.length ? specific : generic;
   if (!candidates.length) return null;
 
   const matches = candidates.filter((b) => {
@@ -129,10 +151,11 @@ export function defaultPeakSpeedBand(
 export function resolveBandForMetric(
   metricKey: string,
   value: number | null,
-  bands: NormalizedPerformanceBand[]
+  bands: NormalizedPerformanceBand[],
+  sessionTestType?: string | null
 ): NormalizedPerformanceBand | { label: string } | null {
   if (value == null || Number.isNaN(value)) return null;
-  const fromDb = matchPerformanceBand(metricKey, value, bands);
+  const fromDb = matchPerformanceBand(metricKey, value, bands, sessionTestType);
   if (fromDb) return fromDb;
   if (metricKey === "peakSpeed" || metricKey === "topSpeed") {
     return defaultPeakSpeedBand(value);
