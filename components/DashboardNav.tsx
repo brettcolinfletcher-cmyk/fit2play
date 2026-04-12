@@ -26,6 +26,11 @@ export default function DashboardNav() {
       active: pathname.startsWith("/dashboard/athletes"),
     },
     {
+      href: "/dashboard/sprint-report",
+      label: "Sprint report",
+      active: pathname.startsWith("/dashboard/sprint-report"),
+    },
+    {
       href: "/dashboard/add-test",
       label: "Add test",
       active: pathname.startsWith("/dashboard/add-test"),
