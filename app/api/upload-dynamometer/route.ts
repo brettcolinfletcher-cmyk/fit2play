@@ -32,10 +32,11 @@ export async function POST(req: Request) {
       );
     }
 
-    const sub =
-      (typeof testSubType === "string" && testSubType) ||
-      (typeof test_sub_type === "string" && test_sub_type) ||
-      null;
+    const rawSub =
+      (typeof testSubType === "string" ? testSubType : "") ||
+      (typeof test_sub_type === "string" ? test_sub_type : "") ||
+      "";
+    const sub = rawSub.trim() || null;
 
     const { data: session, error: sessionError } = await supabaseAdmin
       .from("sessions")

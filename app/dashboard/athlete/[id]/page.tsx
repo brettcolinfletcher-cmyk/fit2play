@@ -201,6 +201,26 @@ export default function AthleteProfilePage() {
     [sessions]
   );
 
+  const dynoChrono = useMemo(
+    () =>
+      sessions
+        .filter((s) => isDynamometerType(s.testType))
+        .sort(
+          (a, b) =>
+            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        ),
+    [sessions]
+  );
+
+  const fpWithJumpHeight = useMemo(
+    () => fpChrono.filter((s) => s.jumpHeightCm != null),
+    [fpChrono]
+  );
+  const fpWithRsi = useMemo(
+    () => fpChrono.filter((s) => s.rsi != null),
+    [fpChrono]
+  );
+
   const lastTestDate = useMemo(() => {
     if (!sessions.length) return null;
     const t = Math.max(
@@ -213,8 +233,40 @@ export default function AthleteProfilePage() {
   const prevSprint =
     sprintChrono.length >= 2 ? sprintChrono[sprintChrono.length - 2] : null;
 
-  const latestFp = fpChrono[fpChrono.length - 1];
-  const prevFp = fpChrono.length >= 2 ? fpChrono[fpChrono.length - 2] : null;
+  const latestFpJump =
+    fpWithJumpHeight[fpWithJumpHeight.length - 1] ?? null;
+  const prevFpJump =
+    fpWithJumpHeight.length >= 2
+      ? fpWithJumpHeight[fpWithJumpHeight.length - 2]
+      : null;
+
+  const latestFpRsi = fpWithRsi[fpWithRsi.length - 1] ?? null;
+  const prevFpRsi =
+    fpWithRsi.length >= 2 ? fpWithRsi[fpWithRsi.length - 2] : null;
+
+  const lastSprintDomain = useMemo(() => {
+    const arr = sessions.filter((s) => isSprintLikeType(s.testType));
+    if (!arr.length) return null;
+    return new Date(
+      Math.max(...arr.map((s) => new Date(s.createdAt).getTime()))
+    );
+  }, [sessions]);
+
+  const lastForcePlateDomain = useMemo(() => {
+    const arr = sessions.filter((s) => isForcePlateType(s.testType));
+    if (!arr.length) return null;
+    return new Date(
+      Math.max(...arr.map((s) => new Date(s.createdAt).getTime()))
+    );
+  }, [sessions]);
+
+  const lastDynoDomain = useMemo(() => {
+    const arr = sessions.filter((s) => isDynamometerType(s.testType));
+    if (!arr.length) return null;
+    return new Date(
+      Math.max(...arr.map((s) => new Date(s.createdAt).getTime()))
+    );
+  }, [sessions]);
 
   const readiness = useMemo(() => {
     if (!latestSprint) return null;
@@ -256,10 +308,13 @@ export default function AthleteProfilePage() {
     prevSprint?.split10m ?? null
   );
   const jhDelta = pctChange(
-    latestFp?.jumpHeightCm ?? null,
-    prevFp?.jumpHeightCm ?? null
+    latestFpJump?.jumpHeightCm ?? null,
+    prevFpJump?.jumpHeightCm ?? null
   );
-  const rsiDelta = pctChange(latestFp?.rsi ?? null, prevFp?.rsi ?? null);
+  const rsiDelta = pctChange(
+    latestFpRsi?.rsi ?? null,
+    prevFpRsi?.rsi ?? null
+  );
 
   const sprintChartData = useMemo(
     () =>
@@ -381,11 +436,53 @@ export default function AthleteProfilePage() {
                 <dl className="flex flex-wrap gap-6 text-sm md:text-right">
                   <div>
                     <dt className="text-[0.65rem] uppercase tracking-wide text-slate-500">
-                      Last test
+                      Last test (any)
                     </dt>
                     <dd className="font-medium text-white">
                       {lastTestDate
                         ? lastTestDate.toLocaleDateString("en-AU", {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                          })
+                        : "—"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-[0.65rem] uppercase tracking-wide text-slate-500">
+                      Sprint last
+                    </dt>
+                    <dd className="font-medium text-white">
+                      {lastSprintDomain
+                        ? lastSprintDomain.toLocaleDateString("en-AU", {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                          })
+                        : "—"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-[0.65rem] uppercase tracking-wide text-slate-500">
+                      Force plate last
+                    </dt>
+                    <dd className="font-medium text-white">
+                      {lastForcePlateDomain
+                        ? lastForcePlateDomain.toLocaleDateString("en-AU", {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                          })
+                        : "—"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-[0.65rem] uppercase tracking-wide text-slate-500">
+                      Dynamometer last
+                    </dt>
+                    <dd className="font-medium text-white">
+                      {lastDynoDomain
+                        ? lastDynoDomain.toLocaleDateString("en-AU", {
                             day: "2-digit",
                             month: "short",
                             year: "numeric",
@@ -492,6 +589,9 @@ export default function AthleteProfilePage() {
                 }
                 unit="s"
                 delta={split10Delta}
+                deltaTone="lowerIsBetterRaw"
+                currentNumeric={latestSprint?.split10m ?? null}
+                previousNumeric={prevSprint?.split10m ?? null}
                 band={resolveBandForMetric(
                   "split10m",
                   latestSprint?.split10m ?? null,
@@ -501,8 +601,8 @@ export default function AthleteProfilePage() {
               <MetricCard
                 title="Jump height"
                 value={
-                  latestFp?.jumpHeightCm != null
-                    ? latestFp.jumpHeightCm.toFixed(1)
+                  latestFpJump?.jumpHeightCm != null
+                    ? latestFpJump.jumpHeightCm.toFixed(1)
                     : "—"
                 }
                 unit="cm"
@@ -510,12 +610,12 @@ export default function AthleteProfilePage() {
                 band={
                   resolveBandForMetric(
                     "fp_jump_height_cm_best",
-                    latestFp?.jumpHeightCm ?? null,
+                    latestFpJump?.jumpHeightCm ?? null,
                     performanceBands
                   ) ??
                   resolveBandForMetric(
                     "jump_height_cm",
-                    latestFp?.jumpHeightCm ?? null,
+                    latestFpJump?.jumpHeightCm ?? null,
                     performanceBands
                   )
                 }
@@ -523,13 +623,13 @@ export default function AthleteProfilePage() {
               <MetricCard
                 title="RSI"
                 value={
-                  latestFp?.rsi != null ? latestFp.rsi.toFixed(2) : "—"
+                  latestFpRsi?.rsi != null ? latestFpRsi.rsi.toFixed(2) : "—"
                 }
                 unit=""
                 delta={rsiDelta}
                 band={resolveBandForMetric(
                   "fp_rsi_best",
-                  latestFp?.rsi ?? null,
+                  latestFpRsi?.rsi ?? null,
                   performanceBands
                 )}
               />
@@ -632,6 +732,36 @@ export default function AthleteProfilePage() {
               </div>
             </div>
 
+            <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <h3 className="text-sm font-semibold text-slate-900">
+                Dynamometer
+              </h3>
+              <p className="text-xs text-slate-500">
+                Last tested:{" "}
+                {lastDynoDomain
+                  ? lastDynoDomain.toLocaleDateString("en-AU", {
+                      day: "2-digit",
+                      month: "short",
+                      year: "numeric",
+                    })
+                  : "—"}
+              </p>
+              {dynoChrono.length === 0 ? (
+                <p className="mt-3 text-sm text-slate-500">
+                  No dynamometer sessions yet.
+                </p>
+              ) : (
+                <div className="mt-3 text-sm text-slate-700">
+                  <p>
+                    Latest session:{" "}
+                    <span className="font-medium tabular-nums">
+                      {keyResultsLine(dynoChrono[dynoChrono.length - 1])}
+                    </span>
+                  </p>
+                </div>
+              )}
+            </div>
+
             {/* Session history */}
             <div className="mt-6 rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
               <div className="border-b border-slate-200 px-5 py-4">
@@ -663,10 +793,19 @@ export default function AthleteProfilePage() {
                       sortedDesc.map((s) => (
                         <tr
                           key={s.sessionId}
+                          tabIndex={0}
+                          role="link"
+                          aria-label={`Open session ${formatTestTypeLabel(s.testType)}`}
                           className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer"
                           onClick={() =>
                             router.push(`/dashboard/session/${s.sessionId}`)
                           }
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              router.push(`/dashboard/session/${s.sessionId}`);
+                            }
+                          }}
                         >
                           <td className="px-5 py-3 text-slate-900 whitespace-nowrap">
                             {new Date(s.createdAt).toLocaleDateString(
@@ -856,22 +995,51 @@ function MetricCard({
   value,
   unit,
   delta,
+  deltaTone = "default",
+  currentNumeric,
+  previousNumeric,
   band,
 }: {
   title: string;
   value: string;
   unit: string;
   delta: number | null;
+  deltaTone?: "default" | "lowerIsBetterRaw";
+  currentNumeric?: number | null;
+  previousNumeric?: number | null;
   band?: ReturnType<typeof resolveBandForMetric>;
 }) {
-  const deltaColor =
-    delta == null
-      ? "text-slate-800"
-      : delta > 0
+  let deltaColor = "text-slate-800";
+  if (deltaTone === "lowerIsBetterRaw") {
+    if (
+      currentNumeric != null &&
+      previousNumeric != null &&
+      !Number.isNaN(currentNumeric) &&
+      !Number.isNaN(previousNumeric)
+    ) {
+      if (Math.abs(currentNumeric - previousNumeric) < 1e-9) {
+        deltaColor = "text-slate-800";
+      } else if (currentNumeric < previousNumeric) {
+        deltaColor = "text-emerald-600";
+      } else {
+        deltaColor = "text-red-600";
+      }
+    } else if (delta != null) {
+      deltaColor =
+        delta > 0
+          ? "text-emerald-600"
+          : delta < 0
+            ? "text-red-600"
+            : "text-slate-800";
+    }
+  } else if (delta != null) {
+    deltaColor =
+      delta > 0
         ? "text-emerald-600"
         : delta < 0
           ? "text-red-600"
           : "text-slate-800";
+  }
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">

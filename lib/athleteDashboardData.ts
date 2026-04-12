@@ -63,6 +63,18 @@ function pickStr(row: Record<string, unknown>, keys: string[]): string | null {
   return null;
 }
 
+function firstKeyMatchingNum(
+  row: Record<string, unknown>,
+  predicate: (lowerKey: string) => boolean
+): number | null {
+  for (const key of Object.keys(row)) {
+    if (!predicate(key.toLowerCase())) continue;
+    const n = pickNum(row, [key]);
+    if (n != null) return n;
+  }
+  return null;
+}
+
 export function normalizeSessionRow(raw: Record<string, unknown>): NormalizedSession | null {
   const sessionId = pickStr(raw, ["session_id", "sessionId", "id"]);
   const createdAt = pickStr(raw, ["created_at", "createdAt"]);
@@ -115,10 +127,21 @@ export function normalizeSessionRow(raw: Record<string, unknown>): NormalizedSes
     isometricPeakForce: pickNum(raw, [
       "isometric_peak_force",
       "isometricPeakForce",
+      "fp_peak_force_n_best",
     ]),
     isometricRfd: pickNum(raw, ["isometric_rfd", "isometricRfd"]),
-    dynoPeakForce: pickNum(raw, ["dyno_peak_force", "dynoPeakForce"]),
-    dynoRfd: pickNum(raw, ["dyno_rfd", "dynoRfd"]),
+    dynoPeakForce:
+      pickNum(raw, ["dyno_peak_force", "dynoPeakForce"]) ??
+      firstKeyMatchingNum(
+        raw,
+        (k) => k.startsWith("dyno_") && k.includes("peak_force")
+      ),
+    dynoRfd:
+      pickNum(raw, ["dyno_rfd", "dynoRfd"]) ??
+      firstKeyMatchingNum(
+        raw,
+        (k) => k.startsWith("dyno_") && k.includes("rfd")
+      ),
     dynoAsymmetryPct: pickNum(raw, [
       "dyno_asymmetry_pct",
       "dynoAsymmetryPct",
@@ -304,6 +327,7 @@ export function formatTestTypeLabel(t: string | null): string {
     force_plate_imtp: "Force plate (IMTP)",
     force_plate_calf: "Force plate (calf raise)",
     handheld_dynamometer: "Handheld dynamometer",
+    csv_import: "Dynamometer (CSV import)",
   };
   return map[t] ?? t.replace(/_/g, " ");
 }

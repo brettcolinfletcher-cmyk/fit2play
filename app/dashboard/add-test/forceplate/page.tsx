@@ -13,7 +13,7 @@ type Athlete = {
 
 // ───────────────── Hawkin CSV parsing ─────────────────
 
-type HawkinSubtype = "cmj" | "dj" | "imtp" | "other" | null;
+type HawkinSubtype = "cmj" | "dj" | "imtp" | "calf" | "other" | null;
 
 type ParsedHawkin = {
   metrics: Record<string, number | null>;
@@ -102,6 +102,34 @@ function parseHawkinCsv(text: string): ParsedHawkin {
       ? exactIdx("Body Mass (kg)")
       : fuzzyIdx("body mass");
 
+  const idxBodyWeightN =
+    exactIdx("Body Weight (N)") >= 0
+      ? exactIdx("Body Weight (N)")
+      : fuzzyIdx("body weight");
+
+  const idxConcNs =
+    exactIdx("Concentric Impulse (Ns)") >= 0
+      ? exactIdx("Concentric Impulse (Ns)")
+      : fuzzyIdx("concentric impulse");
+
+  const idxEccNs =
+    exactIdx("Eccentric Impulse (Ns)") >= 0
+      ? exactIdx("Eccentric Impulse (Ns)")
+      : fuzzyIdx("eccentric impulse");
+
+  const idxPeakBraking =
+    exactIdx("Peak Braking Force (N)") >= 0
+      ? exactIdx("Peak Braking Force (N)")
+      : fuzzyIdx("peak braking");
+
+  const idxPeakPropulsive =
+    exactIdx("Peak Propulsive Force (N)") >= 0
+      ? exactIdx("Peak Propulsive Force (N)")
+      : fuzzyIdx("peak propulsive");
+
+  const idxLeg =
+    exactIdx("Leg") >= 0 ? exactIdx("Leg") : fuzzyIdx("leg");
+
   // Left / Right columns (names are guesses based on typical Hawkin exports)
   const idxPeakForceL = fuzzyIdx("peak force left");
   const idxPeakForceR = fuzzyIdx("peak force right");
@@ -144,6 +172,13 @@ function parseHawkinCsv(text: string): ParsedHawkin {
     eccImpR?: number;
     meanForceL?: number;
     meanForceR?: number;
+
+    leg?: string;
+    concNs?: number;
+    eccNs?: number;
+    peakBraking?: number;
+    peakPropulsive?: number;
+    bodyWeightN?: number;
   };
 
   const rows: Row[] = [];
@@ -206,6 +241,29 @@ function parseHawkinCsv(text: string): ParsedHawkin {
       const v = num(cols, idxBodyMass);
       if (!Number.isNaN(v)) row.bodyMass = v;
     }
+    if (idxBodyWeightN >= 0) {
+      const v = num(cols, idxBodyWeightN);
+      if (!Number.isNaN(v)) row.bodyWeightN = v;
+    }
+    if (idxConcNs >= 0) {
+      const v = num(cols, idxConcNs);
+      if (!Number.isNaN(v)) row.concNs = v;
+    }
+    if (idxEccNs >= 0) {
+      const v = num(cols, idxEccNs);
+      if (!Number.isNaN(v)) row.eccNs = v;
+    }
+    if (idxPeakBraking >= 0) {
+      const v = num(cols, idxPeakBraking);
+      if (!Number.isNaN(v)) row.peakBraking = v;
+    }
+    if (idxPeakPropulsive >= 0) {
+      const v = num(cols, idxPeakPropulsive);
+      if (!Number.isNaN(v)) row.peakPropulsive = v;
+    }
+    if (idxLeg >= 0 && idxLeg < cols.length) {
+      row.leg = cols[idxLeg];
+    }
 
     // Left / right
     if (idxPeakForceL >= 0) {
@@ -255,96 +313,209 @@ function parseHawkinCsv(text: string): ParsedHawkin {
     );
   }
 
-  // Decide which row is "best"
-  let best = rows[0];
-
-  if (rows.some((r) => r.jumpHeight != null)) {
-    // CMJ / DJ style → best jump height
-    best = rows.reduce((acc, r) => {
-      if (
-        r.jumpHeight != null &&
-        (acc.jumpHeight == null || r.jumpHeight > acc.jumpHeight)
-      ) {
-        return r;
-      }
-      return acc;
-    }, rows[0]);
-  } else if (rows.some((r) => r.peakForce != null)) {
-    // IMTP style → best peak force
-    best = rows.reduce((acc, r) => {
-      if (
-        r.peakForce != null &&
-        (acc.peakForce == null || r.peakForce > acc.peakForce)
-      ) {
-        return r;
-      }
-      return acc;
-    }, rows[0]);
+  function normLegCell(s: string | undefined): "left" | "right" | "bilateral" {
+    if (!s || !s.trim()) return "bilateral";
+    const t = s.trim().toLowerCase();
+    if (t === "left" || t === "l") return "left";
+    if (t === "right" || t === "r") return "right";
+    if (t === "bilateral" || t === "both" || t === "double") return "bilateral";
+    return "bilateral";
   }
 
-  // Detect subtype based on label text
-  const label = best.rawLabel?.toLowerCase() || "";
+  function pickBestJump(bucket: Row[]): Row | null {
+    const withJh = bucket.filter((r) => r.jumpHeight != null);
+    if (!withJh.length) return null;
+    return withJh.reduce((acc, r) =>
+      r.jumpHeight != null &&
+      (acc.jumpHeight == null || r.jumpHeight > acc.jumpHeight)
+        ? r
+        : acc
+    );
+  }
+
+  function pickBestForce(bucket: Row[]): Row | null {
+    const withPf = bucket.filter((r) => r.peakForce != null);
+    if (!withPf.length) return null;
+    return withPf.reduce((acc, r) =>
+      r.peakForce != null &&
+      (acc.peakForce == null || r.peakForce > acc.peakForce)
+        ? r
+        : acc
+    );
+  }
+
+  function pickBestRow(bucket: Row[]): Row | null {
+    if (!bucket.length) return null;
+    const j = pickBestJump(bucket);
+    if (j) return j;
+    const f = pickBestForce(bucket);
+    if (f) return f;
+    return bucket[0];
+  }
+
+  function mergeRow(
+    out: Record<string, number | null>,
+    row: Row,
+    side: "bilateral" | "left" | "right"
+  ) {
+    const jhKey =
+      side === "bilateral"
+        ? "fp_jump_height_cm_best"
+        : side === "left"
+          ? "fp_jump_height_cm_left"
+          : "fp_jump_height_cm_right";
+    const rsiKey =
+      side === "bilateral"
+        ? "fp_rsi_best"
+        : side === "left"
+          ? "fp_rsi_left"
+          : "fp_rsi_right";
+    const pfKey =
+      side === "bilateral"
+        ? "fp_peak_force_n_best"
+        : side === "left"
+          ? "fp_peak_force_n_left"
+          : "fp_peak_force_n_right";
+    const concKey =
+      side === "bilateral"
+        ? "fp_concentric_impulse"
+        : side === "left"
+          ? "fp_concentric_impulse_left"
+          : "fp_concentric_impulse_right";
+    const eccKey =
+      side === "bilateral"
+        ? "fp_eccentric_impulse"
+        : side === "left"
+          ? "fp_eccentric_impulse_left"
+          : "fp_eccentric_impulse_right";
+
+    if (row.jumpHeight != null) out[jhKey] = row.jumpHeight;
+    const rsiVal = row.rsiMod ?? row.rsi;
+    if (rsiVal != null) out[rsiKey] = rsiVal;
+    if (row.peakForce != null) out[pfKey] = row.peakForce;
+    if (row.concNs != null) out[concKey] = row.concNs;
+    else if (
+      row.propulsiveImpulse != null &&
+      side === "bilateral" &&
+      out.fp_concentric_impulse == null
+    )
+      out.fp_concentric_impulse = row.propulsiveImpulse;
+    if (row.eccNs != null) out[eccKey] = row.eccNs;
+    else if (
+      row.brakingImpulse != null &&
+      side === "bilateral" &&
+      out.fp_eccentric_impulse == null
+    )
+      out.fp_eccentric_impulse = row.brakingImpulse;
+
+    if (side === "bilateral") {
+      if (row.peakPower != null) out.fp_peak_power_w_best = row.peakPower;
+      if (row.contactTime != null) out.fp_contact_time_s_best = row.contactTime;
+      if (row.flightTime != null) out.fp_flight_time_s_best = row.flightTime;
+      if (row.rsiMod != null) out.fp_rsimod_best = row.rsiMod;
+      if (row.brakingRfd != null) out.fp_braking_rfd_n_s_best = row.brakingRfd;
+      if (row.propulsiveRfd != null)
+        out.fp_propulsive_rfd_n_s_best = row.propulsiveRfd;
+      if (row.brakingImpulse != null)
+        out.fp_braking_impulse_n_s_best = row.brakingImpulse;
+      if (row.propulsiveImpulse != null)
+        out.fp_propulsive_impulse_n_s_best = row.propulsiveImpulse;
+      if (row.bodyMass != null) out.fp_body_mass_kg = row.bodyMass;
+      else if (row.bodyWeightN != null)
+        out.fp_body_mass_kg = row.bodyWeightN / 9.80665;
+      if (row.peakBraking != null)
+        out.fp_peak_braking_force = row.peakBraking;
+      if (row.peakPropulsive != null)
+        out.fp_peak_propulsive_force = row.peakPropulsive;
+
+      if (row.peakForceL != null) out.fp_peak_force_l_n_best = row.peakForceL;
+      if (row.peakForceR != null) out.fp_peak_force_r_n_best = row.peakForceR;
+      if (row.concImpL != null) out.fp_conc_impulse_l_n_s_best = row.concImpL;
+      if (row.concImpR != null) out.fp_conc_impulse_r_n_s_best = row.concImpR;
+      if (row.eccImpL != null) out.fp_ecc_impulse_l_n_s_best = row.eccImpL;
+      if (row.eccImpR != null) out.fp_ecc_impulse_r_n_s_best = row.eccImpR;
+      if (row.meanForceL != null) out.fp_mean_force_l_n_best = row.meanForceL;
+      if (row.meanForceR != null) out.fp_mean_force_r_n_best = row.meanForceR;
+    } else {
+      if (row.peakBraking != null) {
+        out[
+          side === "left"
+            ? "fp_peak_braking_force_left"
+            : "fp_peak_braking_force_right"
+        ] = row.peakBraking;
+      }
+      if (row.peakPropulsive != null) {
+        out[
+          side === "left"
+            ? "fp_peak_propulsive_force_left"
+            : "fp_peak_propulsive_force_right"
+        ] = row.peakPropulsive;
+      }
+    }
+  }
+
+  const leftRows: Row[] = [];
+  const rightRows: Row[] = [];
+  const bilateralRows: Row[] = [];
+
+  const hasLegCol = idxLeg >= 0;
+  for (const r of rows) {
+    if (!hasLegCol) {
+      bilateralRows.push(r);
+      continue;
+    }
+    const L = normLegCell(r.leg);
+    if (L === "left") leftRows.push(r);
+    else if (L === "right") rightRows.push(r);
+    else bilateralRows.push(r);
+  }
+
+  const bestBilateral = pickBestRow(bilateralRows);
+  const bestLeft = pickBestRow(leftRows);
+  const bestRight = pickBestRow(rightRows);
+  const bestForLabel =
+    bestBilateral ?? bestLeft ?? bestRight ?? rows[0];
+
+  const label = bestForLabel.rawLabel?.toLowerCase() || "";
   let subTestType: HawkinSubtype = null;
 
   if (label.includes("cmj")) subTestType = "cmj";
   else if (label.includes("drop") || label.includes("dj"))
     subTestType = "dj";
+  else if (label.includes("calf")) subTestType = "calf";
   else if (label.includes("imtp") || label.includes("isometric"))
     subTestType = "imtp";
   else if (label) subTestType = "other";
 
-  // Helper for asymmetry (stronger − weaker / stronger * 100)
   const asymPct = (left?: number, right?: number): number | null => {
     if (left == null || right == null) return null;
     const max = Math.max(left, right);
-    const min = Math.min(left, right);
     if (!isFinite(max) || max === 0) return null;
-    return ((max - min) / max) * 100;
+    return (Math.abs(left - right) / max) * 100;
   };
 
-  const metrics: Record<string, number | null> = {
-    // Global "best" metrics
-    fp_jump_height_cm_best: best.jumpHeight ?? null,
-    fp_peak_force_n_best: best.peakForce ?? null,
-    fp_peak_power_w_best: best.peakPower ?? null,
-    fp_contact_time_s_best: best.contactTime ?? null,
-    fp_flight_time_s_best: best.flightTime ?? null,
-    fp_rsi_best: best.rsi ?? null,
-    fp_rsimod_best: best.rsiMod ?? null,
-    fp_braking_rfd_n_s_best: best.brakingRfd ?? null,
-    fp_propulsive_rfd_n_s_best: best.propulsiveRfd ?? null,
-    fp_braking_impulse_n_s_best: best.brakingImpulse ?? null,
-    fp_propulsive_impulse_n_s_best: best.propulsiveImpulse ?? null,
-    fp_body_mass_kg: best.bodyMass ?? null,
+  const metrics: Record<string, number | null> = {};
 
-    // Left / right raw values
-    fp_peak_force_l_n_best: best.peakForceL ?? null,
-    fp_peak_force_r_n_best: best.peakForceR ?? null,
-    fp_conc_impulse_l_n_s_best: best.concImpL ?? null,
-    fp_conc_impulse_r_n_s_best: best.concImpR ?? null,
-    fp_ecc_impulse_l_n_s_best: best.eccImpL ?? null,
-    fp_ecc_impulse_r_n_s_best: best.eccImpR ?? null,
-    fp_mean_force_l_n_best: best.meanForceL ?? null,
-    fp_mean_force_r_n_best: best.meanForceR ?? null,
+  if (bestBilateral) mergeRow(metrics, bestBilateral, "bilateral");
+  if (bestLeft) mergeRow(metrics, bestLeft, "left");
+  if (bestRight) mergeRow(metrics, bestRight, "right");
 
-    // Asymmetries (%)
-    fp_peak_force_lr_asym_pct_best: asymPct(
-      best.peakForceL,
-      best.peakForceR
-    ),
-    fp_conc_impulse_lr_asym_pct_best: asymPct(
-      best.concImpL,
-      best.concImpR
-    ),
-    fp_ecc_impulse_lr_asym_pct_best: asymPct(
-      best.eccImpL,
-      best.eccImpR
-    ),
-    fp_mean_force_lr_asym_pct_best: asymPct(
-      best.meanForceL,
-      best.meanForceR
-    ),
-  };
+  const b = bestBilateral ?? bestForLabel;
+  if (b) {
+    metrics.fp_peak_force_lr_asym_pct_best = asymPct(
+      b.peakForceL,
+      b.peakForceR
+    );
+    metrics.fp_conc_impulse_lr_asym_pct_best = asymPct(
+      b.concImpL,
+      b.concImpR
+    );
+    metrics.fp_ecc_impulse_lr_asym_pct_best = asymPct(b.eccImpL, b.eccImpR);
+    metrics.fp_mean_force_lr_asym_pct_best = asymPct(
+      b.meanForceL,
+      b.meanForceR
+    );
+  }
 
   return { metrics, subTestType };
 }

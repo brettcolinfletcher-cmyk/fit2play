@@ -17,6 +17,13 @@ import {
   resolveBandForMetric,
   type NormalizedPerformanceBand,
 } from "@/lib/performanceBands";
+import {
+  DynamometerSummaryPanel,
+  ForcePlateIsoPanel,
+  ForcePlateJumpPanel,
+  fpPanelKind,
+  SessionSummaryLrTable,
+} from "@/components/session/SessionTestSummaryPanels";
 
 type Session = {
   id: string;
@@ -106,31 +113,6 @@ function computeRTSFromMetrics(metrics: Metric[]) {
     0.4 * speedScore + 0.3 * splitScore + 0.3 * consistency;
 
   return Math.round(combined * 100);
-}
-
-function buildForcePlateSummary(metrics: Metric[]) {
-  const get = (key: string) =>
-    metrics.find(
-      (m) =>
-        m.key === key &&
-        (m.rep_index === null || m.rep_index === undefined)
-    )?.value ?? null;
-
-  return {
-    jumpHeight: get("fp_jump_height_cm_best"),
-    peakForce: get("fp_peak_force_n_best"),
-    peakForceLeft: get("fp_peak_force_n_left"),
-    peakForceRight: get("fp_peak_force_n_right"),
-    peakForceAsym: get("fp_peak_force_n_asym_pct"),
-    contactTime: get("fp_contact_time_s_best"),
-    flightTime: get("fp_flight_time_s_best"),
-    rsi: get("fp_rsi_best"),
-    bodyMass: get("fp_body_mass_kg"),
-    concentricImpulse: get("fp_concentric_impulse"),
-    eccentricImpulse: get("fp_eccentric_impulse"),
-    peakBraking: get("fp_peak_braking_force"),
-    peakPropulsive: get("fp_peak_propulsive_force"),
-  };
 }
 
 function MetricValueWithBand({
@@ -274,10 +256,19 @@ export default function SessionPage() {
   }, [sessionId]);
 
   const hasForcePlateMetrics = metrics.some((m) => m.key.startsWith("fp_"));
+  const hasDynoMetrics = metrics.some((m) => m.key.startsWith("dyno_"));
+
+  const testTypeLc = (session?.test_type ?? "").toLowerCase();
+  const isHandheldDynoSession = testTypeLc === "handheld_dynamometer";
 
   const isForcePlate =
-    (session?.test_type ?? "").toLowerCase().includes("force_plate") ||
-    hasForcePlateMetrics;
+    !isHandheldDynoSession &&
+    (testTypeLc.includes("force_plate") || hasForcePlateMetrics);
+
+  const showDynoPanel =
+    isHandheldDynoSession || hasDynoMetrics;
+
+  const fpKind = fpPanelKind(session?.test_type ?? null);
 
   const isSprintLike =
     session?.test_type === "1080_sprint" ||
@@ -285,10 +276,6 @@ export default function SessionPage() {
       session.test_type.startsWith("cod_"));
 
   const isCod5105 = session?.test_type === "cod_5_10_5";
-
-  const forcePlateSummary = isForcePlate
-    ? buildForcePlateSummary(metrics)
-    : null;
 
   const rtsScore = isSprintLike ? computeRTSFromMetrics(metrics) : null;
 
@@ -304,11 +291,13 @@ export default function SessionPage() {
       })
     : "";
 
-  const headerTag = isForcePlate
-    ? session?.test_type || "Force plate test"
-    : isSprintLike
-      ? "1080 Sprint session"
-      : session?.test_type || "Test session";
+  const headerTag = isHandheldDynoSession
+    ? session?.test_type || "Handheld dynamometer"
+    : isForcePlate
+      ? session?.test_type || "Force plate test"
+      : isSprintLike
+        ? "1080 Sprint session"
+        : session?.test_type || "Test session";
 
   const summaryOnly = useMemo(
     () => metrics.filter((m) => m.rep_index == null),
@@ -589,171 +578,33 @@ export default function SessionPage() {
               </section>
             )}
 
-            {isForcePlate && forcePlateSummary && (
-              <section className="mb-6 rounded-2xl border border-slate-800 bg-slate-900/70 p-5 text-xs">
-                <h2 className="text-sm font-semibold text-lime-300 mb-3">
-                  Force plate summary
-                </h2>
-
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                  {[
-                    {
-                      label: "Jump height",
-                      key: "fp_jump_height_cm_best",
-                      v: forcePlateSummary.jumpHeight,
-                      fmt: (x: number) => `${x.toFixed(1)} cm`,
-                    },
-                    {
-                      label: "Body mass",
-                      key: "fp_body_mass_kg",
-                      v: forcePlateSummary.bodyMass,
-                      fmt: (x: number) => `${x.toFixed(1)} kg`,
-                    },
-                    {
-                      label: "Peak force (total)",
-                      key: "fp_peak_force_n_best",
-                      v: forcePlateSummary.peakForce,
-                      fmt: (x: number) => `${x.toFixed(0)} N`,
-                    },
-                    {
-                      label: "Peak force – left",
-                      key: "fp_peak_force_n_left",
-                      v: forcePlateSummary.peakForceLeft,
-                      fmt: (x: number) => `${x.toFixed(0)} N`,
-                    },
-                    {
-                      label: "Peak force – right",
-                      key: "fp_peak_force_n_right",
-                      v: forcePlateSummary.peakForceRight,
-                      fmt: (x: number) => `${x.toFixed(0)} N`,
-                    },
-                    {
-                      label: "Peak force asymmetry",
-                      key: "fp_peak_force_n_asym_pct",
-                      v: forcePlateSummary.peakForceAsym,
-                      fmt: (x: number) => `${x.toFixed(1)} %`,
-                    },
-                    {
-                      label: "Contact time",
-                      key: "fp_contact_time_s_best",
-                      v: forcePlateSummary.contactTime,
-                      fmt: (x: number) => `${x.toFixed(3)} s`,
-                    },
-                    {
-                      label: "Flight time",
-                      key: "fp_flight_time_s_best",
-                      v: forcePlateSummary.flightTime,
-                      fmt: (x: number) => `${x.toFixed(3)} s`,
-                    },
-                    {
-                      label: "RSI",
-                      key: "fp_rsi_best",
-                      v: forcePlateSummary.rsi,
-                      fmt: (x: number) => x.toFixed(2),
-                    },
-                    {
-                      label: "Concentric impulse",
-                      key: "fp_concentric_impulse",
-                      v: forcePlateSummary.concentricImpulse,
-                      fmt: (x: number) => x.toFixed(2),
-                    },
-                    {
-                      label: "Eccentric impulse",
-                      key: "fp_eccentric_impulse",
-                      v: forcePlateSummary.eccentricImpulse,
-                      fmt: (x: number) => x.toFixed(2),
-                    },
-                    {
-                      label: "Peak braking force",
-                      key: "fp_peak_braking_force",
-                      v: forcePlateSummary.peakBraking,
-                      fmt: (x: number) => `${x.toFixed(0)} N`,
-                    },
-                    {
-                      label: "Peak propulsive force",
-                      key: "fp_peak_propulsive_force",
-                      v: forcePlateSummary.peakPropulsive,
-                      fmt: (x: number) => `${x.toFixed(0)} N`,
-                    },
-                  ].map((cell) => (
-                    <div key={cell.label}>
-                      <p className="text-[0.7rem] text-slate-400">
-                        {cell.label}
-                      </p>
-                      <div className="text-sm font-semibold text-slate-50">
-                        {cell.v != null ? (
-                          <MetricValueWithBand
-                            valueText={cell.fmt(cell.v)}
-                            metricKey={cell.key}
-                            numericValue={cell.v}
-                            bands={performanceBands}
-                          />
-                        ) : (
-                          "--"
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </section>
+            {isForcePlate && fpKind === "jump" && (
+              <ForcePlateJumpPanel
+                metrics={metrics}
+                testSubType={session.test_sub_type}
+                bands={performanceBands}
+              />
             )}
 
-            <section className="mt-6 rounded-2xl border border-slate-800 bg-slate-900/70 p-5 text-xs">
-              <h2 className="text-sm font-semibold text-lime-300 mb-3">
-                All metrics
-              </h2>
-              {metrics.length === 0 ? (
-                <p className="text-xs text-slate-500">
-                  No metrics stored for this session.
-                </p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full text-[0.7rem]">
-                    <thead className="text-slate-400">
-                      <tr>
-                        <th className="py-1 px-2 text-left">Key</th>
-                        <th className="py-1 px-2 text-left">Rep</th>
-                        <th className="py-1 px-2 text-left">Side</th>
-                        <th className="py-1 px-2 text-left">Unit</th>
-                        <th className="py-1 px-2 text-left">Value</th>
-                        <th className="py-1 px-2 text-left">Band</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {metrics.map((m) => (
-                        <tr
-                          key={m.id}
-                          className="border-t border-slate-800"
-                        >
-                          <td className="py-1 px-2 font-mono">{m.key}</td>
-                          <td className="py-1 px-2">
-                            {m.rep_index == null ? "—" : m.rep_index}
-                          </td>
-                          <td className="py-1 px-2">
-                            {m.side ?? "—"}
-                          </td>
-                          <td className="py-1 px-2">
-                            {m.unit ?? "—"}
-                          </td>
-                          <td className="py-1 px-2">
-                            {m.value != null ? m.value : "—"}
-                          </td>
-                          <td className="py-1 px-2">
-                            <PerformanceBandPill
-                              band={resolveBandForMetric(
-                                m.key,
-                                m.value,
-                                performanceBands
-                              )}
-                            />
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </section>
+            {isForcePlate && fpKind === "iso" && (
+              <ForcePlateIsoPanel
+                metrics={metrics}
+                testSubType={session.test_sub_type}
+                bands={performanceBands}
+              />
+            )}
+
+            {showDynoPanel && (
+              <DynamometerSummaryPanel
+                metrics={metrics}
+                bands={performanceBands}
+              />
+            )}
+
+            <SessionSummaryLrTable
+              metrics={metrics}
+              bands={performanceBands}
+            />
           </>
         )}
       </section>
