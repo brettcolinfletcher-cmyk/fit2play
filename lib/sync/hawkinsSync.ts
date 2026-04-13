@@ -1,6 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { insertSyncLog } from "./syncLog";
 
+const HAWKINS_CLOUD_TOKEN_URL = "https://cloud.hawkindynamics.com/api/v1/token";
+
 function splitAthleteName(name: string): { first_name: string; last_name: string } {
   const n = name.trim();
   const comma = n.indexOf(",");
@@ -104,14 +106,11 @@ export async function runHawkinsSync(
   const errors: string[] = [];
   let sessionsProcessed = 0;
 
-  const tokenUrl = process.env.HAWKINS_TOKEN_URL;
   const refreshToken = process.env.HAWKINS_REFRESH_TOKEN;
   const apiBase = process.env.HAWKINS_API_BASE?.replace(/\/$/, "");
 
-  if (!tokenUrl || !refreshToken || !apiBase) {
-    const msg =
-      "Missing HAWKINS_TOKEN_URL, HAWKINS_REFRESH_TOKEN, or HAWKINS_API_BASE " +
-      "(set HAWKINS_TOKEN_URL to https://cloud.hawkindynamics.com/api/token)";
+  if (!refreshToken || !apiBase) {
+    const msg = "Missing HAWKINS_REFRESH_TOKEN or HAWKINS_API_BASE";
     await insertSyncLog(supabase, "hawkins", 0, msg);
     return { ok: false, sessionsProcessed: 0, error: msg };
   }
@@ -119,27 +118,33 @@ export async function runHawkinsSync(
   try {
     const athletesUrl = `${apiBase}/athletes`;
 
-    const tokenRes = await fetch(tokenUrl, {
-      method: "GET",
+    const tokenRes = await fetch(HAWKINS_CLOUD_TOKEN_URL, {
+      method: "POST",
       headers: {
-        Authorization: `Bearer ${refreshToken}`,
-        Accept: "application/json",
+        "Content-Type": "application/json",
       },
+      body: JSON.stringify({ refreshToken }),
     });
     const bodyText = await tokenRes.text();
     if (!tokenRes.ok) {
-      throw new Error(`Hawkins token ${tokenRes.status}: ${bodyText}`);
+      throw new Error(
+        `Hawkins token ${HAWKINS_CLOUD_TOKEN_URL} status ${tokenRes.status}: ${bodyText}`
+      );
     }
 
     let tokenJson: { access_token?: string };
     try {
       tokenJson = JSON.parse(bodyText) as { access_token?: string };
     } catch {
-      throw new Error(`Hawkins token: invalid JSON: ${bodyText}`);
+      throw new Error(
+        `Hawkins token ${HAWKINS_CLOUD_TOKEN_URL} status ${tokenRes.status}: invalid JSON: ${bodyText}`
+      );
     }
     const accessToken = tokenJson.access_token;
     if (!accessToken) {
-      throw new Error(`Hawkins token: missing access_token in body: ${bodyText}`);
+      throw new Error(
+        `Hawkins token ${HAWKINS_CLOUD_TOKEN_URL} status ${tokenRes.status}: missing access_token in body: ${bodyText}`
+      );
     }
 
     const authHeaders = {
