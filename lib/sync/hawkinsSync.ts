@@ -116,33 +116,27 @@ export async function runHawkinsSync(
   try {
     const athletesUrl = `${apiBase}/athletes`;
 
-    const tokenRes = await fetch("https://cloud.hawkindynamics.com/api/v1/token", {
-      method: "GET",
+    const tokenRes = await fetch("https://cloud.hawkindynamics.com/api/token", {
+      method: "POST",
       headers: {
-        Authorization: `Bearer ${process.env.HAWKINS_REFRESH_TOKEN}`,
-        Accept: "application/json",
+        "Content-Type": "application/json",
+        "Accept": "application/json",
       },
+      body: JSON.stringify({ refreshToken: refreshToken }),
     });
     const bodyText = await tokenRes.text();
     if (!tokenRes.ok) {
-      throw new Error(
-        `Hawkins token failed: status ${tokenRes.status}, body: ${bodyText}`
-      );
+      throw new Error(`Hawkins token failed: status ${tokenRes.status}, body: ${bodyText}`);
     }
-
     let tokenJson: { access_token?: string };
     try {
       tokenJson = JSON.parse(bodyText) as { access_token?: string };
     } catch {
-      throw new Error(
-        `Hawkins token failed: status ${tokenRes.status}, body: ${bodyText} (invalid JSON)`
-      );
+      throw new Error(`Hawkins token invalid JSON: ${bodyText}`);
     }
     const accessToken = tokenJson.access_token;
     if (!accessToken) {
-      throw new Error(
-        `Hawkins token failed: status ${tokenRes.status}, body: ${bodyText} (missing access_token)`
-      );
+      throw new Error(`Hawkins token missing access_token: ${bodyText}`);
     }
 
     const authHeaders = {
