@@ -141,6 +141,24 @@ export default function AthleteProfilePage() {
     setLoading(true);
     setLoadError(null);
     try {
+      const supabase = createSupabaseBrowser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        router.replace("/login");
+        return;
+      }
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+      if (profile?.role === "athlete" && athleteId !== user.id) {
+        router.replace("/dashboard/athlete/me");
+        return;
+      }
+
       const res = await fetch(`/api/athlete-dashboard/${athleteId}`);
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -164,7 +182,7 @@ export default function AthleteProfilePage() {
     } finally {
       setLoading(false);
     }
-  }, [athleteId]);
+  }, [athleteId, router]);
 
   useEffect(() => {
     loadData();

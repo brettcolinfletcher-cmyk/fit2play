@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import AddTestButton from "@/components/AddTestButton";
 import DashboardNav from "@/components/DashboardNav";
@@ -21,6 +22,7 @@ type Athlete = {
 };
 
 export default function StaffDashboardPage() {
+  const router = useRouter();
   const [selectedAthleteId, setSelectedAthleteId] = useState<string>("");
   const [athletes, setAthletes] = useState<Athlete[]>([]);
 
@@ -59,10 +61,26 @@ export default function StaffDashboardPage() {
 
   useEffect(() => {
     void (async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        router.replace("/login");
+        return;
+      }
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+      if (profileError || profile?.role !== "staff") {
+        router.replace("/dashboard/athlete/me");
+        return;
+      }
       await loadAthletes();
       await loadSessions();
     })();
-  }, []);
+  }, [router]);
 
   const athleteNameMap = useMemo(() => {
     const m = new Map<string, string>();

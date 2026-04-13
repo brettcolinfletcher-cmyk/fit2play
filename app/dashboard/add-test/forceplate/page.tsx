@@ -4,6 +4,7 @@ import { useEffect, useState, ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import DashboardNav from "@/components/DashboardNav";
+import { useRequireDashboardStaff } from "@/lib/useRequireDashboardStaff";
 
 type Athlete = {
   id: string;
@@ -593,6 +594,7 @@ function parseHawkinCsv(text: string): ParsedHawkin {
 
 export default function ForcePlateUploadPage() {
   const router = useRouter();
+  const staffOk = useRequireDashboardStaff();
 
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [loadingAthletes, setLoadingAthletes] = useState(true);
@@ -608,6 +610,7 @@ export default function ForcePlateUploadPage() {
 
   // load athletes
   useEffect(() => {
+    if (!staffOk) return;
     async function load() {
       setLoadingAthletes(true);
       const supabase = createClient(
@@ -627,8 +630,8 @@ export default function ForcePlateUploadPage() {
       }
       setLoadingAthletes(false);
     }
-    load();
-  }, []);
+    void load();
+  }, [staffOk]);
 
   function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0] ?? null;
@@ -689,6 +692,14 @@ export default function ForcePlateUploadPage() {
     } finally {
       setUploading(false);
     }
+  }
+
+  if (!staffOk) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-950 text-slate-50">
+        <p className="text-xs text-slate-400">Checking access…</p>
+      </main>
+    );
   }
 
   return (

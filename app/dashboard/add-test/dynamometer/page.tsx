@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import DashboardNav from "@/components/DashboardNav";
 import { parseDynamometerCsvToMetrics } from "@/lib/dynamometerCsv";
+import { useRequireDashboardStaff } from "@/lib/useRequireDashboardStaff";
 
 type Athlete = {
   id: string;
@@ -25,6 +26,7 @@ type EntryMode = "manual" | "csv";
 
 export default function AddTestDynamometerPage() {
   const router = useRouter();
+  const staffOk = useRequireDashboardStaff();
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [athleteId, setAthleteId] = useState("");
   const [mode, setMode] = useState<EntryMode>("manual");
@@ -38,6 +40,7 @@ export default function AddTestDynamometerPage() {
   const [msg, setMsg] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!staffOk) return;
     async function load() {
       const supabase = createClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -49,8 +52,8 @@ export default function AddTestDynamometerPage() {
         .order("last_name", { ascending: true });
       setAthletes((data as Athlete[]) ?? []);
     }
-    load();
-  }, []);
+    void load();
+  }, [staffOk]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -130,6 +133,14 @@ export default function AddTestDynamometerPage() {
       setCsvText(typeof reader.result === "string" ? reader.result : "");
     };
     reader.readAsText(f);
+  }
+
+  if (!staffOk) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-950 text-slate-50">
+        <p className="text-xs text-slate-400">Checking access…</p>
+      </main>
+    );
   }
 
   return (

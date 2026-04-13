@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import DashboardNav from "@/components/DashboardNav";
+import { useRequireDashboardStaff } from "@/lib/useRequireDashboardStaff";
 
 const devices = [
   {
@@ -28,6 +29,16 @@ const devices = [
 ];
 
 export default function AddTestHubPage() {
+  const staffOk = useRequireDashboardStaff();
+
+  if (!staffOk) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-950 text-slate-50">
+        <p className="text-xs text-slate-400">Checking access…</p>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-slate-100 text-slate-900">
       <DashboardNav />

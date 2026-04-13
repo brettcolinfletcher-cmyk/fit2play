@@ -6,6 +6,7 @@ import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import DashboardNav from "@/components/DashboardNav";
 import { parse1080SamplesCsv, type Parsed1080 } from "@/lib/parse1080Csv";
+import { useRequireDashboardStaff } from "@/lib/useRequireDashboardStaff";
 
 type Athlete = {
   id: string;
@@ -15,6 +16,7 @@ type Athlete = {
 
 export default function AddTest1080Page() {
   const router = useRouter();
+  const staffOk = useRequireDashboardStaff();
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [selectedAthleteId, setSelectedAthleteId] = useState<string>("");
   const [sprintMode, setSprintMode] = useState<"linear" | "cod">("linear");
@@ -26,6 +28,7 @@ export default function AddTest1080Page() {
   const [status, setStatus] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!staffOk) return;
     async function load() {
       const supabase = createClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -37,8 +40,8 @@ export default function AddTest1080Page() {
         .order("last_name", { ascending: true });
       setAthletes((data as Athlete[]) ?? []);
     }
-    load();
-  }, []);
+    void load();
+  }, [staffOk]);
 
   const testSubType =
     sprintMode === "cod"
@@ -117,6 +120,14 @@ export default function AddTest1080Page() {
       setUploading(false);
     }
   }, [file, selectedAthleteId, resolvedTestType, testSubType, router]);
+
+  if (!staffOk) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-950 text-slate-50">
+        <p className="text-xs text-slate-400">Checking access…</p>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-slate-100 text-slate-900">

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
+import { createClient } from "@supabase/supabase-js";
 
 function classNames(...classes: (string | boolean | null | undefined)[]) {
   return classes.filter(Boolean).join(" ");
@@ -12,38 +13,67 @@ function classNames(...classes: (string | boolean | null | undefined)[]) {
 export default function DashboardNav() {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [profileRole, setProfileRole] = useState<string | null>(null);
 
   useEffect(() => {
     setMenuOpen(false);
   }, [pathname]);
 
+  useEffect(() => {
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+    void (async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        setProfileRole(null);
+        return;
+      }
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+      setProfileRole(profile?.role ?? null);
+    })();
+  }, [pathname]);
+
   const athleteMatch = pathname.match(/^\/dashboard\/athlete\/([^/]+)/);
   const athleteId = athleteMatch?.[1];
+  const isAthleteRole = profileRole === "athlete";
 
-  const navItems = [
+  const navItems: { href: string; label: string; active: boolean }[] = [
     {
       href: "/dashboard",
       label: "Dashboard",
       active: pathname === "/dashboard",
     },
-    {
-      href: "/dashboard/athletes",
-      label: "Athletes",
-      active: pathname.startsWith("/dashboard/athletes"),
-    },
-    {
-      href: "/dashboard/sprint-report",
-      label: "Sprint report",
-      active: pathname.startsWith("/dashboard/sprint-report"),
-    },
-    {
-      href: "/dashboard/add-test",
-      label: "Add test",
-      active: pathname.startsWith("/dashboard/add-test"),
-    },
   ];
 
-  if (athleteId) {
+  if (!isAthleteRole) {
+    navItems.push(
+      {
+        href: "/dashboard/athletes",
+        label: "Athletes",
+        active: pathname.startsWith("/dashboard/athletes"),
+      },
+      {
+        href: "/dashboard/sprint-report",
+        label: "Sprint report",
+        active: pathname.startsWith("/dashboard/sprint-report"),
+      },
+      {
+        href: "/dashboard/add-test",
+        label: "Add test",
+        active: pathname.startsWith("/dashboard/add-test"),
+      }
+    );
+  }
+
+  if (!isAthleteRole && athleteId) {
     navItems.push(
       {
         href: `/dashboard/athlete/${athleteId}`,
