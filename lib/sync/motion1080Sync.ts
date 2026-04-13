@@ -72,7 +72,7 @@ export async function runMotion1080Sync(
   }
 
   const headers = {
-    Authorization: `Bearer ${apiKey}`,
+    "X-1080-API-Key": apiKey,
     Accept: "application/json",
   };
 
@@ -144,7 +144,7 @@ export async function runMotion1080Sync(
         athleteIdCache.set(motionAthleteId, internalAthleteId);
       }
 
-      const listUrl = `${MOTION_BASE}/workouts?clientId=${encodeURIComponent(motionAthleteId)}`;
+      const listUrl = `${MOTION_BASE}/Session/Search?clientId=${encodeURIComponent(motionAthleteId)}`;
       const listRes = await fetch(listUrl, { headers });
       if (!listRes.ok) {
         const t = await listRes.text();
@@ -160,7 +160,7 @@ export async function runMotion1080Sync(
         const wid = s.id != null ? String(s.id) : null;
         if (!wid) continue;
 
-        const detailRes = await fetch(`${MOTION_BASE}/workouts/${wid}`, {
+        const detailRes = await fetch(`${MOTION_BASE}/Session/${wid}`, {
           headers,
         });
         if (!detailRes.ok) {
@@ -173,6 +173,23 @@ export async function runMotion1080Sync(
         if (new Date(sessionDate).getTime() < sinceMs) {
           continue;
         }
+
+        const trainingRes = await fetch(
+          `${MOTION_BASE}/TrainingData/Session/${wid}`,
+          { headers }
+        );
+        if (!trainingRes.ok) {
+          const t = await trainingRes.text();
+          errors.push(
+            `training data ${wid}: ${trainingRes.status} ${t.slice(0, 120)}`
+          );
+          continue;
+        }
+        const trainingPayload = await trainingRes.json();
+        const trainingData =
+          trainingPayload && typeof trainingPayload === "object"
+            ? (trainingPayload as Record<string, unknown>)
+            : {};
 
         const sub = exerciseLabel(workout);
         const syncDedupeKey = `1080:${wid}`;
@@ -207,8 +224,16 @@ export async function runMotion1080Sync(
         await supabase.from("metrics").delete().eq("session_id", sessionId);
         await supabase.from("sprint_time_series").delete().eq("session_id", sessionId);
 
-        const repsRaw = workout.reps ?? workout.Reps ?? workout.trials;
-        const reps = Array.isArray(repsRaw) ? repsRaw : [];
+        const repsRaw =
+          trainingData.reps ??
+          trainingData.Reps ??
+          trainingData.trials ??
+          (Array.isArray(trainingPayload) ? trainingPayload : null);
+        const reps = Array.isArray(repsRaw)
+          ? repsRaw
+          : repsRaw == null
+            ? asArray(trainingPayload)
+            : [];
 
         const metricRows: {
           session_id: string;
