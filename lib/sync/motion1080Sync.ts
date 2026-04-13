@@ -77,7 +77,7 @@ export async function runMotion1080Sync(
   };
 
   try {
-    const athletesRes = await fetch(`${MOTION_BASE}/athletes`, { headers });
+    const athletesRes = await fetch(`${MOTION_BASE}/clients`, { headers });
     if (!athletesRes.ok) {
       const t = await athletesRes.text();
       throw new Error(`1080 /athletes ${athletesRes.status}: ${t.slice(0, 200)}`);
@@ -144,7 +144,7 @@ export async function runMotion1080Sync(
         athleteIdCache.set(motionAthleteId, internalAthleteId);
       }
 
-      const listUrl = `${MOTION_BASE}/workouts?athleteId=${encodeURIComponent(motionAthleteId)}`;
+      const listUrl = `${MOTION_BASE}/workouts?clientId=${encodeURIComponent(motionAthleteId)}`;
       const listRes = await fetch(listUrl, { headers });
       if (!listRes.ok) {
         const t = await listRes.text();
