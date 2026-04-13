@@ -275,11 +275,11 @@ export default function DashboardPage() {
     <main className="min-h-screen bg-slate-950 text-slate-50">
       <DashboardNav />
 
-      <section className="mx-auto max-w-6xl px-6 pt-8 pb-20">
+      <section className="mx-auto max-w-7xl px-4 pt-8 pb-20">
         {/* Heading */}
         <header className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-xl font-semibold tracking-tight">
+            <h1 className="text-xl font-semibold tracking-tight text-slate-50">
               Fit2Play dashboard
             </h1>
             <p className="mt-1 text-xs text-slate-400">
@@ -311,27 +311,27 @@ export default function DashboardPage() {
 
         {/* Top summary cards */}
         <div className="mb-6 grid gap-4 md:grid-cols-3">
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 text-xs">
-            <p className="text-[0.7rem] text-slate-400">
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 text-xs">
+            <p className="text-[0.7rem] font-medium uppercase tracking-widest text-slate-400">
               Total athletes
             </p>
-            <p className="mt-1 text-2xl font-semibold text-lime-300">
+            <p className="mt-1 text-2xl font-semibold tabular-nums text-slate-50">
               {totalAthletes}
             </p>
           </div>
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 text-xs">
-            <p className="text-[0.7rem] text-slate-400">
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 text-xs">
+            <p className="text-[0.7rem] font-medium uppercase tracking-widest text-slate-400">
               Total sessions
             </p>
-            <p className="mt-1 text-2xl font-semibold text-sky-300">
+            <p className="mt-1 text-2xl font-semibold tabular-nums text-slate-50">
               {totalSessions}
             </p>
           </div>
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 text-xs">
-            <p className="text-[0.7rem] text-slate-400">
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 text-xs">
+            <p className="text-[0.7rem] font-medium uppercase tracking-widest text-slate-400">
               Tag categories in use
             </p>
-            <p className="mt-1 text-2xl font-semibold text-emerald-300">
+            <p className="mt-1 text-2xl font-semibold tabular-nums text-slate-50">
               {allTags.length}
             </p>
           </div>
@@ -341,7 +341,7 @@ export default function DashboardPage() {
         <div className="mb-8 grid gap-6 md:grid-cols-[minmax(0,1.1fr)_minmax(0,1.1fr)]">
           {/* Upload card */}
           <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 text-xs">
-            <h2 className="text-sm font-semibold text-lime-300 mb-2">
+            <h2 className="mb-2 text-sm font-semibold uppercase tracking-widest text-lime-300">
               Upload new 1080 Sprint test
             </h2>
             <p className="mb-3 text-[0.7rem] text-slate-400">
@@ -412,7 +412,7 @@ export default function DashboardPage() {
 
           {/* Recent sessions */}
           <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 text-xs">
-            <h2 className="text-sm font-semibold text-lime-300 mb-3">
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-widest text-lime-300">
               Recent sessions
             </h2>
 
@@ -466,7 +466,7 @@ export default function DashboardPage() {
         {/* Athletes list with tag filters */}
         <section>
           <div className="mb-3 flex items-center justify-between gap-3">
-            <h2 className="text-sm font-semibold text-lime-300">
+            <h2 className="text-sm font-semibold uppercase tracking-widest text-lime-300">
               Athletes
             </h2>
             <p className="text-[0.7rem] text-slate-400">

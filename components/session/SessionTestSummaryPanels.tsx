@@ -95,7 +95,7 @@ export function SessionSummaryLrTable({
 
   return (
     <section className="mt-6 rounded-2xl border border-slate-800 bg-slate-900/70 p-5 text-xs">
-      <h2 className="text-sm font-semibold text-lime-300 mb-3">
+      <h2 className="mb-3 text-sm font-semibold uppercase tracking-widest text-lime-300">
         Session metrics (summary)
       </h2>
       {lrRows.length === 0 && repMetrics.length === 0 ? (
@@ -106,39 +106,50 @@ export function SessionSummaryLrTable({
         <>
           {lrRows.length > 0 && (
             <div className="overflow-x-auto mb-6">
-              <table className="min-w-full text-[0.7rem]">
-                <thead className="text-slate-400">
+              <table className="min-w-full divide-y divide-slate-800/60">
+                <thead>
                   <tr>
-                    <th className="py-1 px-2 text-left">Metric</th>
-                    <th className="py-1 px-2 text-left">Left</th>
-                    <th className="py-1 px-2 text-left">Right</th>
-                    <th className="py-1 px-2 text-left">Both</th>
-                    <th className="py-1 px-2 text-left">Asymmetry</th>
-                    <th className="py-1 px-2 text-left">Band</th>
+                    <th className="py-2 px-2 text-left text-[0.7rem] font-medium uppercase tracking-widest text-slate-400">
+                      Metric
+                    </th>
+                    <th className="py-2 px-2 text-left text-[0.7rem] font-medium uppercase tracking-widest text-slate-400">
+                      Left
+                    </th>
+                    <th className="py-2 px-2 text-left text-[0.7rem] font-medium uppercase tracking-widest text-slate-400">
+                      Right
+                    </th>
+                    <th className="py-2 px-2 text-left text-[0.7rem] font-medium uppercase tracking-widest text-slate-400">
+                      Both
+                    </th>
+                    <th className="py-2 px-2 text-left text-[0.7rem] font-medium uppercase tracking-widest text-slate-400">
+                      Asymmetry
+                    </th>
+                    <th className="py-2 px-2 text-left text-[0.7rem] font-medium uppercase tracking-widest text-slate-400">
+                      Band
+                    </th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-slate-800/60">
                   {lrRows.map((row) => (
-                    <tr
-                      key={row.id}
-                      className="border-t border-slate-800"
-                    >
-                      <td className="py-1 px-2 text-slate-200">{row.label}</td>
-                      <td className="py-1 px-2 tabular-nums">
+                    <tr key={row.id}>
+                      <td className="py-2 px-2 text-xs text-slate-200">
+                        {row.label}
+                      </td>
+                      <td className="py-2 px-2 text-xs tabular-nums text-slate-200">
                         {row.left != null ? row.left : "—"}
                       </td>
-                      <td className="py-1 px-2 tabular-nums">
+                      <td className="py-2 px-2 text-xs tabular-nums text-slate-200">
                         {row.right != null ? row.right : "—"}
                       </td>
-                      <td className="py-1 px-2 tabular-nums">
+                      <td className="py-2 px-2 text-xs tabular-nums text-slate-200">
                         {row.both != null ? row.both : "—"}
                       </td>
                       <td
-                        className={`py-1 px-2 tabular-nums ${asymmetryCellClass(row.asymPct)}`}
+                        className={`py-2 px-2 text-xs tabular-nums ${asymmetryCellClass(row.asymPct)}`}
                       >
                         {row.asymPct != null ? `${row.asymPct.toFixed(1)}%` : "—"}
                       </td>
-                      <td className="py-1 px-2">
+                      <td className="py-2 px-2 text-xs">
                         <PerformanceBandPill
                           band={resolveBandForMetric(
                             row.bandKey,
@@ -157,33 +168,46 @@ export function SessionSummaryLrTable({
 
           {repMetrics.length > 0 && (
             <div>
-              <h3 className="text-[0.7rem] font-semibold text-slate-400 mb-2">
+              <h3 className="mb-2 text-sm font-semibold uppercase tracking-widest text-lime-300">
                 Per-rep metrics
               </h3>
               <div className="overflow-x-auto">
-                <table className="min-w-full text-[0.7rem]">
-                  <thead className="text-slate-400">
+                <table className="min-w-full divide-y divide-slate-800/60">
+                  <thead>
                     <tr>
-                      <th className="py-1 px-2 text-left">Key</th>
-                      <th className="py-1 px-2 text-left">Rep</th>
-                      <th className="py-1 px-2 text-left">Side</th>
-                      <th className="py-1 px-2 text-left">Value</th>
-                      <th className="py-1 px-2 text-left">Band</th>
+                      <th className="py-2 px-2 text-left text-[0.7rem] font-medium uppercase tracking-widest text-slate-400">
+                        Key
+                      </th>
+                      <th className="py-2 px-2 text-left text-[0.7rem] font-medium uppercase tracking-widest text-slate-400">
+                        Rep
+                      </th>
+                      <th className="py-2 px-2 text-left text-[0.7rem] font-medium uppercase tracking-widest text-slate-400">
+                        Side
+                      </th>
+                      <th className="py-2 px-2 text-left text-[0.7rem] font-medium uppercase tracking-widest text-slate-400">
+                        Value
+                      </th>
+                      <th className="py-2 px-2 text-left text-[0.7rem] font-medium uppercase tracking-widest text-slate-400">
+                        Band
+                      </th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="divide-y divide-slate-800/60">
                     {repMetrics.map((m) => (
-                      <tr
-                        key={m.id}
-                        className="border-t border-slate-800"
-                      >
-                        <td className="py-1 px-2 font-mono">{m.key}</td>
-                        <td className="py-1 px-2">{m.rep_index}</td>
-                        <td className="py-1 px-2">{m.side ?? "—"}</td>
-                        <td className="py-1 px-2">
+                      <tr key={m.id}>
+                        <td className="py-2 px-2 font-mono text-xs text-slate-200">
+                          {m.key}
+                        </td>
+                        <td className="py-2 px-2 text-xs text-slate-200">
+                          {m.rep_index}
+                        </td>
+                        <td className="py-2 px-2 text-xs text-slate-200">
+                          {m.side ?? "—"}
+                        </td>
+                        <td className="py-2 px-2 text-xs text-slate-200">
                           {m.value != null ? m.value : "—"}
                         </td>
-                        <td className="py-1 px-2">
+                        <td className="py-2 px-2 text-xs">
                           <PerformanceBandPill
                             band={resolveBandForMetric(
                               m.key,
@@ -387,29 +411,39 @@ export function ForcePlateJumpPanel({
 
   return (
     <section className="mb-6 rounded-2xl border border-slate-800 bg-slate-900/70 p-5 text-xs">
-      <h2 className="text-sm font-semibold text-lime-300 mb-3">
+      <h2 className="mb-3 text-sm font-semibold uppercase tracking-widest text-lime-300">
         Force plate — jump / plyometric
       </h2>
       <div className="overflow-x-auto">
-        <table className="min-w-full text-left">
+        <table className="min-w-full divide-y divide-slate-800/60 text-left">
           <thead>
-            <tr className="border-b border-slate-700 text-slate-400">
-              <th className="py-2 pr-4 font-medium">Metric</th>
+            <tr>
+              <th className="py-2 pr-4 text-left text-[0.7rem] font-medium uppercase tracking-widest text-slate-400">
+                Metric
+              </th>
               {singleLeg ? (
                 <>
-                  <th className="py-2 px-2 font-medium">Left</th>
-                  <th className="py-2 px-2 font-medium">Right</th>
-                  <th className="py-2 px-2 font-medium">Asymmetry</th>
+                  <th className="py-2 px-2 text-left text-[0.7rem] font-medium uppercase tracking-widest text-slate-400">
+                    Left
+                  </th>
+                  <th className="py-2 px-2 text-left text-[0.7rem] font-medium uppercase tracking-widest text-slate-400">
+                    Right
+                  </th>
+                  <th className="py-2 px-2 text-left text-[0.7rem] font-medium uppercase tracking-widest text-slate-400">
+                    Asymmetry
+                  </th>
                 </>
               ) : (
-                <th className="py-2 px-2 font-medium">Both</th>
+                <th className="py-2 px-2 text-left text-[0.7rem] font-medium uppercase tracking-widest text-slate-400">
+                  Both
+                </th>
               )}
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-slate-800/60">
             {JUMP_ROWS.map((row) => (
-              <tr key={row.label} className="border-b border-slate-800/80">
-                <td className="py-2 pr-4 text-slate-300">{row.label}</td>
+              <tr key={row.label}>
+                <td className="py-2 pr-4 text-xs text-slate-200">{row.label}</td>
                 <JumpRowCells
                   row={row}
                   map={summary}
@@ -519,26 +553,36 @@ export function ForcePlateIsoPanel({
 
   return (
     <section className="mb-6 rounded-2xl border border-slate-800 bg-slate-900/70 p-5 text-xs">
-      <h2 className="text-sm font-semibold text-lime-300 mb-3">
+      <h2 className="mb-3 text-sm font-semibold uppercase tracking-widest text-lime-300">
         Force plate — isometric
       </h2>
       <div className="overflow-x-auto">
-        <table className="min-w-full text-left">
+        <table className="min-w-full divide-y divide-slate-800/60 text-left">
           <thead>
-            <tr className="border-b border-slate-700 text-slate-400">
-              <th className="py-2 pr-4 font-medium">Metric</th>
+            <tr>
+              <th className="py-2 pr-4 text-left text-[0.7rem] font-medium uppercase tracking-widest text-slate-400">
+                Metric
+              </th>
               {showLrColumns ? (
                 <>
-                  <th className="py-2 px-2 font-medium">Left</th>
-                  <th className="py-2 px-2 font-medium">Right</th>
-                  <th className="py-2 px-2 font-medium">Asymmetry</th>
+                  <th className="py-2 px-2 text-left text-[0.7rem] font-medium uppercase tracking-widest text-slate-400">
+                    Left
+                  </th>
+                  <th className="py-2 px-2 text-left text-[0.7rem] font-medium uppercase tracking-widest text-slate-400">
+                    Right
+                  </th>
+                  <th className="py-2 px-2 text-left text-[0.7rem] font-medium uppercase tracking-widest text-slate-400">
+                    Asymmetry
+                  </th>
                 </>
               ) : (
-                <th className="py-2 px-2 font-medium">Both</th>
+                <th className="py-2 px-2 text-left text-[0.7rem] font-medium uppercase tracking-widest text-slate-400">
+                  Both
+                </th>
               )}
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-slate-800/60">
             {rows.map((row) => {
               const hasPair =
                 row.L != null &&
@@ -547,8 +591,8 @@ export function ForcePlateIsoPanel({
                 Number.isFinite(row.R);
               const asym = hasPair ? asymmetryPctLR(row.L!, row.R!) : null;
               return (
-                <tr key={row.label} className="border-b border-slate-800/80">
-                  <td className="py-2 pr-4 text-slate-300">{row.label}</td>
+                <tr key={row.label}>
+                  <td className="py-2 pr-4 text-xs text-slate-200">{row.label}</td>
                   {hasPair ? (
                     <>
                       <td className="py-2 px-2">
@@ -816,7 +860,7 @@ export function DynamometerSummaryPanel({
   if (groups.length === 0) {
     return (
       <section className="mb-6 rounded-2xl border border-slate-800 bg-slate-900/70 p-5 text-xs">
-        <h2 className="text-sm font-semibold text-lime-300 mb-3">
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-widest text-lime-300">
           Handheld dynamometer
         </h2>
         <p className="text-slate-500">No dynamometer metrics for this session.</p>
@@ -826,26 +870,34 @@ export function DynamometerSummaryPanel({
 
   return (
     <section className="mb-6 rounded-2xl border border-slate-800 bg-slate-900/70 p-5 text-xs">
-      <h2 className="text-sm font-semibold text-lime-300 mb-3">
+      <h2 className="mb-3 text-sm font-semibold uppercase tracking-widest text-lime-300">
         Handheld dynamometer
       </h2>
       <div className="space-y-6">
         {groups.map((g) => (
           <div key={g.id}>
-            <h3 className="text-[0.7rem] font-semibold uppercase tracking-wide text-slate-500 mb-2">
+            <h3 className="mb-2 text-[0.7rem] font-semibold uppercase tracking-widest text-slate-400">
               {g.label}
             </h3>
             <div className="overflow-x-auto">
-              <table className="min-w-full text-left">
+              <table className="min-w-full divide-y divide-slate-800/60 text-left">
                 <thead>
-                  <tr className="border-b border-slate-700 text-slate-400">
-                    <th className="py-2 pr-4 font-medium">Metric</th>
-                    <th className="py-2 px-2 font-medium">Left</th>
-                    <th className="py-2 px-2 font-medium">Right</th>
-                    <th className="py-2 px-2 font-medium">Asymmetry</th>
+                  <tr>
+                    <th className="py-2 pr-4 text-left text-[0.7rem] font-medium uppercase tracking-widest text-slate-400">
+                      Metric
+                    </th>
+                    <th className="py-2 px-2 text-left text-[0.7rem] font-medium uppercase tracking-widest text-slate-400">
+                      Left
+                    </th>
+                    <th className="py-2 px-2 text-left text-[0.7rem] font-medium uppercase tracking-widest text-slate-400">
+                      Right
+                    </th>
+                    <th className="py-2 px-2 text-left text-[0.7rem] font-medium uppercase tracking-widest text-slate-400">
+                      Asymmetry
+                    </th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-slate-800/60">
                   <DynoMetricRow
                     label="Peak force (N)"
                     bandKey={`dyno_${g.id}_peak_force`}

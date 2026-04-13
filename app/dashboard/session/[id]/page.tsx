@@ -136,7 +136,7 @@ function MetricValueWithBand({
   );
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <span>{valueText}</span>
+      <span className="text-slate-50">{valueText}</span>
       <PerformanceBandPill band={band} />
     </div>
   );
@@ -351,7 +351,7 @@ export default function SessionPage() {
     <main className="min-h-screen bg-slate-950 text-slate-50">
       <DashboardNav />
 
-      <section className="mx-auto max-w-5xl px-6 pt-8 pb-20">
+      <section className="mx-auto max-w-7xl px-4 pt-8 pb-20">
         <div className="mb-4 flex items-center justify-between gap-3">
           <button
             onClick={() => router.push("/dashboard")}
@@ -381,7 +381,7 @@ export default function SessionPage() {
                 <p className="text-[0.7rem] uppercase tracking-wide text-slate-400">
                   {headerTag}
                 </p>
-                <h1 className="mt-1 text-xl font-semibold tracking-tight">
+                <h1 className="mt-1 text-xl font-semibold tracking-tight text-slate-50">
                   {athleteName}
                 </h1>
                 <p className="mt-1 text-xs text-slate-400">{dateLabel}</p>
@@ -432,31 +432,47 @@ export default function SessionPage() {
             )}
 
             {isSprintLike && (
-              <section className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 text-slate-900 shadow-sm">
-                <h2 className="text-sm font-semibold text-slate-900">
+              <section className="mb-6 rounded-2xl border border-slate-800 bg-slate-900/70 p-5 text-xs">
+                <h2 className="text-sm font-semibold uppercase tracking-widest text-lime-300">
                   Session summary (Excel-style)
                 </h2>
-                <p className="text-xs text-slate-500">
+                <p className="mt-2 text-xs text-slate-400">
                   Key outcome metrics with performance band (TopSpeed bands:
                   Elite ≥7.5, Good 7.0–7.5, Fair 6.0–7.0, Poor &lt;6.0 m/s).
                 </p>
                 <div className="mt-4 overflow-x-auto">
-                  <table className="min-w-full text-left text-xs">
+                  <table className="min-w-full divide-y divide-slate-800/60 text-left">
                     <thead>
-                      <tr className="border-b border-slate-200 text-slate-500">
-                        <th className="py-2 pr-4 font-medium">Client</th>
-                        <th className="py-2 pr-4 font-medium">Session date</th>
-                        <th className="py-2 pr-4 font-medium">Time [s]</th>
-                        <th className="py-2 pr-4 font-medium">TopSpeed</th>
-                        <th className="py-2 pr-4 font-medium">0–5m time</th>
-                        <th className="py-2 pr-4 font-medium">Max accel.</th>
+                      <tr>
+                        <th className="py-2 pr-4 text-left text-[0.7rem] font-medium uppercase tracking-widest text-slate-400">
+                          Client
+                        </th>
+                        <th className="py-2 pr-4 text-left text-[0.7rem] font-medium uppercase tracking-widest text-slate-400">
+                          Session date
+                        </th>
+                        <th className="py-2 pr-4 text-left text-[0.7rem] font-medium uppercase tracking-widest text-slate-400">
+                          Time [s]
+                        </th>
+                        <th className="py-2 pr-4 text-left text-[0.7rem] font-medium uppercase tracking-widest text-slate-400">
+                          TopSpeed
+                        </th>
+                        <th className="py-2 pr-4 text-left text-[0.7rem] font-medium uppercase tracking-widest text-slate-400">
+                          0–5m time
+                        </th>
+                        <th className="py-2 pr-4 text-left text-[0.7rem] font-medium uppercase tracking-widest text-slate-400">
+                          Max accel.
+                        </th>
                       </tr>
                     </thead>
-                    <tbody>
-                      <tr className="border-b border-slate-100">
-                        <td className="py-2 pr-4 font-medium">{athleteName}</td>
-                        <td className="py-2 pr-4">{dateLabel}</td>
-                        <td className="py-2 pr-4">
+                    <tbody className="divide-y divide-slate-800/60">
+                      <tr>
+                        <td className="py-2 pr-4 text-xs font-medium text-slate-200">
+                          {athleteName}
+                        </td>
+                        <td className="py-2 pr-4 text-xs text-slate-200">
+                          {dateLabel}
+                        </td>
+                        <td className="py-2 pr-4 text-xs text-slate-200">
                           <MetricValueWithBand
                             valueText={
                               excelTotalTime != null
@@ -469,7 +485,7 @@ export default function SessionPage() {
                             sessionTestType={session.test_type}
                           />
                         </td>
-                        <td className="py-2 pr-4">
+                        <td className="py-2 pr-4 text-xs text-slate-200">
                           <MetricValueWithBand
                             valueText={
                               excelPeakSpeed != null
@@ -482,7 +498,7 @@ export default function SessionPage() {
                             sessionTestType={session.test_type}
                           />
                         </td>
-                        <td className="py-2 pr-4">
+                        <td className="py-2 pr-4 text-xs text-slate-200">
                           <MetricValueWithBand
                             valueText={
                               excelSplit05 != null
@@ -495,7 +511,7 @@ export default function SessionPage() {
                             sessionTestType={session.test_type}
                           />
                         </td>
-                        <td className="py-2 pr-4">
+                        <td className="py-2 pr-4 text-xs text-slate-200">
                           <MetricValueWithBand
                             valueText={
                               excelMaxAccel != null
@@ -517,7 +533,7 @@ export default function SessionPage() {
 
             {isCod5105 && codExtraMetrics.length > 0 && (
               <section className="mb-6 rounded-2xl border border-slate-800 bg-slate-900/70 p-5 text-xs">
-                <h2 className="text-sm font-semibold text-lime-300 mb-3">
+                <h2 className="mb-3 text-sm font-semibold uppercase tracking-widest text-lime-300">
                   COD 5-10-5 metrics
                 </h2>
                 <div className="grid gap-3 sm:grid-cols-2">
@@ -540,13 +556,13 @@ export default function SessionPage() {
             )}
 
             {isSprintLike && (
-              <section className="mb-6 rounded-2xl border border-slate-800 bg-slate-900/70 p-5 text-xs flex items-center justify-between">
+              <section className="mb-6 flex items-center justify-between rounded-2xl border border-slate-800 bg-slate-900/70 p-5 text-xs">
                 <div>
-                  <p className="text-[0.7rem] text-slate-400">
+                  <h2 className="text-sm font-semibold uppercase tracking-widest text-lime-300">
                     RTS readiness (this session)
-                  </p>
+                  </h2>
                   <p
-                    className={`mt-1 text-3xl font-bold ${
+                    className={`mt-2 text-3xl font-bold tabular-nums ${
                       rtsScore == null
                         ? "text-slate-300"
                         : rtsScore >= 80
@@ -576,7 +592,7 @@ export default function SessionPage() {
 
             {isSprintLike && (
               <section className="mb-6 rounded-2xl border border-slate-800 bg-slate-900/70 p-5 text-xs">
-                <h2 className="text-sm font-semibold text-lime-300 mb-3">
+                <h2 className="mb-3 text-sm font-semibold uppercase tracking-widest text-lime-300">
                   1080 Sprint – time-series
                 </h2>
 

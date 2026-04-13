@@ -121,15 +121,15 @@ export default function SprintReportPage() {
   return (
     <main className="min-h-screen bg-slate-950 text-slate-50">
       <DashboardNav />
-      <div className="mx-auto max-w-7xl px-4 py-8">
+      <div className="mx-auto max-w-7xl px-4 pt-8 pb-16">
         <div className="mb-6">
-          <h1 className="text-xl font-semibold tracking-tight">1080 Sprint — Longitudinal Report</h1>
+          <h1 className="text-xl font-semibold tracking-tight text-slate-50">1080 Sprint — Longitudinal Report</h1>
           <p className="mt-1 text-xs text-slate-400">Select an athlete to view their sprint metrics across all testing sessions.</p>
         </div>
         <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
           <aside className="w-full shrink-0 lg:w-52">
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
-              <p className="mb-3 text-[0.7rem] font-semibold uppercase tracking-widest text-slate-400">Athlete</p>
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
+              <h2 className="mb-3 text-sm font-semibold uppercase tracking-widest text-lime-300">Athlete</h2>
               <ul className="space-y-1">
                 {athletes.map((a) => (
                   <li key={a.id}>
@@ -180,7 +180,7 @@ export default function SprintReportPage() {
               </div>
 
               <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
-                <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-slate-400">Trend over time</p>
+                <h2 className="mb-4 text-sm font-semibold uppercase tracking-widest text-lime-300">Trend over time</h2>
                 <ResponsiveContainer width="100%" height={300}>
                   <LineChart data={reportRows} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
@@ -200,9 +200,9 @@ export default function SprintReportPage() {
               </div>
 
               <div className="overflow-x-auto rounded-2xl border border-slate-800 bg-slate-900/70">
-                <table className="min-w-full text-left text-xs">
+                <table className="min-w-full text-left">
                   <thead>
-                    <tr className="border-b border-slate-800 text-[0.7rem] uppercase tracking-widest text-slate-400">
+                    <tr className="border-b border-slate-800 text-[0.7rem] font-medium uppercase tracking-widest text-slate-400">
                       <th className="py-3 pl-5 pr-4 font-medium">Date</th>
                       <th className="py-3 px-4 font-medium">Top Speed (m/s)</th>
                       <th className="py-3 px-4 font-medium">Total Time (s)</th>
@@ -215,7 +215,7 @@ export default function SprintReportPage() {
                   <tbody className="divide-y divide-slate-800/60">
                     {reportRows.map((row, i) => (
                       <tr key={i} className="transition-colors hover:bg-slate-800/40">
-                        <td className="py-3 pl-5 pr-4 font-medium text-slate-300">{row.date}</td>
+                        <td className="py-3 pl-5 pr-4 text-xs font-medium text-slate-200">{row.date}</td>
                         <MC value={row.topSpeed}        avg={avg.topSpeed}        lb={false} dp={2} />
                         <MC value={row.totalTime}       avg={avg.totalTime}       lb={true}  dp={2} />
                         <MC value={row.split5m}         avg={avg.split5m}         lb={true}  dp={2} />
@@ -251,11 +251,11 @@ export default function SprintReportPage() {
 }
 
 function MC({ value, avg, lb, dp }: { value: number | null; avg: number | null | undefined; lb: boolean; dp: number }) {
-  if (value == null || Number.isNaN(value)) return <td className="py-3 px-4 text-slate-500">—</td>;
+  if (value == null || Number.isNaN(value)) return <td className="py-3 px-4 text-xs text-slate-400">—</td>;
   let color = "text-slate-200";
   if (avg != null && !Number.isNaN(avg) && avg !== 0) {
     if (lb ? value < avg : value > avg) color = "text-emerald-400";
     else if (lb ? value > avg : value < avg) color = "text-red-400";
   }
-  return <td className={`py-3 px-4 tabular-nums font-medium ${color}`}>{value.toFixed(dp)}</td>;
+  return <td className={`py-3 px-4 text-xs tabular-nums font-medium ${color}`}>{value.toFixed(dp)}</td>;
 }
