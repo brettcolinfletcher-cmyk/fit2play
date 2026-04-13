@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { createBrowserClient } from "@supabase/ssr";
 import DashboardNav from "@/components/DashboardNav";
 import { useRequireDashboardStaff } from "@/lib/useRequireDashboardStaff";
 
@@ -60,9 +61,19 @@ export default function SyncDashboardPage() {
     setHawkinsBusy(true);
     setHawkinsMsg(null);
     try {
+      const supabase = createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      );
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       const res = await fetch("/api/sync/hawkins", {
         method: "POST",
         credentials: "include",
+        headers: {
+          Authorization: `Bearer ${session?.access_token ?? ""}`,
+        },
       });
       const json = (await res.json()) as {
         ok?: boolean;
@@ -88,9 +99,19 @@ export default function SyncDashboardPage() {
     setMotionBusy(true);
     setMotionMsg(null);
     try {
+      const supabase = createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      );
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       const res = await fetch("/api/sync/1080", {
         method: "POST",
         credentials: "include",
+        headers: {
+          Authorization: `Bearer ${session?.access_token ?? ""}`,
+        },
       });
       const json = (await res.json()) as {
         ok?: boolean;
