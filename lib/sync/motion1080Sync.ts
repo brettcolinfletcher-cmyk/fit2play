@@ -77,7 +77,7 @@ export async function runMotion1080Sync(
   };
 
   try {
-    const athletesRes = await fetch(`${MOTION_BASE}/clients`, { headers });
+    const athletesRes = await fetch(`${MOTION_BASE}/Client`, { headers });
     if (!athletesRes.ok) {
       const t = await athletesRes.text();
       throw new Error(`1080 /athletes ${athletesRes.status}: ${t.slice(0, 200)}`);
