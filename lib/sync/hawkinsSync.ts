@@ -80,6 +80,18 @@ function hawkinsAthleteSide(test: Record<string, unknown>): string | null {
   return null;
 }
 
+function normalizeHawkinsAthleteList(payload: unknown): unknown[] {
+  if (Array.isArray(payload)) return payload;
+  if (
+    payload &&
+    typeof payload === "object" &&
+    Array.isArray((payload as { data?: unknown }).data)
+  ) {
+    return (payload as { data: unknown[] }).data;
+  }
+  return [];
+}
+
 export type HawkinsSyncResult = {
   ok: boolean;
   sessionsProcessed: number;
@@ -105,42 +117,77 @@ export async function runHawkinsSync(
   }
 
   try {
-    console.warn("[hawkins-sync] HAWKINS_TOKEN_URL:", tokenUrl);
-
+    const athletesUrl = `${apiBase}/athletes`;
     let accessToken: string | undefined;
+    /** When attempt 1 succeeds, we already have the /athletes JSON */
+    let athletesPayloadPrimed: unknown | null = null;
 
-    const getUrl = `${tokenUrl}?refreshToken=${encodeURIComponent(refreshToken)}`;
-    console.warn("[hawkins-sync] Token request (GET):", `${tokenUrl}?refreshToken=<redacted>`);
-
-    const getRes = await fetch(getUrl, { method: "GET" });
-    if (getRes.ok) {
+    // 1) Treat refresh token as Bearer access token — probe GET /athletes
+    const attempt1Res = await fetch(athletesUrl, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${refreshToken}`,
+        Accept: "application/json",
+      },
+    });
+    const attempt1Status = attempt1Res.status;
+    if (attempt1Res.ok) {
+      accessToken = refreshToken;
       try {
-        const j = (await getRes.json()) as { access_token?: string };
-        accessToken = j.access_token;
+        athletesPayloadPrimed = await attempt1Res.json();
       } catch {
-        /* try POST fallback */
+        athletesPayloadPrimed = null;
+      }
+    }
+
+    let attempt2Status: number | null = null;
+    let attempt2Body = "";
+    if (!accessToken) {
+      const attempt2Res = await fetch(tokenUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refreshToken }),
+      });
+      attempt2Status = attempt2Res.status;
+      attempt2Body = await attempt2Res.text();
+      if (attempt2Res.ok) {
+        try {
+          const j = JSON.parse(attempt2Body) as { access_token?: string };
+          if (j.access_token) accessToken = j.access_token;
+        } catch {
+          /* try attempt 3 */
+        }
+      }
+    }
+
+    let attempt3Status: number | null = null;
+    let attempt3Body = "";
+    if (!accessToken) {
+      const attempt3Url = `${tokenUrl}?refreshToken=${encodeURIComponent(refreshToken)}`;
+      const attempt3Res = await fetch(attempt3Url, { method: "GET" });
+      attempt3Status = attempt3Res.status;
+      attempt3Body = await attempt3Res.text();
+      if (attempt3Res.ok) {
+        try {
+          const j = JSON.parse(attempt3Body) as { access_token?: string };
+          if (j.access_token) accessToken = j.access_token;
+        } catch {
+          /* all failed */
+        }
       }
     }
 
     if (!accessToken) {
-      const postRes = await fetch(tokenUrl, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${refreshToken}` },
-      });
-      const postText = await postRes.text();
-      if (postRes.ok) {
-        try {
-          const j = JSON.parse(postText) as { access_token?: string };
-          accessToken = j.access_token;
-        } catch {
-          /* handled below */
-        }
-      }
-      if (!accessToken) {
-        throw new Error(
-          `Hawkins token ${postRes.status} at ${tokenUrl}: ${postText.slice(0, 200)}`
+      const parts = [
+        `Attempt 1 GET ${athletesUrl} (Bearer refresh): ${attempt1Status}`,
+        `attempt 2 POST ${tokenUrl}: ${attempt2Status ?? "skipped"} — ${attempt2Body ? attempt2Body.slice(0, 200) : "(no body)"}`,
+      ];
+      if (attempt3Status != null) {
+        parts.push(
+          `attempt 3 GET ${tokenUrl}?refreshToken=…: ${attempt3Status} — ${attempt3Body.slice(0, 200)}`
         );
       }
+      throw new Error(`Hawkins auth failed. ${parts.join("; ")}`);
     }
 
     const authHeaders = {
@@ -148,19 +195,20 @@ export async function runHawkinsSync(
       Accept: "application/json",
     };
 
-    const athletesRes = await fetch(`${apiBase}/athletes`, {
-      headers: authHeaders,
-    });
-    if (!athletesRes.ok) {
-      const t = await athletesRes.text();
-      throw new Error(`Hawkins /athletes ${athletesRes.status}: ${t.slice(0, 200)}`);
+    let athleteList: unknown[];
+    if (athletesPayloadPrimed != null) {
+      athleteList = normalizeHawkinsAthleteList(athletesPayloadPrimed);
+    } else {
+      const athletesRes = await fetch(athletesUrl, {
+        headers: authHeaders,
+      });
+      if (!athletesRes.ok) {
+        const t = await athletesRes.text();
+        throw new Error(`Hawkins /athletes ${athletesRes.status}: ${t.slice(0, 200)}`);
+      }
+      const hawkinsAthletes = (await athletesRes.json()) as unknown;
+      athleteList = normalizeHawkinsAthleteList(hawkinsAthletes);
     }
-    const hawkinsAthletes = (await athletesRes.json()) as unknown;
-    const athleteList = Array.isArray(hawkinsAthletes)
-      ? hawkinsAthletes
-      : Array.isArray((hawkinsAthletes as { data?: unknown })?.data)
-        ? (hawkinsAthletes as { data: unknown[] }).data
-        : [];
 
     for (const raw of athleteList) {
       if (!raw || typeof raw !== "object") continue;
