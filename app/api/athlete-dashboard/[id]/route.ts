@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { requireAuth } from "@/lib/supabase-server";
 import { normalizeSessionRow } from "@/lib/athleteDashboardData";
 import type { NormalizedSession } from "@/lib/athleteDashboardData";
 import {
@@ -17,6 +18,28 @@ export async function GET(
 
   if (!id) {
     return NextResponse.json({ error: "Missing athlete id" }, { status: 400 });
+  }
+
+  const { supabase: authSupabase, user, profile } = await requireAuth();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  if (profile?.role === "staff") {
+    // allowed — any athlete id
+  } else if (profile?.role === "athlete") {
+    const { data: ownAthlete, error: ownErr } = await authSupabase
+      .from("athletes")
+      .select("id")
+      .eq("id", id)
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (ownErr || !ownAthlete) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+  } else {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const supabase = createClient(

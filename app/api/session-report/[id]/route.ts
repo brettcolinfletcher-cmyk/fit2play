@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { requireAuth } from '@/lib/supabase-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -8,6 +9,38 @@ export async function GET(
   context: { params: Promise<{ id: string }> }
 ) {
   const { id } = await context.params
+
+  const { supabase: authSupabase, user, profile } = await requireAuth()
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  if (profile?.role === 'staff') {
+    // allowed — any session id
+  } else if (profile?.role === 'athlete') {
+    const { data: sessionRow, error: sessionErr } = await authSupabase
+      .from('sessions')
+      .select('athlete_id')
+      .eq('id', id)
+      .maybeSingle()
+
+    if (sessionErr || !sessionRow?.athlete_id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    const { data: ownAthlete, error: athleteErr } = await authSupabase
+      .from('athletes')
+      .select('id')
+      .eq('id', sessionRow.athlete_id)
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (athleteErr || !ownAthlete) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+  } else {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

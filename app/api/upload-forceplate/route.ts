@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { requireAuth } from "@/lib/supabase-server";
 import {
   buildAsymmetryResultRows,
   normalizeForceplateMetrics,
@@ -17,6 +18,14 @@ type UploadForceplateBody = {
 };
 
 export async function POST(req: Request) {
+  const { user, profile } = await requireAuth();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (profile?.role !== "staff") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const supabaseAdmin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
