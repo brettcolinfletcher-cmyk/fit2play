@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { authorizeSyncRequest } from "@/lib/sync/authorizeSyncRequest";
 import { runMotion1080Sync } from "@/lib/sync/motion1080Sync";
 
 export const dynamic = "force-dynamic";
@@ -13,17 +12,13 @@ function serviceClient() {
   );
 }
 
-export async function GET(req: Request) {
-  const denied = await authorizeSyncRequest(req);
-  if (denied) return denied;
+export async function GET() {
   const supabase = serviceClient();
   const result = await runMotion1080Sync(supabase);
   return NextResponse.json(result);
 }
 
-export async function POST(req: Request) {
-  const denied = await authorizeSyncRequest(req);
-  if (denied) return denied;
+export async function POST() {
   const supabase = serviceClient();
   const result = await runMotion1080Sync(supabase);
   return NextResponse.json(result);
