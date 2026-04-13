@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/sync/hawkins",
+      "schedule": "0 14 * * *"
+    },
+    {
+      "path": "/api/sync/1080",
+      "schedule": "0 14 * * *"
+    }
+  ]
+}

@@ -73,6 +73,11 @@ export default function DashboardNav() {
         href: "/dashboard/add-test",
         label: "Add test",
         active: pathname.startsWith("/dashboard/add-test"),
+      },
+      {
+        href: "/dashboard/sync",
+        label: "Sync",
+        active: pathname.startsWith("/dashboard/sync"),
       }
     );
   }
