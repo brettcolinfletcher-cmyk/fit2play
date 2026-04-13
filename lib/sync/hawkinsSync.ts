@@ -98,25 +98,49 @@ export async function runHawkinsSync(
 
   if (!tokenUrl || !refreshToken || !apiBase) {
     const msg =
-      "Missing HAWKINS_TOKEN_URL, HAWKINS_REFRESH_TOKEN, or HAWKINS_API_BASE";
+      "Missing HAWKINS_TOKEN_URL, HAWKINS_REFRESH_TOKEN, or HAWKINS_API_BASE " +
+      "(set HAWKINS_TOKEN_URL to https://cloud.hawkindynamics.com/api/token)";
     await insertSyncLog(supabase, "hawkins", 0, msg);
     return { ok: false, sessionsProcessed: 0, error: msg };
   }
 
   try {
-    const tokenRes = await fetch(tokenUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refreshToken }),
-    });
-    if (!tokenRes.ok) {
-      const t = await tokenRes.text();
-      throw new Error(`Hawkins token ${tokenRes.status}: ${t.slice(0, 200)}`);
+    console.warn("[hawkins-sync] HAWKINS_TOKEN_URL:", tokenUrl);
+
+    let accessToken: string | undefined;
+
+    const getUrl = `${tokenUrl}?refreshToken=${encodeURIComponent(refreshToken)}`;
+    console.warn("[hawkins-sync] Token request (GET):", `${tokenUrl}?refreshToken=<redacted>`);
+
+    const getRes = await fetch(getUrl, { method: "GET" });
+    if (getRes.ok) {
+      try {
+        const j = (await getRes.json()) as { access_token?: string };
+        accessToken = j.access_token;
+      } catch {
+        /* try POST fallback */
+      }
     }
-    const tokenJson = (await tokenRes.json()) as { access_token?: string };
-    const accessToken = tokenJson.access_token;
+
     if (!accessToken) {
-      throw new Error("Hawkins token response missing access_token");
+      const postRes = await fetch(tokenUrl, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${refreshToken}` },
+      });
+      const postText = await postRes.text();
+      if (postRes.ok) {
+        try {
+          const j = JSON.parse(postText) as { access_token?: string };
+          accessToken = j.access_token;
+        } catch {
+          /* handled below */
+        }
+      }
+      if (!accessToken) {
+        throw new Error(
+          `Hawkins token ${postRes.status} at ${tokenUrl}: ${postText.slice(0, 200)}`
+        );
+      }
     }
 
     const authHeaders = {
