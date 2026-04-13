@@ -115,9 +115,15 @@ export function matchPerformanceBand(
   if (!forMetric.length) return null;
 
   const tt = sessionTestType?.trim() || null;
+  const ttAlias = tt?.replace(/^force_plate_/, "") ?? null;
+
   const specific =
     tt != null
-      ? forMetric.filter((b) => b.testType != null && b.testType === tt)
+      ? forMetric.filter(
+          (b) =>
+            b.testType != null &&
+            (b.testType === tt || (ttAlias != null && b.testType === ttAlias))
+        )
       : [];
   const generic = forMetric.filter((b) => b.testType == null || b.testType === "");
 
