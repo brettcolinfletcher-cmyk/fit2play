@@ -1,17 +1,19 @@
 import { NextResponse } from "next/server";
-import { requireAuth } from "@/lib/supabase-server";
+import { requireAuthFromRequest } from "@/lib/supabase-server";
 
 /**
- * Allows Vercel cron (x-vercel-cron: 1) or authenticated staff.
+ * Allows Vercel cron (x-vercel-cron header) or authenticated staff (profiles.role).
  * Returns a NextResponse to send, or null to continue.
  */
 export async function authorizeSyncRequest(
   req: Request
 ): Promise<NextResponse | null> {
-  if (req.headers.get("x-vercel-cron") === "1") {
+  const cron = req.headers.get("x-vercel-cron");
+  if (cron != null && cron !== "") {
     return null;
   }
-  const { user, profile } = await requireAuth();
+
+  const { user, profile } = await requireAuthFromRequest(req);
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
