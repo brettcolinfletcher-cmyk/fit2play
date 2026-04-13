@@ -117,12 +117,11 @@ export async function runHawkinsSync(
     const athletesUrl = `${apiBase}/athletes`;
 
     const tokenRes = await fetch("https://cloud.hawkindynamics.com/api/token", {
-      method: "POST",
+      method: "GET",
       headers: {
-        "Content-Type": "application/json",
+        "Authorization": `Bearer ${refreshToken}`,
         "Accept": "application/json",
       },
-      body: JSON.stringify({ refreshToken: refreshToken }),
     });
     const bodyText = await tokenRes.text();
     if (!tokenRes.ok) {
