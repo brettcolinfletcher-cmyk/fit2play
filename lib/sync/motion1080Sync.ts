@@ -115,9 +115,9 @@ export async function runMotion1080Sync(
       .limit(1)
       .maybeSingle();
 
-    const sinceMs = lastLog?.synced_at
+      const sinceMs = lastLog?.synced_at
       ? new Date(lastLog.synced_at as string).getTime()
-      : Date.now() - 86400000 * 365;
+      : Date.now() - 86400000 * 30;
 
     const athleteIdCache = new Map<string, string>();
 
