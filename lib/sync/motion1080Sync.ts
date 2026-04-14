@@ -52,35 +52,32 @@ function exerciseLabel(w: Record<string, unknown>): string | null {
   return null;
 }
 
-function sessionDateFromDetail(
-  detail: Record<string, unknown>,
-  summaryFallback: string
-): string {
-  const t = detail.startTime ?? detail.timestamp;
-  if (t == null || t === "") return summaryFallback;
+function parseCreatedToIso(t: unknown): string | null {
+  if (t == null || t === "") return null;
   if (typeof t === "number") {
     const ms = t > 1e12 ? t : t * 1000;
     return new Date(ms).toISOString();
   }
   if (typeof t === "string") {
     const d = new Date(t);
-    return Number.isNaN(d.getTime()) ? summaryFallback : d.toISOString();
+    return Number.isNaN(d.getTime()) ? null : d.toISOString();
   }
-  return summaryFallback;
+  return null;
 }
 
-const METRIC_KEYS = [
-  "peakSpeed",
-  "peakForce",
-  "peakPower",
-  "split5m",
-  "split10m",
-  "split20m",
-] as const;
-
-function numArray(u: unknown): number[] {
-  if (!Array.isArray(u)) return [];
-  return u.map((x) => (typeof x === "number" && !Number.isNaN(x) ? x : 0));
+function sessionDateFromDetail(
+  detail: Record<string, unknown>,
+  summaryFallback: string
+): string {
+  const fromCreated = parseCreatedToIso(detail.created);
+  if (fromCreated) return fromCreated;
+  const exercises = detail.exercises;
+  if (Array.isArray(exercises) && exercises[0] && typeof exercises[0] === "object") {
+    const ex0 = exercises[0] as Record<string, unknown>;
+    const fromExCreated = parseCreatedToIso(ex0.created);
+    if (fromExCreated) return fromExCreated;
+  }
+  return summaryFallback;
 }
 
 function collectMetricsFrom1080Detail(
@@ -103,81 +100,54 @@ function collectMetricsFrom1080Detail(
     unit: string | null;
   }[] = [];
 
-  for (const k of METRIC_KEYS) {
-    const v = detail[k];
-    if (typeof v === "number" && !Number.isNaN(v) && v !== 0) {
-      rows.push({
-        session_id: sessionId,
-        key: k,
-        value: v,
-        rep_index: null,
-        side: null,
-        unit: null,
-      });
-    }
-  }
-  if (
-    typeof detail.peakVelocity === "number" &&
-    !Number.isNaN(detail.peakVelocity) &&
-    detail.peakVelocity !== 0 &&
-    typeof detail.peakSpeed !== "number"
-  ) {
-    rows.push({
-      session_id: sessionId,
-      key: "peakSpeed",
-      value: detail.peakVelocity,
-      rep_index: null,
-      side: null,
-      unit: null,
-    });
-  }
+  const exercises = detail.exercises;
+  if (!Array.isArray(exercises)) return rows;
 
-  const repsRaw = detail.reps ?? detail.Reps ?? detail.trials;
-  const reps = Array.isArray(repsRaw) ? repsRaw : [];
-
-  for (const repRaw of reps) {
-    if (!repRaw || typeof repRaw !== "object") continue;
-    const r = repRaw as Record<string, unknown>;
-    const ri =
-      typeof r.repIndex === "number"
-        ? r.repIndex
-        : typeof r.rep_index === "number"
-          ? r.rep_index
-          : null;
-    if (ri == null) continue;
-    const side = r.side != null ? String(r.side) : null;
-
-    for (const k of METRIC_KEYS) {
-      const v = r[k];
-      if (typeof v === "number" && !Number.isNaN(v) && v !== 0) {
-        rows.push({
-          session_id: sessionId,
-          key: k,
-          value: v,
-          rep_index: ri,
-          side,
-          unit: null,
-        });
+  let setIndex = 0;
+  for (const ex of exercises) {
+    if (!ex || typeof ex !== "object") continue;
+    const sets = (ex as Record<string, unknown>).sets;
+    if (!Array.isArray(sets)) continue;
+    for (const setRaw of sets) {
+      if (!setRaw || typeof setRaw !== "object") continue;
+      setIndex += 1;
+      const rep_index = setIndex;
+      const setObj = setRaw as Record<string, unknown>;
+      for (const [key, value] of Object.entries(setObj)) {
+        if (typeof value === "number" && !Number.isNaN(value) && value !== 0) {
+          rows.push({
+            session_id: sessionId,
+            key,
+            value,
+            rep_index,
+            side: null,
+            unit: null,
+          });
+        }
       }
-    }
-    if (
-      typeof r.peakVelocity === "number" &&
-      !Number.isNaN(r.peakVelocity) &&
-      r.peakVelocity !== 0 &&
-      typeof r.peakSpeed !== "number"
-    ) {
-      rows.push({
-        session_id: sessionId,
-        key: "peakSpeed",
-        value: r.peakVelocity,
-        rep_index: ri,
-        side,
-        unit: null,
-      });
     }
   }
 
   return rows;
+}
+
+function isNumericArray(u: unknown): u is number[] {
+  return (
+    Array.isArray(u) &&
+    u.length > 0 &&
+    u.every((x) => typeof x === "number" && !Number.isNaN(x))
+  );
+}
+
+function pickNumericArray(
+  setObj: Record<string, unknown>,
+  names: string[]
+): number[] {
+  for (const n of names) {
+    const v = setObj[n];
+    if (isNumericArray(v)) return v;
+  }
+  return [];
 }
 
 function collectSeriesFrom1080Detail(
@@ -186,8 +156,9 @@ function collectSeriesFrom1080Detail(
 ): { session_id: string; rep_index: number; series: Record<string, unknown> }[] {
   const out: { session_id: string; rep_index: number; series: Record<string, unknown> }[] =
     [];
-  const repsRaw = detail.reps ?? detail.Reps ?? detail.trials;
-  const reps = Array.isArray(repsRaw) ? repsRaw : [];
+
+  const exercises = detail.exercises;
+  if (!Array.isArray(exercises)) return out;
 
   const pad = (arr: number[], n: number) => {
     const copy = [...arr];
@@ -195,40 +166,62 @@ function collectSeriesFrom1080Detail(
     return copy.slice(0, n);
   };
 
-  for (let idx = 0; idx < reps.length; idx++) {
-    const repRaw = reps[idx];
-    if (!repRaw || typeof repRaw !== "object") continue;
-    const rep = repRaw as Record<string, unknown>;
-    const repIndex =
-      typeof rep.repIndex === "number"
-        ? rep.repIndex
-        : typeof rep.rep_index === "number"
-          ? rep.rep_index
-          : idx + 1;
+  let setIndex = 0;
+  for (const ex of exercises) {
+    if (!ex || typeof ex !== "object") continue;
+    const sets = (ex as Record<string, unknown>).sets;
+    if (!Array.isArray(sets)) continue;
+    for (const setRaw of sets) {
+      if (!setRaw || typeof setRaw !== "object") continue;
+      setIndex += 1;
+      const setObj = setRaw as Record<string, unknown>;
 
-    const t = numArray(
-      rep.time_ms ?? rep.timeMs ?? rep.t ?? rep.time
-    );
-    const v = numArray(rep.velocity ?? rep.v);
-    const f = numArray(rep.force ?? rep.f);
-    const p = numArray(rep.power ?? rep.p);
-    const x = numArray(rep.position ?? rep.x);
-    const a = numArray(rep.acceleration ?? rep.a);
+      const numericArrays: number[][] = [];
+      for (const v of Object.values(setObj)) {
+        if (isNumericArray(v)) numericArrays.push(v);
+      }
+      if (numericArrays.length === 0) continue;
 
-    const len = Math.max(t.length, v.length, f.length, p.length, x.length, a.length);
-    if (len === 0) continue;
+      let t = pickNumericArray(setObj, [
+        "time_ms",
+        "timeMs",
+        "t",
+        "time",
+        "timestamp",
+      ]);
+      const v = pickNumericArray(setObj, ["velocity", "v"]);
+      const f = pickNumericArray(setObj, ["force", "f"]);
+      const p = pickNumericArray(setObj, ["power", "p"]);
+      const x = pickNumericArray(setObj, ["position", "x"]);
+      const a = pickNumericArray(setObj, ["acceleration", "a"]);
 
-    const n = len;
-    const series = {
-      t: pad(t, n),
-      x: pad(x, n),
-      v: pad(v, n),
-      a: pad(a, n),
-      f: pad(f, n),
-      p: pad(p, n),
-    };
+      const len = Math.max(
+        t.length,
+        v.length,
+        f.length,
+        p.length,
+        x.length,
+        a.length,
+        ...numericArrays.map((arr) => arr.length)
+      );
+      if (len === 0) continue;
 
-    out.push({ session_id: sessionId, rep_index: repIndex, series });
+      if (t.length === 0 && numericArrays[0]) {
+        t = numericArrays[0];
+      }
+
+      const n = len;
+      const series = {
+        t: pad(t, n),
+        x: pad(x, n),
+        v: pad(v, n),
+        a: pad(a, n),
+        f: pad(f, n),
+        p: pad(p, n),
+      };
+
+      out.push({ session_id: sessionId, rep_index: setIndex, series });
+    }
   }
 
   return out;
@@ -390,7 +383,15 @@ export async function runMotion1080Sync(
         } else {
           const detail = (await detailRes.json()) as Record<string, unknown>;
           const finalDate = sessionDateFromDetail(detail, summarySessionDate);
-          const subFromDetail = exerciseLabel(detail) ?? sub;
+          const exArr = detail.exercises;
+          const subFromDetail =
+            Array.isArray(exArr) &&
+            exArr[0] &&
+            typeof exArr[0] === "object" &&
+            typeof (exArr[0] as Record<string, unknown>).exerciseTypeName ===
+              "string"
+              ? ((exArr[0] as Record<string, unknown>).exerciseTypeName as string)
+              : sub;
 
           await supabase
             .from("sessions")
