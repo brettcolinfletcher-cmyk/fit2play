@@ -52,6 +52,188 @@ function exerciseLabel(w: Record<string, unknown>): string | null {
   return null;
 }
 
+function sessionDateFromDetail(
+  detail: Record<string, unknown>,
+  summaryFallback: string
+): string {
+  const t = detail.startTime ?? detail.timestamp;
+  if (t == null || t === "") return summaryFallback;
+  if (typeof t === "number") {
+    const ms = t > 1e12 ? t : t * 1000;
+    return new Date(ms).toISOString();
+  }
+  if (typeof t === "string") {
+    const d = new Date(t);
+    return Number.isNaN(d.getTime()) ? summaryFallback : d.toISOString();
+  }
+  return summaryFallback;
+}
+
+const METRIC_KEYS = [
+  "peakSpeed",
+  "peakForce",
+  "peakPower",
+  "split5m",
+  "split10m",
+  "split20m",
+] as const;
+
+function numArray(u: unknown): number[] {
+  if (!Array.isArray(u)) return [];
+  return u.map((x) => (typeof x === "number" && !Number.isNaN(x) ? x : 0));
+}
+
+function collectMetricsFrom1080Detail(
+  sessionId: string,
+  detail: Record<string, unknown>
+): {
+  session_id: string;
+  key: string;
+  value: number;
+  rep_index: number | null;
+  side: string | null;
+  unit: string | null;
+}[] {
+  const rows: {
+    session_id: string;
+    key: string;
+    value: number;
+    rep_index: number | null;
+    side: string | null;
+    unit: string | null;
+  }[] = [];
+
+  for (const k of METRIC_KEYS) {
+    const v = detail[k];
+    if (typeof v === "number" && !Number.isNaN(v) && v !== 0) {
+      rows.push({
+        session_id: sessionId,
+        key: k,
+        value: v,
+        rep_index: null,
+        side: null,
+        unit: null,
+      });
+    }
+  }
+  if (
+    typeof detail.peakVelocity === "number" &&
+    !Number.isNaN(detail.peakVelocity) &&
+    detail.peakVelocity !== 0 &&
+    typeof detail.peakSpeed !== "number"
+  ) {
+    rows.push({
+      session_id: sessionId,
+      key: "peakSpeed",
+      value: detail.peakVelocity,
+      rep_index: null,
+      side: null,
+      unit: null,
+    });
+  }
+
+  const repsRaw = detail.reps ?? detail.Reps ?? detail.trials;
+  const reps = Array.isArray(repsRaw) ? repsRaw : [];
+
+  for (const repRaw of reps) {
+    if (!repRaw || typeof repRaw !== "object") continue;
+    const r = repRaw as Record<string, unknown>;
+    const ri =
+      typeof r.repIndex === "number"
+        ? r.repIndex
+        : typeof r.rep_index === "number"
+          ? r.rep_index
+          : null;
+    if (ri == null) continue;
+    const side = r.side != null ? String(r.side) : null;
+
+    for (const k of METRIC_KEYS) {
+      const v = r[k];
+      if (typeof v === "number" && !Number.isNaN(v) && v !== 0) {
+        rows.push({
+          session_id: sessionId,
+          key: k,
+          value: v,
+          rep_index: ri,
+          side,
+          unit: null,
+        });
+      }
+    }
+    if (
+      typeof r.peakVelocity === "number" &&
+      !Number.isNaN(r.peakVelocity) &&
+      r.peakVelocity !== 0 &&
+      typeof r.peakSpeed !== "number"
+    ) {
+      rows.push({
+        session_id: sessionId,
+        key: "peakSpeed",
+        value: r.peakVelocity,
+        rep_index: ri,
+        side,
+        unit: null,
+      });
+    }
+  }
+
+  return rows;
+}
+
+function collectSeriesFrom1080Detail(
+  sessionId: string,
+  detail: Record<string, unknown>
+): { session_id: string; rep_index: number; series: Record<string, unknown> }[] {
+  const out: { session_id: string; rep_index: number; series: Record<string, unknown> }[] =
+    [];
+  const repsRaw = detail.reps ?? detail.Reps ?? detail.trials;
+  const reps = Array.isArray(repsRaw) ? repsRaw : [];
+
+  const pad = (arr: number[], n: number) => {
+    const copy = [...arr];
+    while (copy.length < n) copy.push(0);
+    return copy.slice(0, n);
+  };
+
+  for (let idx = 0; idx < reps.length; idx++) {
+    const repRaw = reps[idx];
+    if (!repRaw || typeof repRaw !== "object") continue;
+    const rep = repRaw as Record<string, unknown>;
+    const repIndex =
+      typeof rep.repIndex === "number"
+        ? rep.repIndex
+        : typeof rep.rep_index === "number"
+          ? rep.rep_index
+          : idx + 1;
+
+    const t = numArray(
+      rep.time_ms ?? rep.timeMs ?? rep.t ?? rep.time
+    );
+    const v = numArray(rep.velocity ?? rep.v);
+    const f = numArray(rep.force ?? rep.f);
+    const p = numArray(rep.power ?? rep.p);
+    const x = numArray(rep.position ?? rep.x);
+    const a = numArray(rep.acceleration ?? rep.a);
+
+    const len = Math.max(t.length, v.length, f.length, p.length, x.length, a.length);
+    if (len === 0) continue;
+
+    const n = len;
+    const series = {
+      t: pad(t, n),
+      x: pad(x, n),
+      v: pad(v, n),
+      a: pad(a, n),
+      f: pad(f, n),
+      p: pad(p, n),
+    };
+
+    out.push({ session_id: sessionId, rep_index: repIndex, series });
+  }
+
+  return out;
+}
+
 export type Motion1080SyncResult = {
   ok: boolean;
   sessionsProcessed: number;
@@ -90,8 +272,8 @@ export async function runMotion1080Sync(
       const row = raw as Record<string, unknown>;
       const extId = row.id != null ? String(row.id) : null;
       const nameStr =
-        typeof row.name === "string"
-          ? row.name
+        typeof row.displayName === "string"
+          ? row.displayName
           : [row.firstName, row.lastName].filter(Boolean).join(" ") || "";
       if (!extId) continue;
 
@@ -163,7 +345,7 @@ export async function runMotion1080Sync(
         athleteIdCache.set(clientId, internalAthleteId);
       }
 
-      const sessionDate = workoutTimestamp(s);
+      const summarySessionDate = workoutTimestamp(s);
 
       const sub = exerciseLabel(s);
       const syncDedupeKey = `1080:${wid}`;
@@ -178,7 +360,7 @@ export async function runMotion1080Sync(
             file_name: null,
             source: "1080",
             external_id: wid,
-            session_date: sessionDate,
+            session_date: summarySessionDate,
             device: "1080 Motion",
             sync_dedupe_key: syncDedupeKey,
           },
@@ -195,8 +377,55 @@ export async function runMotion1080Sync(
       const sessionId = sess.id as string;
       sessionsProcessed += 1;
 
-      await supabase.from("metrics").delete().eq("session_id", sessionId);
-      await supabase.from("sprint_time_series").delete().eq("session_id", sessionId);
+      try {
+        const detailRes = await fetch(`${MOTION_BASE}/Session/${wid}`, {
+          headers,
+          signal: AbortSignal.timeout(120_000),
+        });
+        if (!detailRes.ok) {
+          const t = await detailRes.text();
+          errors.push(
+            `session ${wid} detail: ${detailRes.status} ${t.slice(0, 120)}`
+          );
+        } else {
+          const detail = (await detailRes.json()) as Record<string, unknown>;
+          const finalDate = sessionDateFromDetail(detail, summarySessionDate);
+          const subFromDetail = exerciseLabel(detail) ?? sub;
+
+          await supabase
+            .from("sessions")
+            .update({
+              session_date: finalDate,
+              test_sub_type: subFromDetail,
+            })
+            .eq("id", sessionId);
+
+          await supabase.from("metrics").delete().eq("session_id", sessionId);
+          await supabase.from("sprint_time_series").delete().eq("session_id", sessionId);
+
+          const metricRows = collectMetricsFrom1080Detail(sessionId, detail);
+          const seriesRows = collectSeriesFrom1080Detail(sessionId, detail);
+
+          if (metricRows.length > 0) {
+            const { error: mErr } = await supabase.from("metrics").insert(metricRows);
+            if (mErr) {
+              errors.push(`session ${wid} metrics: ${mErr.message}`);
+            }
+          }
+
+          if (seriesRows.length > 0) {
+            const { error: tsErr } = await supabase
+              .from("sprint_time_series")
+              .insert(seriesRows);
+            if (tsErr) {
+              errors.push(`session ${wid} time series: ${tsErr.message}`);
+            }
+          }
+        }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        errors.push(`session ${wid} detail: ${msg}`);
+      }
     }
 
     const errStr = errors.length ? errors.join(" | ") : null;
