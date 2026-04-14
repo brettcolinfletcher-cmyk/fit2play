@@ -159,9 +159,6 @@ export async function runMotion1080Sync(
       }
 
       const sessionDate = workoutTimestamp(s);
-      if (new Date(sessionDate).getTime() < sinceMs) {
-        continue;
-      }
 
       const sub = exerciseLabel(s);
       const syncDedupeKey = `1080:${wid}`;
