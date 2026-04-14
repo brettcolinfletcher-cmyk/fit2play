@@ -115,9 +115,9 @@ export async function runMotion1080Sync(
       .limit(1)
       .maybeSingle();
 
-      const sinceMs = lastLog?.synced_at
+    const sinceMs = lastLog?.synced_at
       ? new Date(lastLog.synced_at as string).getTime()
-      : Date.now() - 86400000 * 30;
+      : Date.now() - 86400000 * 7;
 
     const athleteIdCache = new Map<string, string>();
 
@@ -155,38 +155,12 @@ export async function runMotion1080Sync(
         const wid = s.id != null ? String(s.id) : null;
         if (!wid) continue;
 
-        const detailRes = await fetch(`${MOTION_BASE}/Session/${wid}`, {
-          headers,
-        });
-        if (!detailRes.ok) {
-          const t = await detailRes.text();
-          errors.push(`workout ${wid}: ${detailRes.status} ${t.slice(0, 120)}`);
-          continue;
-        }
-        const workout = (await detailRes.json()) as Record<string, unknown>;
-        const sessionDate = workoutTimestamp(workout);
+        const sessionDate = workoutTimestamp(s);
         if (new Date(sessionDate).getTime() < sinceMs) {
           continue;
         }
 
-        const trainingRes = await fetch(
-          `${MOTION_BASE}/TrainingData/Session/${wid}`,
-          { headers }
-        );
-        if (!trainingRes.ok) {
-          const t = await trainingRes.text();
-          errors.push(
-            `training data ${wid}: ${trainingRes.status} ${t.slice(0, 120)}`
-          );
-          continue;
-        }
-        const trainingPayload = await trainingRes.json();
-        const trainingData =
-          trainingPayload && typeof trainingPayload === "object"
-            ? (trainingPayload as Record<string, unknown>)
-            : {};
-
-        const sub = exerciseLabel(workout);
+        const sub = exerciseLabel(s);
         const syncDedupeKey = `1080:${wid}`;
 
         const { data: sess, error: sErr } = await supabase
@@ -218,101 +192,6 @@ export async function runMotion1080Sync(
 
         await supabase.from("metrics").delete().eq("session_id", sessionId);
         await supabase.from("sprint_time_series").delete().eq("session_id", sessionId);
-
-        const repsRaw =
-          trainingData.reps ??
-          trainingData.Reps ??
-          trainingData.trials ??
-          (Array.isArray(trainingPayload) ? trainingPayload : null);
-        const reps = Array.isArray(repsRaw)
-          ? repsRaw
-          : repsRaw == null
-            ? asArray(trainingPayload)
-            : [];
-
-        const metricRows: {
-          session_id: string;
-          key: string;
-          value: number;
-          rep_index: number | null;
-          side: null;
-          unit: null;
-        }[] = [];
-
-        const seriesRows: {
-          session_id: string;
-          rep_index: number;
-          series: Record<string, unknown>;
-        }[] = [];
-
-        reps.forEach((repRaw, idx) => {
-          if (!repRaw || typeof repRaw !== "object") return;
-          const rep = repRaw as Record<string, unknown>;
-          const repIndex =
-            typeof rep.repIndex === "number"
-              ? rep.repIndex
-              : typeof rep.rep_index === "number"
-                ? rep.rep_index
-                : idx + 1;
-
-          for (const key of ["peakVelocity", "peakForce", "peakPower"] as const) {
-            const v = rep[key];
-            if (typeof v === "number" && !Number.isNaN(v)) {
-              metricRows.push({
-                session_id: sessionId,
-                key,
-                value: v,
-                rep_index: repIndex,
-                side: null,
-                unit: null,
-              });
-            }
-          }
-
-          const velocity = Array.isArray(rep.velocity)
-            ? rep.velocity
-            : Array.isArray(rep.v)
-              ? rep.v
-              : [];
-          const force = Array.isArray(rep.force)
-            ? rep.force
-            : Array.isArray(rep.f)
-              ? rep.f
-              : [];
-          const position = Array.isArray(rep.position)
-            ? rep.position
-            : Array.isArray(rep.x)
-              ? rep.x
-              : [];
-
-          if (velocity.length || force.length || position.length) {
-            seriesRows.push({
-              session_id: sessionId,
-              rep_index: repIndex,
-              series: {
-                velocity,
-                force,
-                position,
-              },
-            });
-          }
-        });
-
-        if (metricRows.length > 0) {
-          const { error: mErr } = await supabase.from("metrics").insert(metricRows);
-          if (mErr) {
-            errors.push(`workout ${wid} metrics: ${mErr.message}`);
-          }
-        }
-
-        if (seriesRows.length > 0) {
-          const { error: tsErr } = await supabase
-            .from("sprint_time_series")
-            .insert(seriesRows);
-          if (tsErr) {
-            errors.push(`workout ${wid} time series: ${tsErr.message}`);
-          }
-        }
       }
     }
 
