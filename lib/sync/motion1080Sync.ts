@@ -64,7 +64,12 @@ export async function runMotion1080Sync(
   const errors: string[] = [];
   let sessionsProcessed = 0;
 
-  const apiKey = "7xES9612bkM3af0CCVJo";
+  const apiKey = process.env.MOTION_API_KEY;
+  if (!apiKey) {
+    const msg = "Missing MOTION_API_KEY";
+    await insertSyncLog(supabase, "1080", 0, msg);
+    return { ok: false, sessionsProcessed: 0, error: msg };
+  }
 
   const headers = {
     "X-1080-API-Key": apiKey,
@@ -121,78 +126,80 @@ export async function runMotion1080Sync(
 
     const athleteIdCache = new Map<string, string>();
 
-    for (const raw of motionAthletes) {
-      if (!raw || typeof raw !== "object") continue;
-      const arow = raw as Record<string, unknown>;
-      const motionAthleteId = arow.id != null ? String(arow.id) : null;
-      if (!motionAthleteId) continue;
+    const listRes = await fetch(`${MOTION_BASE}/Session/Search?take=500`, {
+      headers,
+    });
+    if (!listRes.ok) {
+      const t = await listRes.text();
+      throw new Error(`1080 Session/Search ${listRes.status}: ${t.slice(0, 200)}`);
+    }
+    const listPayload = await listRes.json();
+    const summaries = asArray(listPayload);
 
-      let internalAthleteId = athleteIdCache.get(motionAthleteId);
+    for (const sum of summaries) {
+      if (!sum || typeof sum !== "object") continue;
+      const s = sum as Record<string, unknown>;
+      const wid = s.id != null ? String(s.id) : null;
+      const clientId =
+        s.clientId != null
+          ? String(s.clientId)
+          : s.client_id != null
+            ? String(s.client_id)
+            : null;
+      if (!wid || !clientId) continue;
+
+      let internalAthleteId = athleteIdCache.get(clientId);
       if (!internalAthleteId) {
         const { data: ath } = await supabase
           .from("athletes")
           .select("id")
-          .eq("external_id", motionAthleteId)
+          .eq("external_id", clientId)
           .maybeSingle();
-        if (!ath?.id) continue;
+        if (!ath?.id) {
+          errors.push(`session ${wid}: no athlete for clientId ${clientId}`);
+          continue;
+        }
         internalAthleteId = ath.id as string;
-        athleteIdCache.set(motionAthleteId, internalAthleteId);
+        athleteIdCache.set(clientId, internalAthleteId);
       }
 
-      const listUrl = `${MOTION_BASE}/Session/Search?clientId=${encodeURIComponent(motionAthleteId)}`;
-      const listRes = await fetch(listUrl, { headers });
-      if (!listRes.ok) {
-        const t = await listRes.text();
-        errors.push(`workouts list ${motionAthleteId}: ${listRes.status} ${t.slice(0, 120)}`);
+      const sessionDate = workoutTimestamp(s);
+      if (new Date(sessionDate).getTime() < sinceMs) {
         continue;
       }
-      const listPayload = await listRes.json();
-      const summaries = asArray(listPayload);
 
-      for (const sum of summaries) {
-        if (!sum || typeof sum !== "object") continue;
-        const s = sum as Record<string, unknown>;
-        const wid = s.id != null ? String(s.id) : null;
-        if (!wid) continue;
+      const sub = exerciseLabel(s);
+      const syncDedupeKey = `1080:${wid}`;
 
-        const sessionDate = workoutTimestamp(s);
-        if (new Date(sessionDate).getTime() < sinceMs) {
-          continue;
-        }
+      const { data: sess, error: sErr } = await supabase
+        .from("sessions")
+        .upsert(
+          {
+            athlete_id: internalAthleteId,
+            test_type: "1080_sprint",
+            test_sub_type: sub,
+            file_name: null,
+            source: "1080",
+            external_id: wid,
+            session_date: sessionDate,
+            device: "1080 Motion",
+            sync_dedupe_key: syncDedupeKey,
+          },
+          { onConflict: "sync_dedupe_key" }
+        )
+        .select("id")
+        .single();
 
-        const sub = exerciseLabel(s);
-        const syncDedupeKey = `1080:${wid}`;
-
-        const { data: sess, error: sErr } = await supabase
-          .from("sessions")
-          .upsert(
-            {
-              athlete_id: internalAthleteId,
-              test_type: "1080_sprint",
-              test_sub_type: sub,
-              file_name: null,
-              source: "1080",
-              external_id: wid,
-              session_date: sessionDate,
-              device: "1080 Motion",
-              sync_dedupe_key: syncDedupeKey,
-            },
-            { onConflict: "sync_dedupe_key" }
-          )
-          .select("id")
-          .single();
-
-        if (sErr || !sess?.id) {
-          errors.push(`workout ${wid}: session ${sErr?.message ?? "no id"}`);
-          continue;
-        }
-
-        const sessionId = sess.id as string;
-        sessionsProcessed += 1;
-
-        await supabase.from("metrics").delete().eq("session_id", sessionId);
-        await supabase.from("sprint_time_series").delete().eq("session_id", sessionId);
+      if (sErr || !sess?.id) {
+        errors.push(`workout ${wid}: session ${sErr?.message ?? "no id"}`);
+        continue;
       }
+
+      const sessionId = sess.id as string;
+      sessionsProcessed += 1;
+
+      await supabase.from("metrics").delete().eq("session_id", sessionId);
+      await supabase.from("sprint_time_series").delete().eq("session_id", sessionId);
     }
 
     const errStr = errors.length ? errors.join(" | ") : null;
