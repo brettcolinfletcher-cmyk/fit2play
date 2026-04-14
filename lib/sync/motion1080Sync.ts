@@ -64,12 +64,7 @@ export async function runMotion1080Sync(
   const errors: string[] = [];
   let sessionsProcessed = 0;
 
-  const apiKey = process.env.MOTION_API_KEY;
-  if (!apiKey) {
-    const msg = "Missing MOTION_API_KEY";
-    await insertSyncLog(supabase, "1080", 0, msg);
-    return { ok: false, sessionsProcessed: 0, error: msg };
-  }
+  const apiKey = "7xES9612bkM3af0CCVJo";
 
   const headers = {
     "X-1080-API-Key": apiKey,
