@@ -78,6 +78,11 @@ export default function DashboardNav() {
         href: "/dashboard/sync",
         label: "Sync",
         active: pathname.startsWith("/dashboard/sync"),
+      },
+      {
+        href: "/dashboard/upload",
+        label: "Upload",
+        active: pathname.startsWith("/dashboard/upload"),
       }
     );
   }
