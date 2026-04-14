@@ -23,7 +23,11 @@ function normalizeFullName(s: string): string {
 }
 
 function combineDateTime(dateStr: string, timeStr: string): string {
-  const d = dateStr.trim();
+  let d = dateStr.trim();
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(d)) {
+    const [dd, mm, yyyy] = d.split("/");
+    d = `${yyyy}-${mm}-${dd}`;
+  }
   const t = timeStr.trim() || "12:00:00";
   const isoLocal = `${d}T${t}`;
   const dt = new Date(isoLocal);

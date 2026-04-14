@@ -11,16 +11,45 @@ const METRIC_LABELS: Record<string, string> = {
   fp_jump_height: "Jump Height",
   fp_jump_height_cm_best: "Jump Height",
   fp_rsi_best: "RSI",
+  fp_mrsi: "mRSI",
   fp_flight_time: "Flight Time",
   fp_flight_time_s_best: "Flight Time",
   fp_contact_time: "Contact Time",
   fp_contact_time_s_best: "Contact Time",
   fp_peak_braking_force: "Peak Braking Force",
   fp_peak_propulsive_force: "Peak Propulsive Force",
-  fp_stiffness: "Stiffness",
-  fp_countermovement_depth: "CM Depth",
+  fp_avg_braking_velocity: "Avg Braking Velocity",
+  fp_avg_propulsive_velocity: "Avg Propulsive Velocity",
+  fp_landing_height: "Landing Height",
+  fp_landing_performance_index: "Landing Performance Index",
+  fp_landing_phase: "Landing Phase",
+  fp_system_weight: "System Weight",
+  fp_drop_height: "Drop Height",
+  fp_box_height: "Box Height",
+  fp_spring_like_correlation: "Spring Like Correlation",
+  fp_time_to_peak_braking_force: "Time to Peak Braking Force",
+  fp_jump_momentum: "Jump Momentum",
+  fp_peak_relative_braking_force: "Peak Relative Braking Force",
+  fp_avg_braking_force: "Avg Braking Force",
+  fp_avg_relative_braking_force: "Avg Relative Braking Force",
+  fp_braking_impulse: "Braking Impulse",
+  fp_relative_braking_impulse: "Relative Braking Impulse",
+  fp_braking_net_impulse: "Braking Net Impulse",
+  fp_relative_braking_net_impulse: "Relative Braking Net Impulse",
+  fp_avg_propulsive_force: "Avg Propulsive Force",
+  fp_avg_relative_propulsive_force: "Avg Relative Propulsive Force",
+  fp_braking_phase: "Braking Phase",
+  fp_propulsive_phase: "Propulsive Phase",
+  fp_time_to_takeoff: "Time to Takeoff",
   fp_takeoff_velocity: "Takeoff Velocity",
   fp_peak_velocity: "Peak Velocity",
+  fp_impact_peak: "Impact Peak",
+  fp_stiffness: "Stiffness",
+  fp_countermovement_depth: "CM Depth",
+  fp_braking_rfd: "Braking RFD",
+  fp_unweighting_phase: "Unweighting Phase",
+  fp_peak_landing_force: "Peak Landing Force",
+  fp_landing_stiffness: "Landing Stiffness",
   peakSpeed: "Peak Speed",
   peakForce: "Peak Force",
   peakPower: "Peak Power",
@@ -29,9 +58,20 @@ const METRIC_LABELS: Record<string, string> = {
   split20m: "Split 20m",
 };
 
+function titleCaseWords(s: string): string {
+  return s
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(" ");
+}
+
 function labelForMetricKey(key: string): string {
   if (METRIC_LABELS[key]) return METRIC_LABELS[key];
-  return key.includes("_") ? key.replace(/_/g, " ") : key;
+  let rest = key;
+  if (rest.startsWith("fp_")) rest = rest.slice(3);
+  const spaced = rest.replace(/_/g, " ");
+  return titleCaseWords(spaced);
 }
 
 type Athlete = Record<string, unknown> & {
@@ -59,9 +99,9 @@ function bucket(
   source: string | null
 ): "hawkins" | "1080" | "csv" {
   const s = (source ?? "").toLowerCase();
-  if (s === "hawkins_csv" || s === "1080_csv") return "csv";
-  if (s.includes("1080")) return "1080";
-  return "hawkins";
+  if (s === "hawkins" || s === "hawkins_csv") return "hawkins";
+  if (s === "1080" || s === "1080_csv") return "1080";
+  return "csv";
 }
 
 function formatWhen(iso: string | null) {
