@@ -116,7 +116,7 @@ export async function runHawkinsSync(
   try {
     const athletesUrl = `${apiBase}/athletes`;
 
-    const tokenRes = await fetch("https://cloud.hawkindynamics.com/api/token", {
+    const tokenRes = await fetch(process.env.HAWKINS_TOKEN_URL!, {
       method: "GET",
       headers: {
         "Authorization": `Bearer ${refreshToken}`,
