@@ -116,7 +116,7 @@ export async function runHawkinsSync(
   try {
     const athletesUrl = `${apiBase}/athletes`;
 
-    const debugUrl = process.env.HAWKINS_TOKEN_URL ?? "MISSING";
+    const _refreshToken = process.env.HAWKINS_REFRESH_TOKEN; const debugUrl = process.env.HAWKINS_TOKEN_URL ?? "MISSING";
     if (!process.env.HAWKINS_TOKEN_URL) throw new Error(`TOKEN_URL_MISSING, REFRESH=${process.env.HAWKINS_REFRESH_TOKEN?.slice(0,8)}`);
     const tokenRes = await fetch(process.env.HAWKINS_TOKEN_URL!, {
       method: "GET",
