@@ -127,7 +127,7 @@ export async function runHawkinsSync(
     });
     const bodyText = await tokenRes.text();
     if (!tokenRes.ok) {
-      throw new Error(`Hawkins token failed: status ${tokenRes.status}, body: ${bodyText}`);
+      throw new Error(`Hawkins token failed [key=${process.env.HAWKINS_REFRESH_TOKEN?.slice(0,8)}] [url=${process.env.HAWKINS_TOKEN_URL}]: status ${tokenRes.status}, body: ${bodyText}`);
     }
     let tokenJson: { access_token?: string };
     try {
