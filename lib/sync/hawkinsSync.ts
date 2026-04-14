@@ -118,10 +118,10 @@ export async function runHawkinsSync(
 
     const _refreshToken = process.env.HAWKINS_REFRESH_TOKEN; const debugUrl = process.env.HAWKINS_TOKEN_URL ?? "MISSING";
     if (!process.env.HAWKINS_TOKEN_URL) throw new Error(`TOKEN_URL_MISSING, REFRESH=${process.env.HAWKINS_REFRESH_TOKEN?.slice(0,8)}`);
-    const tokenRes = await fetch(process.env.HAWKINS_TOKEN_URL!, {
+    const tokenRes = await fetch("https://apac.cloud.hawkindynamics.com/api/token", {
       method: "GET",
       headers: {
-        "Authorization": `Bearer ${refreshToken}`,
+       "Authorization": "Bearer L2q3Yt.9pzfjPfVIS13CUXVuNSBunnsJxtWk",
         "Accept": "application/json",
       },
     });
