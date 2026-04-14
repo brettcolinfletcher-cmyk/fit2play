@@ -188,7 +188,7 @@ export async function runHawkinsSync(
       ? Math.floor(new Date(lastLog.synced_at as string).getTime() / 1000)
       : Math.floor(Date.now() / 1000) - 86400 * 365;
 
-    const testsUrl = `${apiBase}/tests?from=${fromUnix}`;
+    const testsUrl = `${apiBase}?from=${fromUnix}`;
     const testsRes = await fetch(testsUrl, { headers: authHeaders });
     if (!testsRes.ok) {
       const t = await testsRes.text();
