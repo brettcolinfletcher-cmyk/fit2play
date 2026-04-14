@@ -65,7 +65,6 @@ export async function runMotion1080Sync(
   let sessionsProcessed = 0;
 
   const apiKey = "7xES9612bkM3af0CCVJo";
-  }
 
   const headers = {
     "X-1080-API-Key": apiKey,
