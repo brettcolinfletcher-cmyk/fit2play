@@ -105,7 +105,7 @@ export async function runHawkinsSync(
   let sessionsProcessed = 0;
 
   const refreshToken = process.env.HAWKINS_REFRESH_TOKEN;
-  const apiBase = process.env.HAWKINS_API_BASE?.replace(/\/$/, "");
+  const apiBase = "https://apac.cloud.hawkindynamics.com/api/v1";
 
   if (!refreshToken || !apiBase) {
     const msg = "Missing HAWKINS_REFRESH_TOKEN or HAWKINS_API_BASE";
