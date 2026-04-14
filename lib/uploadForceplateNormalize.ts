@@ -52,6 +52,20 @@ export const VERBOSE_FORCEPLATE_KEY_MAP: Record<string, string> = {
   "RFD 0-100ms (N/s)":                 "isometric_rfd",
 };
 
+const SKIP_COLUMNS = new Set(
+  [
+    "TestId",
+    "Date",
+    "Time",
+    "Name",
+    "Segment",
+    "Position",
+    "Type",
+    "Excluded",
+    "Tags",
+  ].map((c) => c.toLowerCase())
+);
+
 export type MetricMap = Record<string, number | null>;
 
 function num(v: unknown): number | null {
@@ -62,6 +76,24 @@ function num(v: unknown): number | null {
     return Number.isNaN(n) ? null : n;
   }
   return null;
+}
+
+/**
+ * Converts any CSV column name to a snake_case DB key (Hawkins exports).
+ */
+export function normalizeColumnKey(col: string): string {
+  let s = col.trim().toLowerCase();
+  s = s.replace(/l\|r/g, "lr");
+  s = s.replace(/p1\|p2/g, "p1p2");
+  s = s.replace(/avg\./g, "avg");
+  s = s.replace(/[.()[\]·]/g, "");
+  s = s.replace(/[^a-z0-9_]+/g, "_");
+  s = s.replace(/_+/g, "_");
+  s = s.replace(/^_|_$/g, "");
+  if (!s.startsWith("fp_") && !s.startsWith("isometric_")) {
+    s = `fp_${s}`;
+  }
+  return s;
 }
 
 function maybeConvertBodyWeightNToKg(
@@ -79,11 +111,25 @@ function isRsiModifiedLabel(label: string): boolean {
   return t.includes("modified") || t.includes("rsi mod");
 }
 
+function isEmptyOrNa(rawVal: unknown): boolean {
+  if (rawVal == null) return true;
+  if (typeof rawVal === "string") {
+    const t = rawVal.trim();
+    if (t === "") return true;
+    if (t.toLowerCase() === "n/a") return true;
+  }
+  return false;
+}
+
+function isRsiAggregateKey(derivedKey: string): boolean {
+  if (derivedKey === "fp_rsi" || derivedKey === "fp_rsi_best") return true;
+  if (/(^|_)left($|_)|(^|_)right($|_)/.test(derivedKey)) return false;
+  return derivedKey.startsWith("fp_rsi");
+}
+
 /**
  * Map incoming metrics (verbose labels or canonical keys) to canonical keys.
  */
-const CANON_FORCEPLATE_KEY = /^(fp_|isometric_)[a-z0-9_]+$/;
-
 export function normalizeForceplateMetrics(
   raw: Record<string, unknown>
 ): MetricMap {
@@ -93,21 +139,56 @@ export function normalizeForceplateMetrics(
 
   for (const [rawKey, rawVal] of Object.entries(raw)) {
     const k = rawKey.trim();
+    if (SKIP_COLUMNS.has(k.toLowerCase())) continue;
+    if (isEmptyOrNa(rawVal)) continue;
+
+    if (k === "Impact Peak") {
+      if (typeof rawVal === "string") {
+        const t = rawVal.trim().toLowerCase();
+        if (t === "yes") out.fp_impact_peak = 1;
+        else if (t === "no") out.fp_impact_peak = 0;
+      }
+      continue;
+    }
+
     const mappedVerbose = VERBOSE_FORCEPLATE_KEY_MAP[k];
-    const mapped =
-      mappedVerbose ?? (CANON_FORCEPLATE_KEY.test(k) ? k : null);
-    if (mapped == null) continue;
-
-    const v = num(rawVal);
-    if (v == null) continue;
-
-    if (mapped === "fp_rsi_best") {
+    if (mappedVerbose === "fp_rsi_best") {
+      const v = num(rawVal);
+      if (v == null) continue;
       if (isRsiModifiedLabel(k)) rsiModified = v;
       else rsiPlain = v;
       continue;
     }
+    if (mappedVerbose != null) {
+      const v = num(rawVal);
+      if (v == null) continue;
+      let { key, value } = maybeConvertBodyWeightNToKg(mappedVerbose, v);
+      out[key] = value;
+      continue;
+    }
 
-    let { key, value } = maybeConvertBodyWeightNToKg(mapped, v);
+    if (/^mrsi$/i.test(k)) {
+      const v = num(rawVal);
+      if (v != null) out.fp_mrsi = v;
+      continue;
+    }
+
+    const derivedKey = normalizeColumnKey(k);
+    if (isRsiAggregateKey(derivedKey)) {
+      const v = num(rawVal);
+      if (v == null) continue;
+      if (isRsiModifiedLabel(k) || derivedKey.includes("modified")) {
+        rsiModified = v;
+      } else {
+        rsiPlain = v;
+      }
+      continue;
+    }
+
+    const v = num(rawVal);
+    if (v == null) continue;
+
+    let { key, value } = maybeConvertBodyWeightNToKg(derivedKey, v);
     out[key] = value;
   }
 
@@ -148,6 +229,26 @@ const LR_PAIRS: [string, string, string][] = [
   ["fp_peak_force_l_n_best", "fp_peak_force_r_n_best", "fp_peak_force_lr"],
   ["fp_conc_impulse_l_n_s_best", "fp_conc_impulse_r_n_s_best", "fp_conc_impulse"],
   ["fp_ecc_impulse_l_n_s_best", "fp_ecc_impulse_r_n_s_best", "fp_ecc_impulse"],
+  [
+    "fp_left_avg_braking_force",
+    "fp_right_avg_braking_force",
+    "fp_lr_avg_braking_force",
+  ],
+  [
+    "fp_left_avg_propulsive_force",
+    "fp_right_avg_propulsive_force",
+    "fp_lr_avg_propulsive_force",
+  ],
+  [
+    "fp_left_avg_braking_rfd",
+    "fp_right_avg_braking_rfd",
+    "fp_lr_avg_braking_rfd",
+  ],
+  [
+    "fp_left_avg_landing_force",
+    "fp_right_avg_landing_force",
+    "fp_lr_avg_landing_force",
+  ],
 ];
 
 export function buildAsymmetryResultRows(
