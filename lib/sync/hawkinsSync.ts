@@ -105,10 +105,12 @@ export async function runHawkinsSync(
   let sessionsProcessed = 0;
 
   const refreshToken = process.env.HAWKINS_REFRESH_TOKEN;
-  const apiBase = "https://apac.cloud.hawkindynamics.com/api/v1";
+  const apiBase = process.env.HAWKINS_API_BASE;
+  const tokenUrl = process.env.HAWKINS_TOKEN_URL;
 
-  if (!refreshToken || !apiBase) {
-    const msg = "Missing HAWKINS_REFRESH_TOKEN or HAWKINS_API_BASE";
+  if (!refreshToken || !apiBase || !tokenUrl) {
+    const msg =
+      "Missing HAWKINS_REFRESH_TOKEN, HAWKINS_API_BASE, or HAWKINS_TOKEN_URL";
     await insertSyncLog(supabase, "hawkins", 0, msg);
     return { ok: false, sessionsProcessed: 0, error: msg };
   }
@@ -116,12 +118,10 @@ export async function runHawkinsSync(
   try {
     const athletesUrl = `${apiBase}/athletes`;
 
-    const _refreshToken = process.env.HAWKINS_REFRESH_TOKEN; const debugUrl = process.env.HAWKINS_TOKEN_URL ?? "MISSING";
-    if (!process.env.HAWKINS_TOKEN_URL) throw new Error(`TOKEN_URL_MISSING, REFRESH=${process.env.HAWKINS_REFRESH_TOKEN?.slice(0,8)}`);
-    const tokenRes = await fetch("https://apac.cloud.hawkindynamics.com/api/token", {
+    const tokenRes = await fetch(tokenUrl, {
       method: "GET",
       headers: {
-       "Authorization": "Bearer L2q3Yt.9pzfjPfVIS13CUXVuNSBunnsJxtWk",
+       "Authorization": `Bearer ${refreshToken}`,
         "Accept": "application/json",
       },
     });
