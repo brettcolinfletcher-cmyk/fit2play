@@ -30,6 +30,7 @@ const METRIC_LABELS: Record<string, string> = {
   fp_time_to_peak_braking_force: "Time to Peak Braking Force",
   fp_jump_momentum: "Jump Momentum",
   fp_peak_relative_braking_force: "Peak Relative Braking Force",
+  fp_peak_relative_propulsive_force: "Peak Relative Propulsive Force",
   fp_avg_braking_force: "Avg Braking Force",
   fp_avg_relative_braking_force: "Avg Relative Braking Force",
   fp_braking_impulse: "Braking Impulse",
@@ -68,10 +69,12 @@ function titleCaseWords(s: string): string {
 
 function labelForMetricKey(key: string): string {
   if (METRIC_LABELS[key]) return METRIC_LABELS[key];
-  let rest = key;
-  if (rest.startsWith("fp_")) rest = rest.slice(3);
-  const spaced = rest.replace(/_/g, " ");
-  return titleCaseWords(spaced);
+  if (key.startsWith("fp_")) {
+    const rest = key.slice(3);
+    const spaced = rest.replace(/_/g, " ");
+    return titleCaseWords(spaced);
+  }
+  return key.includes("_") ? key.replace(/_/g, " ") : key;
 }
 
 type Athlete = Record<string, unknown> & {
