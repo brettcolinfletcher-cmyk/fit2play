@@ -26,6 +26,14 @@ function pickAllowedPatch(body: Record<string, unknown>) {
   return out;
 }
 
+function syncAuthorized(request: Request): boolean {
+  const secret = process.env.SYNC_SECRET;
+  if (!secret) return false;
+  const header = request.headers.get("x-sync-secret");
+  const q = new URL(request.url).searchParams.get("secret");
+  return header === secret || q === secret;
+}
+
 export async function GET(
   _req: NextRequest,
   context: { params: Promise<{ id: string }> }
@@ -72,12 +80,8 @@ export async function PATCH(
     return NextResponse.json({ error: "Missing id" }, { status: 400 });
   }
 
-  const { user, profile } = await requireAuth();
-  if (!user) {
+  if (!syncAuthorized(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  if (profile?.role !== "staff") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const body = (await req.json()) as Record<string, unknown>;
@@ -105,7 +109,7 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _req: NextRequest,
+  req: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   const { id } = await context.params;
@@ -113,12 +117,8 @@ export async function DELETE(
     return NextResponse.json({ error: "Missing id" }, { status: 400 });
   }
 
-  const { user, profile } = await requireAuth();
-  if (!user) {
+  if (!syncAuthorized(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  if (profile?.role !== "staff") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const supabase = createClient(

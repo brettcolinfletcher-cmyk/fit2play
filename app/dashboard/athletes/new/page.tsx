@@ -56,7 +56,10 @@ export default function NewAthletePage() {
     const res = await fetch("/api/athletes", {
       method: "POST",
       credentials: "include",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "x-sync-secret": process.env.NEXT_PUBLIC_SYNC_SECRET ?? "",
+      },
       body: JSON.stringify(body),
     });
 

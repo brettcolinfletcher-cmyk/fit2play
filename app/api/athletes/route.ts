@@ -26,6 +26,14 @@ function pickAllowed(body: Record<string, unknown>) {
   return out;
 }
 
+function syncAuthorized(request: Request): boolean {
+  const secret = process.env.SYNC_SECRET;
+  if (!secret) return false;
+  const header = request.headers.get("x-sync-secret");
+  const q = new URL(request.url).searchParams.get("secret");
+  return header === secret || q === secret;
+}
+
 export async function GET() {
   const { user, profile } = await requireAuth();
   if (!user) {
@@ -53,12 +61,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const { user, profile } = await requireAuth();
-  if (!user) {
+  if (!syncAuthorized(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  if (profile?.role !== "staff") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const body = (await req.json()) as Record<string, unknown>;

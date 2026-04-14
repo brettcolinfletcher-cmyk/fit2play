@@ -120,7 +120,10 @@ export default function EditAthletePage() {
     const res = await fetch(`/api/athletes/${id}`, {
       method: "PATCH",
       credentials: "include",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "x-sync-secret": process.env.NEXT_PUBLIC_SYNC_SECRET ?? "",
+      },
       body: JSON.stringify(body),
     });
 
@@ -140,6 +143,9 @@ export default function EditAthletePage() {
     const res = await fetch(`/api/athletes/${id}`, {
       method: "DELETE",
       credentials: "include",
+      headers: {
+        "x-sync-secret": process.env.NEXT_PUBLIC_SYNC_SECRET ?? "",
+      },
     });
     if (!res.ok) {
       const json = (await res.json()) as { error?: string };
