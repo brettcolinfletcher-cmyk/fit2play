@@ -25,6 +25,9 @@ export default function HomePage() {
           <a href="#how" className="hover:text-lime-400">
             How it works
           </a>
+          <Link href="/services" className="hover:text-lime-400">
+            Services
+          </Link>
           <a href="#services" className="hover:text-lime-400">
             Testing
           </a>
@@ -250,6 +253,9 @@ export default function HomePage() {
             <a href="#how" className="hover:text-lime-400">
               How it works
             </a>
+            <Link href="/services" className="hover:text-lime-400">
+              Services
+            </Link>
             <a href="#services" className="hover:text-lime-400">
               Testing
             </a>
