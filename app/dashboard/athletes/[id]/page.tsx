@@ -3,6 +3,16 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import {
+  CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import DashboardNav from "@/components/DashboardNav";
 import { useRequireDashboardStaff } from "@/lib/useRequireDashboardStaff";
 import { supabase } from "@/lib/supabaseClient";
@@ -120,6 +130,62 @@ function formatWhen(iso: string | null) {
   }
 }
 
+function formatChartAxisDate(iso: string | null): string {
+  if (!iso) return "—";
+  try {
+    return new Date(iso).toLocaleDateString("en-AU", {
+      day: "numeric",
+      month: "short",
+      timeZone: "Australia/Sydney",
+    });
+  } catch {
+    return "—";
+  }
+}
+
+function isCmjSession(s: SessionRow): boolean {
+  const tt = (s.test_type ?? "").toLowerCase();
+  const st = (s.test_sub_type ?? "").toLowerCase();
+  if (tt === "force_plate_dj") return false;
+  if (tt === "force_plate_cmj") return true;
+  if (tt.includes("dj") || tt.includes("drop")) return false;
+  if (tt.includes("cmj")) return true;
+  if (st.includes("dj") || st.includes("drop")) return false;
+  if (st.includes("cmj")) return true;
+  return false;
+}
+
+function isDjSession(s: SessionRow): boolean {
+  const tt = (s.test_type ?? "").toLowerCase();
+  const st = (s.test_sub_type ?? "").toLowerCase();
+  if (tt === "force_plate_dj") return true;
+  if (tt === "force_plate_cmj") return false;
+  if (tt.includes("dj") || tt.includes("drop")) return true;
+  if (st.includes("dj") || st.includes("drop")) return true;
+  return false;
+}
+
+function metricAggregate(
+  map: Map<string, MetricRow[]>,
+  sessionId: string,
+  key: string,
+  mode: "max" | "min"
+): number | null {
+  const rows =
+    map.get(sessionId)?.filter((r) => r.key === key && r.value != null) ?? [];
+  if (rows.length === 0) return null;
+  const vals = rows.map((r) => r.value!);
+  return mode === "max" ? Math.max(...vals) : Math.min(...vals);
+}
+
+function sessionsChronological(sess: SessionRow[]): SessionRow[] {
+  return [...sess].sort((a, b) => {
+    const ta = a.session_date ? new Date(a.session_date).getTime() : 0;
+    const tb = b.session_date ? new Date(b.session_date).getTime() : 0;
+    return ta - tb;
+  });
+}
+
 export default function AthleteDetailPage() {
   const { id } = useParams<{ id: string }>();
   const staffOk = useRequireDashboardStaff();
@@ -215,6 +281,90 @@ export default function AthleteDetailPage() {
     }
     return { hawkins: h, motion1080: m, csv: c };
   }, [sessions]);
+
+  const trendJumpHeight = useMemo(() => {
+    const sorted = sessionsChronological(sessions);
+    const points: {
+      t: number;
+      label: string;
+      CMJ: number | null;
+      DJ: number | null;
+    }[] = [];
+    for (const s of sorted) {
+      if (!s.session_date) continue;
+      const v = metricAggregate(metricsBySession, s.id, "fp_jump_height", "max");
+      if (v == null) continue;
+      const t = new Date(s.session_date).getTime();
+      const label = formatChartAxisDate(s.session_date);
+      if (isCmjSession(s)) {
+        points.push({ t, label, CMJ: v, DJ: null });
+      } else if (isDjSession(s)) {
+        points.push({ t, label, CMJ: null, DJ: v });
+      }
+    }
+    const n =
+      points.filter((p) => p.CMJ != null).length +
+      points.filter((p) => p.DJ != null).length;
+    return { points, enough: n >= 2 };
+  }, [sessions, metricsBySession]);
+
+  const trendRsi = useMemo(() => {
+    const sorted = sessionsChronological(sessions);
+    const points: {
+      t: number;
+      label: string;
+      RSI: number | null;
+      mRSI: number | null;
+    }[] = [];
+    for (const s of sorted) {
+      if (!s.session_date) continue;
+      const rsi = metricAggregate(metricsBySession, s.id, "fp_rsi_best", "max");
+      const mrsi = metricAggregate(metricsBySession, s.id, "fp_mrsi", "max");
+      if (rsi == null && mrsi == null) continue;
+      const t = new Date(s.session_date).getTime();
+      const label = formatChartAxisDate(s.session_date);
+      points.push({ t, label, RSI: rsi, mRSI: mrsi });
+    }
+    return { points, enough: points.length >= 2 };
+  }, [sessions, metricsBySession]);
+
+  const trendContactDj = useMemo(() => {
+    const sorted = sessionsChronological(sessions);
+    const points: { t: number; label: string; ct: number }[] = [];
+    for (const s of sorted) {
+      if (!s.session_date || !isDjSession(s)) continue;
+      const v = metricAggregate(
+        metricsBySession,
+        s.id,
+        "fp_contact_time",
+        "min"
+      );
+      if (v == null) continue;
+      const t = new Date(s.session_date).getTime();
+      const label = formatChartAxisDate(s.session_date);
+      points.push({ t, label, ct: v });
+    }
+    return { points, enough: points.length >= 2 };
+  }, [sessions, metricsBySession]);
+
+  const trendPeakBrake = useMemo(() => {
+    const sorted = sessionsChronological(sessions);
+    const points: { t: number; label: string; f: number }[] = [];
+    for (const s of sorted) {
+      if (!s.session_date) continue;
+      const v = metricAggregate(
+        metricsBySession,
+        s.id,
+        "fp_peak_braking_force",
+        "max"
+      );
+      if (v == null) continue;
+      const t = new Date(s.session_date).getTime();
+      const label = formatChartAxisDate(s.session_date);
+      points.push({ t, label, f: v });
+    }
+    return { points, enough: points.length >= 2 };
+  }, [sessions, metricsBySession]);
 
   const name = athlete
     ? `${athlete.first_name ?? ""} ${athlete.last_name ?? ""}`.trim() ||
@@ -377,6 +527,296 @@ export default function AthleteDetailPage() {
                 </div>
               </dl>
             </header>
+
+            <h2 className="mt-10 text-sm font-semibold uppercase tracking-wide text-lime-300">
+              Performance trends
+            </h2>
+            <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="rounded-lg border border-slate-800 bg-slate-900/50 p-4">
+                <h3 className="mb-3 text-xs font-medium text-slate-400">
+                  Jump height over time
+                </h3>
+                {trendJumpHeight.enough ? (
+                  <div className="h-64 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={trendJumpHeight.points}>
+                        <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
+                        <XAxis
+                          dataKey="t"
+                          type="number"
+                          domain={["dataMin", "dataMax"]}
+                          tickFormatter={(ts) =>
+                            formatChartAxisDate(
+                              new Date(Number(ts)).toISOString()
+                            )
+                          }
+                          stroke="#64748b"
+                          tick={{ fill: "#94a3b8", fontSize: 11 }}
+                        />
+                        <YAxis
+                          stroke="#64748b"
+                          tick={{ fill: "#94a3b8", fontSize: 11 }}
+                          tickFormatter={(v) => Number(v).toFixed(2)}
+                          label={{
+                            value: "m",
+                            angle: -90,
+                            position: "insideLeft",
+                            fill: "#94a3b8",
+                            fontSize: 11,
+                          }}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: "rgb(15 23 42)",
+                            border: "1px solid rgb(30 41 59)",
+                            borderRadius: "0.5rem",
+                            fontSize: "12px",
+                          }}
+                          labelFormatter={(_, payload) =>
+                            payload[0]?.payload?.label ?? ""
+                          }
+                          formatter={(value: number | string) =>
+                            typeof value === "number"
+                              ? value.toFixed(2)
+                              : String(value)
+                          }
+                        />
+                        <Legend />
+                        <Line
+                          type="monotone"
+                          dataKey="CMJ"
+                          name="CMJ"
+                          stroke="#84cc16"
+                          strokeWidth={2}
+                          dot={{ r: 3 }}
+                          connectNulls
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="DJ"
+                          name="DJ"
+                          stroke="#38bdf8"
+                          strokeWidth={2}
+                          dot={{ r: 3 }}
+                          connectNulls
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <p className="py-16 text-center text-xs text-slate-500">
+                    Not enough data
+                  </p>
+                )}
+              </div>
+
+              <div className="rounded-lg border border-slate-800 bg-slate-900/50 p-4">
+                <h3 className="mb-3 text-xs font-medium text-slate-400">
+                  RSI / mRSI over time
+                </h3>
+                {trendRsi.enough ? (
+                  <div className="h-64 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={trendRsi.points}>
+                        <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
+                        <XAxis
+                          dataKey="t"
+                          type="number"
+                          domain={["dataMin", "dataMax"]}
+                          tickFormatter={(ts) =>
+                            formatChartAxisDate(
+                              new Date(Number(ts)).toISOString()
+                            )
+                          }
+                          stroke="#64748b"
+                          tick={{ fill: "#94a3b8", fontSize: 11 }}
+                        />
+                        <YAxis
+                          stroke="#64748b"
+                          tick={{ fill: "#94a3b8", fontSize: 11 }}
+                          tickFormatter={(v) => Number(v).toFixed(2)}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: "rgb(15 23 42)",
+                            border: "1px solid rgb(30 41 59)",
+                            borderRadius: "0.5rem",
+                            fontSize: "12px",
+                          }}
+                          labelFormatter={(_, payload) =>
+                            payload[0]?.payload?.label ?? ""
+                          }
+                          formatter={(value: number | string) =>
+                            typeof value === "number"
+                              ? value.toFixed(2)
+                              : String(value)
+                          }
+                        />
+                        <Legend />
+                        <Line
+                          type="monotone"
+                          dataKey="RSI"
+                          name="RSI"
+                          stroke="#84cc16"
+                          strokeWidth={2}
+                          dot={{ r: 3 }}
+                          connectNulls
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="mRSI"
+                          name="mRSI"
+                          stroke="#fbbf24"
+                          strokeWidth={2}
+                          dot={{ r: 3 }}
+                          connectNulls
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <p className="py-16 text-center text-xs text-slate-500">
+                    Not enough data
+                  </p>
+                )}
+              </div>
+
+              <div className="rounded-lg border border-slate-800 bg-slate-900/50 p-4">
+                <h3 className="mb-3 text-xs font-medium text-slate-400">
+                  Contact time over time (DJ)
+                </h3>
+                {trendContactDj.enough ? (
+                  <div className="h-64 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={trendContactDj.points}>
+                        <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
+                        <XAxis
+                          dataKey="t"
+                          type="number"
+                          domain={["dataMin", "dataMax"]}
+                          tickFormatter={(ts) =>
+                            formatChartAxisDate(
+                              new Date(Number(ts)).toISOString()
+                            )
+                          }
+                          stroke="#64748b"
+                          tick={{ fill: "#94a3b8", fontSize: 11 }}
+                        />
+                        <YAxis
+                          stroke="#64748b"
+                          tick={{ fill: "#94a3b8", fontSize: 11 }}
+                          tickFormatter={(v) => Number(v).toFixed(3)}
+                          label={{
+                            value: "s",
+                            angle: -90,
+                            position: "insideLeft",
+                            fill: "#94a3b8",
+                            fontSize: 11,
+                          }}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: "rgb(15 23 42)",
+                            border: "1px solid rgb(30 41 59)",
+                            borderRadius: "0.5rem",
+                            fontSize: "12px",
+                          }}
+                          labelFormatter={(_, payload) =>
+                            payload[0]?.payload?.label ?? ""
+                          }
+                          formatter={(value: number | string) =>
+                            typeof value === "number"
+                              ? value.toFixed(3)
+                              : String(value)
+                          }
+                        />
+                        <Legend />
+                        <Line
+                          type="monotone"
+                          dataKey="ct"
+                          name="Contact time"
+                          stroke="#38bdf8"
+                          strokeWidth={2}
+                          dot={{ r: 3 }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <p className="py-16 text-center text-xs text-slate-500">
+                    Not enough data
+                  </p>
+                )}
+              </div>
+
+              <div className="rounded-lg border border-slate-800 bg-slate-900/50 p-4">
+                <h3 className="mb-3 text-xs font-medium text-slate-400">
+                  Peak braking force over time
+                </h3>
+                {trendPeakBrake.enough ? (
+                  <div className="h-64 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={trendPeakBrake.points}>
+                        <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
+                        <XAxis
+                          dataKey="t"
+                          type="number"
+                          domain={["dataMin", "dataMax"]}
+                          tickFormatter={(ts) =>
+                            formatChartAxisDate(
+                              new Date(Number(ts)).toISOString()
+                            )
+                          }
+                          stroke="#64748b"
+                          tick={{ fill: "#94a3b8", fontSize: 11 }}
+                        />
+                        <YAxis
+                          stroke="#64748b"
+                          tick={{ fill: "#94a3b8", fontSize: 11 }}
+                          tickFormatter={(v) => Math.round(Number(v)).toString()}
+                          label={{
+                            value: "N",
+                            angle: -90,
+                            position: "insideLeft",
+                            fill: "#94a3b8",
+                            fontSize: 11,
+                          }}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: "rgb(15 23 42)",
+                            border: "1px solid rgb(30 41 59)",
+                            borderRadius: "0.5rem",
+                            fontSize: "12px",
+                          }}
+                          labelFormatter={(_, payload) =>
+                            payload[0]?.payload?.label ?? ""
+                          }
+                          formatter={(value: number | string) =>
+                            typeof value === "number"
+                              ? Math.round(value).toString()
+                              : String(value)
+                          }
+                        />
+                        <Legend />
+                        <Line
+                          type="monotone"
+                          dataKey="f"
+                          name="Peak braking force"
+                          stroke="#f43f5e"
+                          strokeWidth={2}
+                          dot={{ r: 3 }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <p className="py-16 text-center text-xs text-slate-500">
+                    Not enough data
+                  </p>
+                )}
+              </div>
+            </div>
 
             <h2 className="mt-10 text-sm font-semibold uppercase tracking-wide text-lime-300">
               Sessions
