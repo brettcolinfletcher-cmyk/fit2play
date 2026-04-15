@@ -208,8 +208,8 @@ const TREND_CHART_PILLS: { id: TrendChartId; label: string }[] = [
   { id: "rsi", label: "RSI/mRSI" },
   { id: "contact", label: "Contact Time" },
   { id: "peakBrake", label: "Peak Braking Force" },
-  { id: "concentric", label: "Concentric Impulse" },
-  { id: "eccentric", label: "Eccentric Impulse" },
+  { id: "concentric", label: "Propulsive Impulse" },
+  { id: "eccentric", label: "Braking Impulse" },
 ];
 
 export default function AthleteDetailPage() {
@@ -408,7 +408,7 @@ export default function AthleteDetailPage() {
       const v = metricAggregate(
         metricsBySession,
         s.id,
-        "fp_concentric_impulse",
+        "fp_propulsive_impulse",
         "max"
       );
       if (v == null) continue;
@@ -439,7 +439,7 @@ export default function AthleteDetailPage() {
       const v = metricAggregate(
         metricsBySession,
         s.id,
-        "fp_eccentric_impulse",
+        "fp_braking_impulse",
         "max"
       );
       if (v == null) continue;
@@ -947,7 +947,7 @@ export default function AthleteDetailPage() {
               {visibleTrendCharts.has("concentric") ? (
               <div className="rounded-lg border border-slate-800 bg-slate-900/50 p-4">
                 <h3 className="mb-3 text-xs font-medium text-slate-400">
-                  Concentric impulse over time
+                  Propulsive Impulse over time
                 </h3>
                 {trendConcentric.enough ? (
                   <div className="h-64 w-full">
@@ -1027,7 +1027,7 @@ export default function AthleteDetailPage() {
               {visibleTrendCharts.has("eccentric") ? (
               <div className="rounded-lg border border-slate-800 bg-slate-900/50 p-4">
                 <h3 className="mb-3 text-xs font-medium text-slate-400">
-                  Eccentric impulse over time
+                  Braking Impulse over time
                 </h3>
                 {trendEccentric.enough ? (
                   <div className="h-64 w-full">
