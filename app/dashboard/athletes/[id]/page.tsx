@@ -186,6 +186,32 @@ function sessionsChronological(sess: SessionRow[]): SessionRow[] {
   });
 }
 
+type TrendChartId =
+  | "jumpHeight"
+  | "rsi"
+  | "contact"
+  | "peakBrake"
+  | "concentric"
+  | "eccentric";
+
+const ALL_TREND_CHART_IDS: TrendChartId[] = [
+  "jumpHeight",
+  "rsi",
+  "contact",
+  "peakBrake",
+  "concentric",
+  "eccentric",
+];
+
+const TREND_CHART_PILLS: { id: TrendChartId; label: string }[] = [
+  { id: "jumpHeight", label: "Jump Height" },
+  { id: "rsi", label: "RSI/mRSI" },
+  { id: "contact", label: "Contact Time" },
+  { id: "peakBrake", label: "Peak Braking Force" },
+  { id: "concentric", label: "Concentric Impulse" },
+  { id: "eccentric", label: "Eccentric Impulse" },
+];
+
 export default function AthleteDetailPage() {
   const { id } = useParams<{ id: string }>();
   const staffOk = useRequireDashboardStaff();
@@ -198,6 +224,9 @@ export default function AthleteDetailPage() {
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [visibleTrendCharts, setVisibleTrendCharts] = useState<
+    Set<TrendChartId>
+  >(() => new Set(ALL_TREND_CHART_IDS));
 
   useEffect(() => {
     if (!staffOk || !id) return;
@@ -366,6 +395,68 @@ export default function AthleteDetailPage() {
     return { points, enough: points.length >= 2 };
   }, [sessions, metricsBySession]);
 
+  const trendConcentric = useMemo(() => {
+    const sorted = sessionsChronological(sessions);
+    const points: {
+      t: number;
+      label: string;
+      CMJ: number | null;
+      DJ: number | null;
+    }[] = [];
+    for (const s of sorted) {
+      if (!s.session_date) continue;
+      const v = metricAggregate(
+        metricsBySession,
+        s.id,
+        "fp_concentric_impulse",
+        "max"
+      );
+      if (v == null) continue;
+      const t = new Date(s.session_date).getTime();
+      const label = formatChartAxisDate(s.session_date);
+      if (isCmjSession(s)) {
+        points.push({ t, label, CMJ: v, DJ: null });
+      } else if (isDjSession(s)) {
+        points.push({ t, label, CMJ: null, DJ: v });
+      }
+    }
+    const n =
+      points.filter((p) => p.CMJ != null).length +
+      points.filter((p) => p.DJ != null).length;
+    return { points, enough: n >= 2 };
+  }, [sessions, metricsBySession]);
+
+  const trendEccentric = useMemo(() => {
+    const sorted = sessionsChronological(sessions);
+    const points: {
+      t: number;
+      label: string;
+      CMJ: number | null;
+      DJ: number | null;
+    }[] = [];
+    for (const s of sorted) {
+      if (!s.session_date) continue;
+      const v = metricAggregate(
+        metricsBySession,
+        s.id,
+        "fp_eccentric_impulse",
+        "max"
+      );
+      if (v == null) continue;
+      const t = new Date(s.session_date).getTime();
+      const label = formatChartAxisDate(s.session_date);
+      if (isCmjSession(s)) {
+        points.push({ t, label, CMJ: v, DJ: null });
+      } else if (isDjSession(s)) {
+        points.push({ t, label, CMJ: null, DJ: v });
+      }
+    }
+    const n =
+      points.filter((p) => p.CMJ != null).length +
+      points.filter((p) => p.DJ != null).length;
+    return { points, enough: n >= 2 };
+  }, [sessions, metricsBySession]);
+
   const name = athlete
     ? `${athlete.first_name ?? ""} ${athlete.last_name ?? ""}`.trim() ||
       "Athlete"
@@ -376,6 +467,15 @@ export default function AthleteDetailPage() {
       const next = new Set(prev);
       if (next.has(sid)) next.delete(sid);
       else next.add(sid);
+      return next;
+    });
+  }
+
+  function toggleTrendChart(chartId: TrendChartId) {
+    setVisibleTrendCharts((prev) => {
+      const next = new Set(prev);
+      if (next.has(chartId)) next.delete(chartId);
+      else next.add(chartId);
       return next;
     });
   }
@@ -531,7 +631,27 @@ export default function AthleteDetailPage() {
             <h2 className="mt-10 text-sm font-semibold uppercase tracking-wide text-lime-300">
               Performance trends
             </h2>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {TREND_CHART_PILLS.map(({ id, label }) => {
+                const on = visibleTrendCharts.has(id);
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => toggleTrendChart(id)}
+                    className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                      on
+                        ? "border-lime-400 bg-lime-400/15 text-lime-300"
+                        : "border-slate-700 bg-slate-900/60 text-slate-500 hover:border-slate-600 hover:text-slate-400"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
             <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+              {visibleTrendCharts.has("jumpHeight") ? (
               <div className="rounded-lg border border-slate-800 bg-slate-900/50 p-4">
                 <h3 className="mb-3 text-xs font-medium text-slate-400">
                   Jump height over time
@@ -609,7 +729,9 @@ export default function AthleteDetailPage() {
                   </p>
                 )}
               </div>
+              ) : null}
 
+              {visibleTrendCharts.has("rsi") ? (
               <div className="rounded-lg border border-slate-800 bg-slate-900/50 p-4">
                 <h3 className="mb-3 text-xs font-medium text-slate-400">
                   RSI / mRSI over time
@@ -680,7 +802,9 @@ export default function AthleteDetailPage() {
                   </p>
                 )}
               </div>
+              ) : null}
 
+              {visibleTrendCharts.has("contact") ? (
               <div className="rounded-lg border border-slate-800 bg-slate-900/50 p-4">
                 <h3 className="mb-3 text-xs font-medium text-slate-400">
                   Contact time over time (DJ)
@@ -748,7 +872,9 @@ export default function AthleteDetailPage() {
                   </p>
                 )}
               </div>
+              ) : null}
 
+              {visibleTrendCharts.has("peakBrake") ? (
               <div className="rounded-lg border border-slate-800 bg-slate-900/50 p-4">
                 <h3 className="mb-3 text-xs font-medium text-slate-400">
                   Peak braking force over time
@@ -816,6 +942,167 @@ export default function AthleteDetailPage() {
                   </p>
                 )}
               </div>
+              ) : null}
+
+              {visibleTrendCharts.has("concentric") ? (
+              <div className="rounded-lg border border-slate-800 bg-slate-900/50 p-4">
+                <h3 className="mb-3 text-xs font-medium text-slate-400">
+                  Concentric impulse over time
+                </h3>
+                {trendConcentric.enough ? (
+                  <div className="h-64 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={trendConcentric.points}>
+                        <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
+                        <XAxis
+                          dataKey="t"
+                          type="number"
+                          domain={["dataMin", "dataMax"]}
+                          tickFormatter={(ts) =>
+                            formatChartAxisDate(
+                              new Date(Number(ts)).toISOString()
+                            )
+                          }
+                          stroke="#64748b"
+                          tick={{ fill: "#94a3b8", fontSize: 11 }}
+                        />
+                        <YAxis
+                          stroke="#64748b"
+                          tick={{ fill: "#94a3b8", fontSize: 11 }}
+                          tickFormatter={(v) => Number(v).toFixed(1)}
+                          label={{
+                            value: "N·s",
+                            angle: -90,
+                            position: "insideLeft",
+                            fill: "#94a3b8",
+                            fontSize: 11,
+                          }}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: "rgb(15 23 42)",
+                            border: "1px solid rgb(30 41 59)",
+                            borderRadius: "0.5rem",
+                            fontSize: "12px",
+                          }}
+                          labelFormatter={(_, payload) =>
+                            payload[0]?.payload?.label ?? ""
+                          }
+                          formatter={(value: number | string) =>
+                            typeof value === "number"
+                              ? value.toFixed(1)
+                              : String(value)
+                          }
+                        />
+                        <Legend />
+                        <Line
+                          type="monotone"
+                          dataKey="CMJ"
+                          name="CMJ"
+                          stroke="#84cc16"
+                          strokeWidth={2}
+                          dot={{ r: 3 }}
+                          connectNulls
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="DJ"
+                          name="DJ"
+                          stroke="#38bdf8"
+                          strokeWidth={2}
+                          dot={{ r: 3 }}
+                          connectNulls
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <p className="py-16 text-center text-xs text-slate-500">
+                    Not enough data
+                  </p>
+                )}
+              </div>
+              ) : null}
+
+              {visibleTrendCharts.has("eccentric") ? (
+              <div className="rounded-lg border border-slate-800 bg-slate-900/50 p-4">
+                <h3 className="mb-3 text-xs font-medium text-slate-400">
+                  Eccentric impulse over time
+                </h3>
+                {trendEccentric.enough ? (
+                  <div className="h-64 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={trendEccentric.points}>
+                        <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
+                        <XAxis
+                          dataKey="t"
+                          type="number"
+                          domain={["dataMin", "dataMax"]}
+                          tickFormatter={(ts) =>
+                            formatChartAxisDate(
+                              new Date(Number(ts)).toISOString()
+                            )
+                          }
+                          stroke="#64748b"
+                          tick={{ fill: "#94a3b8", fontSize: 11 }}
+                        />
+                        <YAxis
+                          stroke="#64748b"
+                          tick={{ fill: "#94a3b8", fontSize: 11 }}
+                          tickFormatter={(v) => Number(v).toFixed(1)}
+                          label={{
+                            value: "N·s",
+                            angle: -90,
+                            position: "insideLeft",
+                            fill: "#94a3b8",
+                            fontSize: 11,
+                          }}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: "rgb(15 23 42)",
+                            border: "1px solid rgb(30 41 59)",
+                            borderRadius: "0.5rem",
+                            fontSize: "12px",
+                          }}
+                          labelFormatter={(_, payload) =>
+                            payload[0]?.payload?.label ?? ""
+                          }
+                          formatter={(value: number | string) =>
+                            typeof value === "number"
+                              ? value.toFixed(1)
+                              : String(value)
+                          }
+                        />
+                        <Legend />
+                        <Line
+                          type="monotone"
+                          dataKey="CMJ"
+                          name="CMJ"
+                          stroke="#84cc16"
+                          strokeWidth={2}
+                          dot={{ r: 3 }}
+                          connectNulls
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="DJ"
+                          name="DJ"
+                          stroke="#38bdf8"
+                          strokeWidth={2}
+                          dot={{ r: 3 }}
+                          connectNulls
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <p className="py-16 text-center text-xs text-slate-500">
+                    Not enough data
+                  </p>
+                )}
+              </div>
+              ) : null}
             </div>
 
             <h2 className="mt-10 text-sm font-semibold uppercase tracking-wide text-lime-300">
