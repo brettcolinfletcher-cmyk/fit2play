@@ -20,26 +20,20 @@ export default function ServicesPage() {
         </Link>
 
         <nav className="hidden items-center gap-5 text-sm text-slate-300 md:flex">
-          <a href="/#how" className="hover:text-lime-400">
+          <a href="/#how-it-works" className="hover:text-lime-400">
             How it works
           </a>
           <Link href="/services" className="text-lime-400">
             Services
           </Link>
-          <a href="/#services" className="hover:text-lime-400">
-            Testing
-          </a>
-          <a href="/#dashboard" className="hover:text-lime-400">
-            Dashboard
-          </a>
           <a
-            href="/#contact"
+            href="mailto:info@fit2play.com"
             className="rounded-full border border-slate-600 px-3 py-1 hover:border-lime-400 hover:text-lime-400"
           >
             Contact
           </a>
           <Link
-            href="/dashboard"
+            href="/login"
             className="rounded-full bg-lime-400 px-4 py-1.5 text-xs font-semibold text-slate-950 shadow-md hover:brightness-110"
           >
             Login
@@ -58,7 +52,7 @@ export default function ServicesPage() {
             back after injury to peak performance benchmarking.
           </p>
           <a
-            href="/#contact"
+            href="mailto:info@fit2play.com"
             className="mt-8 inline-flex items-center justify-center rounded-full bg-lime-400 px-6 py-2.5 text-sm font-semibold text-slate-950 shadow-md hover:brightness-110"
           >
             Book an Assessment
@@ -224,7 +218,7 @@ export default function ServicesPage() {
             Ready to get started?
           </h2>
           <a
-            href="/#contact"
+            href="mailto:info@fit2play.com"
             className="mt-5 inline-flex items-center justify-center rounded-full bg-lime-400 px-8 py-2.5 text-sm font-semibold text-slate-950 shadow-md hover:brightness-110"
           >
             Book Now
@@ -232,18 +226,21 @@ export default function ServicesPage() {
         </section>
 
         <nav className="mt-8 flex justify-center gap-4 text-xs text-slate-400 md:hidden">
-          <a href="/#how" className="hover:text-lime-400">
+          <a href="/#how-it-works" className="hover:text-lime-400">
             How it works
           </a>
           <Link href="/services" className="text-lime-400">
             Services
           </Link>
-          <a href="/#services" className="hover:text-lime-400">
-            Testing
+          <a
+            href="mailto:info@fit2play.com"
+            className="hover:text-lime-400"
+          >
+            Contact
           </a>
-          <a href="/#dashboard" className="hover:text-lime-400">
-            Dashboard
-          </a>
+          <Link href="/login" className="hover:text-lime-400">
+            Login
+          </Link>
         </nav>
       </main>
     </div>

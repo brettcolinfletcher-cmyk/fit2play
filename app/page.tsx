@@ -22,26 +22,20 @@ export default function HomePage() {
         </Link>
 
         <nav className="hidden items-center gap-5 text-sm text-slate-300 md:flex">
-          <a href="#how" className="hover:text-lime-400">
+          <a href="/#how-it-works" className="hover:text-lime-400">
             How it works
           </a>
           <Link href="/services" className="hover:text-lime-400">
             Services
           </Link>
-          <a href="#services" className="hover:text-lime-400">
-            Testing
-          </a>
-          <a href="#dashboard" className="hover:text-lime-400">
-            Dashboard
-          </a>
           <a
-            href="#contact"
+            href="mailto:info@fit2play.com"
             className="rounded-full border border-slate-600 px-3 py-1 hover:border-lime-400 hover:text-lime-400"
           >
             Contact
           </a>
           <Link
-            href="/dashboard"
+            href="/login"
             className="rounded-full bg-lime-400 px-4 py-1.5 text-xs font-semibold text-slate-950 shadow-md hover:brightness-110"
           >
             Login
@@ -149,7 +143,7 @@ export default function HomePage() {
         </section>
 
         {/* HOW IT WORKS */}
-        <section id="how" className="pb-16">
+        <section id="how-it-works" className="pb-16">
           <h2 className="mb-4 text-sm font-semibold uppercase tracking-[0.2em] text-lime-300">
             How it works
           </h2>
@@ -250,18 +244,21 @@ export default function HomePage() {
           </div>
           {/* Mobile nav fallback */}
           <nav className="mt-6 flex justify-center gap-4 text-xs text-slate-400 md:hidden">
-            <a href="#how" className="hover:text-lime-400">
+            <a href="/#how-it-works" className="hover:text-lime-400">
               How it works
             </a>
             <Link href="/services" className="hover:text-lime-400">
               Services
             </Link>
-            <a href="#services" className="hover:text-lime-400">
-              Testing
+            <a
+              href="mailto:info@fit2play.com"
+              className="hover:text-lime-400"
+            >
+              Contact
             </a>
-            <a href="#dashboard" className="hover:text-lime-400">
-              Dashboard
-            </a>
+            <Link href="/login" className="hover:text-lime-400">
+              Login
+            </Link>
           </nav>
         </section>
       </main>

@@ -66,12 +66,12 @@ export default function DashboardNav() {
       },
       {
         href: "/dashboard/sprint-report",
-        label: "Sprint report",
+        label: "Sprint Report",
         active: pathname.startsWith("/dashboard/sprint-report"),
       },
       {
         href: "/dashboard/add-test",
-        label: "Add test",
+        label: "Add Test",
         active: pathname.startsWith("/dashboard/add-test"),
       },
       {
