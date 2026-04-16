@@ -93,10 +93,17 @@ function computeRTSFromMetrics(metrics: Metric[]) {
   const getSummary = (key: string) =>
     summary.find((m) => m.key === key)?.value ?? null;
 
+  const repTopSpeeds = reps
+    .filter(m => (m.key === "top_speed" || m.key === "peak_speed") && m.value != null)
+    .map(m => m.value as number);
+  const repTotalTimes = reps
+    .filter(m => m.key === "total_time" && m.value != null)
+    .map(m => m.value as number);
+
   const peakSpeed = getSummary("top_speed") ?? getSummary("peak_speed") ??
-    Math.max(...reps.filter(m => (m.key === "top_speed" || m.key === "peak_speed") && m.value != null).map(m => m.value as number), ...[0]) || null;
+    (repTopSpeeds.length > 0 ? Math.max(...repTopSpeeds) : null);
   const split20 = getSummary("total_time") ?? getSummary("split_20m") ??
-    (reps.filter(m => m.key === "total_time" && m.value != null).length > 0 ? Math.min(...reps.filter(m => m.key === "total_time" && m.value != null).map(m => m.value as number)) : null);
+    (repTotalTimes.length > 0 ? Math.min(...repTotalTimes) : null);
 
   const repSpeeds = reps
     .filter((m) => (m.key === "top_speed" || m.key === "peak_speed") && m.value != null)
