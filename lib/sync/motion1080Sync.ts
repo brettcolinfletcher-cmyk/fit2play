@@ -1,7 +1,9 @@
+import { Buffer } from "node:buffer";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { insertSyncLog } from "./syncLog";
 
 const MOTION_BASE = "https://publicapi.1080motion.com";
+const MAX_TIME_SERIES_SAMPLES = 2000;
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -208,11 +210,206 @@ function extractSplitMetrics(
   return rows;
 }
 
+// ─── In-rep time series (sampleData) ──────────────────────────────────────────
+
+type DecodedMotionSample = {
+  t: number;
+  position: number;
+  speed: number;
+  acceleration: number;
+  force: number;
+};
+
+type SprintSeriesPayload = {
+  t: number[];
+  x: number[];
+  v: number[];
+  a: number[];
+  f: number[];
+  p: number[];
+};
+
+function decodeSampleDataBinary(sampleData: unknown): DecodedMotionSample[] {
+  if (typeof sampleData !== "string" || sampleData.trim() === "") return [];
+  let buf: Buffer;
+  try {
+    buf = Buffer.from(sampleData, "base64");
+  } catch {
+    return [];
+  }
+  const samples: DecodedMotionSample[] = [];
+  for (let i = 0; i + 20 <= buf.length; i += 20) {
+    samples.push({
+      t: buf.readFloatLE(i),
+      position: buf.readFloatLE(i + 4),
+      speed: buf.readFloatLE(i + 8),
+      acceleration: buf.readFloatLE(i + 12),
+      force: buf.readFloatLE(i + 16),
+    });
+  }
+  return samples;
+}
+
+function downsampleSamples<T>(samples: T[], max: number): T[] {
+  if (samples.length <= max) return samples;
+  const step = Math.max(1, Math.ceil(samples.length / max));
+  const out: T[] = [];
+  for (let i = 0; i < samples.length; i += step) {
+    out.push(samples[i]);
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
+function samplesToSeriesPayload(samples: DecodedMotionSample[]): SprintSeriesPayload {
+  const t = samples.map((s) => s.t);
+  const x = samples.map((s) => s.position);
+  const v = samples.map((s) => s.speed);
+  const a = samples.map((s) => s.acceleration);
+  const f = samples.map((s) => s.force);
+  const p = v.map((vi, i) => {
+    const fi = f[i];
+    if (Number.isFinite(vi) && Number.isFinite(fi)) return vi * fi;
+    return 0;
+  });
+  return { t, x, v, a, f, p };
+}
+
+async function fetchTrainingDataWithSamples(
+  externalId: string,
+  headers: HeadersInit,
+  errors: string[]
+): Promise<unknown[]> {
+  const url = `${MOTION_BASE}/TrainingData/Session/${encodeURIComponent(externalId)}?includeSamples=true`;
+  const tdRes = await fetch(url, {
+    headers,
+    signal: AbortSignal.timeout(60_000),
+  });
+  if (!tdRes.ok) {
+    errors.push(`time series ${externalId}: TrainingData HTTP ${tdRes.status}`);
+    return [];
+  }
+  const tdRaw = await tdRes.json();
+  if (Array.isArray(tdRaw)) return tdRaw;
+  return asArray(tdRaw);
+}
+
+/**
+ * After metrics sync: pull raw per-rep samples into sprint_time_series.
+ * Skips sessions that already have any time-series rows.
+ */
+async function sync1080SprintTimeSeries(
+  supabase: SupabaseClient,
+  headers: HeadersInit,
+  errors: string[]
+): Promise<number> {
+  let inserted = 0;
+
+  const { data: sessions, error: listErr } = await supabase
+    .from("sessions")
+    .select("id, external_id")
+    .eq("source", "1080")
+    .eq("test_type", "1080_sprint")
+    .not("external_id", "is", null);
+
+  if (listErr) {
+    errors.push(`time series: list sessions — ${listErr.message}`);
+    return 0;
+  }
+
+  for (const srow of sessions ?? []) {
+    const sessionId = srow.id as string;
+    const externalId = srow.external_id as string;
+    if (!externalId) continue;
+
+    const { count, error: cntErr } = await supabase
+      .from("sprint_time_series")
+      .select("id", { count: "exact", head: true })
+      .eq("session_id", sessionId);
+
+    if (cntErr) {
+      errors.push(`time series count ${sessionId}: ${cntErr.message}`);
+      continue;
+    }
+    if ((count ?? 0) > 0) continue;
+
+    let trainingData: unknown[];
+    try {
+      trainingData = await fetchTrainingDataWithSamples(
+        externalId,
+        headers,
+        errors
+      );
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      errors.push(`time series session ${externalId}: fetch ${msg}`);
+      continue;
+    }
+
+    const rowsToInsert: {
+      session_id: string;
+      rep_index: number;
+      series: SprintSeriesPayload;
+    }[] = [];
+
+    let repCounter = 0;
+    for (const setData of trainingData) {
+      if (!setData || typeof setData !== "object") continue;
+      const sd = setData as Record<string, unknown>;
+      const motionGroups = sd.motionGroups;
+      if (!Array.isArray(motionGroups)) continue;
+
+      for (const mg of motionGroups) {
+        if (!mg || typeof mg !== "object") continue;
+        const mgObj = mg as Record<string, unknown>;
+        repCounter++;
+        const motions = mgObj.motions;
+        if (!Array.isArray(motions)) continue;
+
+        const combined: DecodedMotionSample[] = [];
+        for (const motion of motions) {
+          if (!motion || typeof motion !== "object") continue;
+          const m = motion as Record<string, unknown>;
+          combined.push(...decodeSampleDataBinary(m.sampleData));
+        }
+
+        if (combined.length === 0) continue;
+
+        const down = downsampleSamples(combined, MAX_TIME_SERIES_SAMPLES);
+        const series = samplesToSeriesPayload(down);
+        if (series.t.length === 0) continue;
+
+        rowsToInsert.push({
+          session_id: sessionId,
+          rep_index: repCounter,
+          series,
+        });
+      }
+    }
+
+    if (rowsToInsert.length === 0) continue;
+
+    const { data: insData, error: insErr } = await supabase
+      .from("sprint_time_series")
+      .insert(rowsToInsert)
+      .select("id");
+
+    if (insErr) {
+      errors.push(`time series insert ${externalId}: ${insErr.message}`);
+    } else {
+      inserted += insData?.length ?? 0;
+    }
+  }
+
+  return inserted;
+}
+
 // ─── Main sync ────────────────────────────────────────────────────────────────
 
 export type Motion1080SyncResult = {
   ok: boolean;
   sessionsProcessed: number;
+  timeSeriesRowsInserted: number;
   error?: string;
 };
 
@@ -226,7 +423,7 @@ export async function runMotion1080Sync(
   if (!apiKey) {
     const msg = "Missing MOTION_API_KEY";
     await insertSyncLog(supabase, "1080", 0, msg);
-    return { ok: false, sessionsProcessed: 0, error: msg };
+    return { ok: false, sessionsProcessed: 0, timeSeriesRowsInserted: 0, error: msg };
   }
 
   const headers = { "X-1080-API-Key": apiKey, Accept: "application/json" };
@@ -382,12 +579,28 @@ export async function runMotion1080Sync(
       }
     }
 
+    const timeSeriesRowsInserted = await sync1080SprintTimeSeries(
+      supabase,
+      headers,
+      errors
+    );
+
     const errStr = errors.length ? errors.join(" | ") : null;
     await insertSyncLog(supabase, "1080", sessionsProcessed, errStr);
-    return { ok: errors.length === 0, sessionsProcessed, error: errStr ?? undefined };
+    return {
+      ok: errors.length === 0,
+      sessionsProcessed,
+      timeSeriesRowsInserted,
+      error: errStr ?? undefined,
+    };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     await insertSyncLog(supabase, "1080", sessionsProcessed, msg);
-    return { ok: false, sessionsProcessed, error: msg };
+    return {
+      ok: false,
+      sessionsProcessed,
+      timeSeriesRowsInserted: 0,
+      error: msg,
+    };
   }
 }
