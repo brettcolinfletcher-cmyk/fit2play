@@ -77,7 +77,7 @@ export default function SprintReportPage() {
       if (!sprintSessions.length) { setMetrics([]); setLoading(false); return; }
       const ids = sprintSessions.map((s) => s.id);
       const { data: mData } = await supabase.from("metrics")
-        .select("session_id, key, value").in("session_id", ids).is("rep_index", null);
+        .select("session_id, key, value").in("session_id", ids);
       setMetrics((mData ?? []) as MetricRow[]);
       setLoading(false);
     }
