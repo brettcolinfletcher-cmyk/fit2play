@@ -55,6 +55,7 @@ function round2(n: number | null | undefined): number | null {
 function buildBaseRows(rep: SprintSeriesRow | undefined) {
   if (!rep?.series) return [];
   const { t, x, v, a, f, p } = rep.series;
+  if (!t || !x || !v || !a || !f || !p) return [];
 
   const len = Math.min(
     t.length,
