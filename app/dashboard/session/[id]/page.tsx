@@ -225,10 +225,26 @@ export default function SessionPage() {
           .order("rep_index", { ascending: true });
 
         if (!seriesError && seriesRows) {
-          const mapped = seriesRows.map((row: Record<string, unknown>) => ({
-            rep_index: row.rep_index as number | null,
-            series: row.series as SprintSeriesRow["series"],
-          })) as SprintSeriesRow[];
+          const mapped = seriesRows.map((row: Record<string, unknown>) => {
+            const rawSeries = row.series;
+            let converted: SprintSeriesRow["series"] = null;
+            if (Array.isArray(rawSeries) && rawSeries.length > 0) {
+              const t: number[] = [], x: number[] = [], v: number[] = [],
+                    a: number[] = [], f: number[] = [], p: number[] = [];
+              for (const s of rawSeries as Record<string, number>[]) {
+                t.push(s.t ?? 0);
+                x.push(s.position ?? s.x ?? 0);
+                v.push(s.speed ?? s.v ?? 0);
+                a.push(s.acceleration ?? s.a ?? 0);
+                f.push(s.force ?? s.f ?? 0);
+                p.push(s.p ?? (s.force ?? 0) * (s.speed ?? 0));
+              }
+              converted = { t, x, v, a, f, p };
+            } else if (rawSeries && !Array.isArray(rawSeries)) {
+              converted = rawSeries as SprintSeriesRow["series"];
+            }
+            return { rep_index: row.rep_index as number | null, series: converted };
+          }) as SprintSeriesRow[];
 
           setSprintSeries(mapped);
         } else {
