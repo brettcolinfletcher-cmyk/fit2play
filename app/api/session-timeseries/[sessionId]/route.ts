@@ -1,7 +1,8 @@
 import { Buffer } from "node:buffer";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { requireAuth } from "@/lib/supabase-server";
+import { cookies } from "next/headers";
+import { createServerClient } from "@supabase/ssr";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -114,8 +115,19 @@ function seriesToSamples(series: unknown): MotionSample[] {
 
 async function authorized(request: Request): Promise<boolean> {
   if (syncAuthorized(request)) return true;
-  const { user, profile } = await requireAuth();
-  return !!(user && profile?.role === "staff");
+  try {
+    const cookieStore = await cookies();
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { cookies: { getAll: () => cookieStore.getAll() } }
+    );
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return false;
+    const { data: profile } = await supabase
+      .from("profiles").select("role").eq("id", user.id).maybeSingle();
+    return profile?.role === "staff";
+  } catch { return false; }
 }
 
 export async function GET(
