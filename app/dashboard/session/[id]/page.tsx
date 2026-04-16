@@ -327,32 +327,28 @@ export default function SessionPage() {
     [metrics]
   );
 
-  const getSummary = (keys: string[]) => {
+  // For 1080 sessions all metrics have a rep_index — fall back to best rep value
+  const getBestMetric = (keys: string[], mode: "max" | "min" = "max") => {
     for (const k of keys) {
-      const v = summaryOnly.find((m) => m.key === k)?.value;
-      if (v != null && typeof v === "number" && !Number.isNaN(v)) return v;
+      // Try summary (rep_index == null) first
+      const sv = summaryOnly.find((m) => m.key === k)?.value;
+      if (sv != null && typeof sv === "number" && !Number.isNaN(sv)) return sv;
+    }
+    // Fall back to best rep across all reps
+    for (const k of keys) {
+      const vals = metrics
+        .filter((m) => m.key === k && m.value != null)
+        .map((m) => m.value as number);
+      if (vals.length > 0)
+        return mode === "max" ? Math.max(...vals) : Math.min(...vals);
     }
     return null;
   };
 
-  const excelTotalTime = getSummary([
-    "total_time",
-    "totalTime",
-    "time_s",
-    "Time [s]",
-  ]);
-  const excelPeakSpeed = getSummary(["peakSpeed", "topSpeed", "peak_speed"]);
-  const excelSplit05 = getSummary([
-    "split5m",
-    "split_0_5m",
-    "split05m",
-    "split_5m",
-  ]);
-  const excelMaxAccel = getSummary([
-    "max_acceleration",
-    "maxAcceleration",
-    "MaxAcceleration",
-  ]);
+  const excelTotalTime = getBestMetric(["total_time", "totalTime", "time_s"], "min");
+  const excelPeakSpeed = getBestMetric(["top_speed", "peak_speed", "peakSpeed", "topSpeed"], "max");
+  const excelSplit05 = getBestMetric(["split_5m_time", "split5m", "split_0_5m", "split05m", "split_5m"], "min");
+  const excelMaxAccel = getBestMetric(["accel_max", "max_acceleration", "maxAcceleration"], "max");
 
   const codExtraMetrics = useMemo(() => {
     if (!isCod5105) return [];
@@ -370,10 +366,10 @@ export default function SessionPage() {
       <section className="mx-auto max-w-7xl px-4 pt-8 pb-20">
         <div className="mb-4 flex items-center justify-between gap-3">
           <button
-            onClick={() => router.push("/dashboard")}
+            onClick={() => session?.athlete_id ? router.push(`/dashboard/athletes/${session.athlete_id}`) : router.push("/dashboard/athletes")}
             className="text-xs text-slate-400 hover:text-lime-300"
           >
-            ← Back to dashboard
+            ← Back to athlete
           </button>
 
           <Link
@@ -567,41 +563,6 @@ export default function SessionPage() {
                       />
                     </div>
                   ))}
-                </div>
-              </section>
-            )}
-
-            {isSprintLike && (
-              <section className="mb-6 flex items-center justify-between rounded-2xl border border-slate-800 bg-slate-900/70 p-5 text-xs">
-                <div>
-                  <h2 className="text-sm font-semibold uppercase tracking-widest text-lime-300">
-                    RTS readiness (this session)
-                  </h2>
-                  <p
-                    className={`mt-2 text-3xl font-bold tabular-nums ${
-                      rtsScore == null
-                        ? "text-slate-300"
-                        : rtsScore >= 80
-                          ? "text-emerald-300"
-                          : rtsScore >= 60
-                            ? "text-amber-300"
-                            : "text-rose-300"
-                    }`}
-                  >
-                    {rtsScore ?? "--"}
-                  </p>
-                </div>
-                <div className="text-right text-[0.7rem] text-slate-400">
-                  <p className="mb-1">
-                    Test type:{" "}
-                    <span className="text-slate-100">
-                      {session.test_type ?? "1080 Sprint"}
-                    </span>
-                  </p>
-                  <p>
-                    RTS is derived from peak speed, 20m split and rep-to-rep
-                    consistency.
-                  </p>
                 </div>
               </section>
             )}

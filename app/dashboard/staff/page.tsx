@@ -274,7 +274,9 @@ export default function StaffDashboardPage() {
                             String(s.created_at)
                           ).toLocaleString("en-AU")}
                         </span>
-                        <span className="font-mono">{id.slice(0, 8)}…</span>
+                        <span className="text-slate-500">
+                          {String(s.test_sub_type || "")}
+                        </span>
                       </div>
                     </Link>
                   );

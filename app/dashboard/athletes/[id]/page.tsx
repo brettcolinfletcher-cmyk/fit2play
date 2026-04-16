@@ -669,23 +669,25 @@ export default function AthleteDetailPage() {
             <header className="mt-6 rounded-2xl border border-slate-800 bg-slate-900/40 p-6">
               <h1 className="text-xl font-semibold text-slate-50">{name}</h1>
               <dl className="mt-4 grid gap-2 text-sm text-slate-400 sm:grid-cols-2">
-                {[
+                {([
                   ["Team", athlete.team],
                   ["Sport", athlete.primary_sport],
                   ["Email", athlete.email],
                   ["Height", athlete.height_cm != null ? `${athlete.height_cm} cm` : null],
                   ["Weight", athlete.weight_kg != null ? `${athlete.weight_kg} kg` : null],
-                  ["Dominant", `${athlete.dominant_leg ?? "—"} / ${athlete.dominant_hand ?? "—"}`],
-                ].map(([label, val]) => (
+                  ["Dominant", (athlete.dominant_leg || athlete.dominant_hand) ? `${athlete.dominant_leg ?? "—"} / ${athlete.dominant_hand ?? "—"}` : null],
+                ] as [string, unknown][]).filter(([, val]) => val != null && val !== "").map(([label, val]) => (
                   <div key={String(label)}>
                     <dt className="text-xs uppercase text-slate-500">{String(label)}</dt>
-                    <dd className="text-slate-200">{val != null ? String(val) : "—"}</dd>
+                    <dd className="text-slate-200">{String(val)}</dd>
                   </div>
                 ))}
-                <div className="sm:col-span-2">
-                  <dt className="text-xs uppercase text-slate-500">Notes</dt>
-                  <dd className="whitespace-pre-wrap text-slate-300">{(athlete.notes as string) ?? "—"}</dd>
-                </div>
+                {(athlete.notes as string) && (
+                  <div className="sm:col-span-2">
+                    <dt className="text-xs uppercase text-slate-500">Notes</dt>
+                    <dd className="whitespace-pre-wrap text-slate-300">{athlete.notes as string}</dd>
+                  </div>
+                )}
               </dl>
             </header>
 
