@@ -91,9 +91,9 @@ export default function SprintReportPage() {
       const m = mm[s.id] ?? {};
       return {
         date: fmtDate(s.created_at), rawDate: s.created_at,
-        topSpeed: m.peakSpeed ?? null, totalTime: m.split20m ?? m.totalTime ?? null,
-        split5m: m.split5m ?? m.split05m ?? null, maxAcceleration: m.maxAcceleration ?? null,
-        peakForce: m.peakForce ?? null, peakPower: m.peakPower ?? null,
+        topSpeed: m.top_speed ?? null, totalTime: m.total_time ?? null,
+        split5m: m.split_5m_time ?? null, maxAcceleration: m.accel_max ?? null,
+        peakForce: m.peak_force ?? null, peakPower: m.peak_power ?? null,
       };
     });
   }, [sessions, metrics]);
