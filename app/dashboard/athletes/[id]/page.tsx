@@ -690,7 +690,7 @@ export default function AthleteDetailPage() {
             </header>
 
             {/* ── Linear sprint trends (1080) ── */}
-            {hasLinearSprint && (
+            {has1080 && (
               <>
                 <h2 className="mt-10 text-sm font-semibold uppercase tracking-wide text-lime-300">
                   Sprint trends — Linear
@@ -705,7 +705,7 @@ export default function AthleteDetailPage() {
                           <XAxis {...xAxisProps(tsFormatter)} />
                           <YAxis stroke="#64748b" tick={AXIS_TICK} tickFormatter={(v) => Number(v).toFixed(1)}
                             label={{ value: "m/s", angle: -90, position: "insideLeft", fill: "#94a3b8", fontSize: 11 }} />
-                          <Tooltip contentStyle={TOOLTIP_STYLE} labelFormatter={labelFormatter}
+                          <Tooltip contentStyle={TOOLTIP_STYLE} labelFormatter={labelFormatter as any}
                             formatter={(v: number | string) => [typeof v === "number" ? v.toFixed(2) : v, "Top Speed"]} />
                           <Line type="monotone" dataKey="v" name="Top Speed" stroke="#84cc16" strokeWidth={2} dot={{ r: 3 }} />
                         </LineChart>
@@ -720,7 +720,7 @@ export default function AthleteDetailPage() {
                           <XAxis {...xAxisProps(tsFormatter)} />
                           <YAxis stroke="#64748b" tick={AXIS_TICK} tickFormatter={(v) => Math.round(Number(v)).toString()}
                             label={{ value: "N", angle: -90, position: "insideLeft", fill: "#94a3b8", fontSize: 11 }} />
-                          <Tooltip contentStyle={TOOLTIP_STYLE} labelFormatter={labelFormatter}
+                          <Tooltip contentStyle={TOOLTIP_STYLE} labelFormatter={labelFormatter as any}
                             formatter={(v: number | string) => [typeof v === "number" ? Math.round(v) : v, "Peak Force"]} />
                           <Line type="monotone" dataKey="v" name="Peak Force" stroke="#f43f5e" strokeWidth={2} dot={{ r: 3 }} />
                         </LineChart>
@@ -735,7 +735,7 @@ export default function AthleteDetailPage() {
                           <XAxis {...xAxisProps(tsFormatter)} />
                           <YAxis stroke="#64748b" tick={AXIS_TICK} tickFormatter={(v) => Math.round(Number(v)).toString()}
                             label={{ value: "W", angle: -90, position: "insideLeft", fill: "#94a3b8", fontSize: 11 }} />
-                          <Tooltip contentStyle={TOOLTIP_STYLE} labelFormatter={labelFormatter}
+                          <Tooltip contentStyle={TOOLTIP_STYLE} labelFormatter={labelFormatter as any}
                             formatter={(v: number | string) => [typeof v === "number" ? Math.round(v) : v, "Peak Power"]} />
                           <Line type="monotone" dataKey="v" name="Peak Power" stroke="#fbbf24" strokeWidth={2} dot={{ r: 3 }} />
                         </LineChart>
@@ -750,7 +750,7 @@ export default function AthleteDetailPage() {
                           <XAxis {...xAxisProps(tsFormatter)} />
                           <YAxis stroke="#64748b" tick={AXIS_TICK} tickFormatter={(v) => Number(v).toFixed(2)}
                             label={{ value: "s", angle: -90, position: "insideLeft", fill: "#94a3b8", fontSize: 11 }} />
-                          <Tooltip contentStyle={TOOLTIP_STYLE} labelFormatter={labelFormatter}
+                          <Tooltip contentStyle={TOOLTIP_STYLE} labelFormatter={labelFormatter as any}
                             formatter={(v: number | string) => [typeof v === "number" ? v.toFixed(2) : v, "5m Split"]} />
                           <Line type="monotone" dataKey="v" name="5m Split" stroke="#38bdf8" strokeWidth={2} dot={{ r: 3 }} />
                         </LineChart>
@@ -780,7 +780,7 @@ export default function AthleteDetailPage() {
                           <XAxis {...xAxisProps(tsFormatter)} />
                           <YAxis stroke="#64748b" tick={AXIS_TICK} tickFormatter={(v) => Number(v).toFixed(1)}
                             label={{ value: "m/s", angle: -90, position: "insideLeft", fill: "#94a3b8", fontSize: 11 }} />
-                          <Tooltip contentStyle={TOOLTIP_STYLE} labelFormatter={labelFormatter}
+                          <Tooltip contentStyle={TOOLTIP_STYLE} labelFormatter={labelFormatter as any}
                             formatter={(v: number | string) => [typeof v === "number" ? v.toFixed(2) : v, "Top Speed"]} />
                           <Line type="monotone" dataKey="v" name="Top Speed" stroke="#84cc16" strokeWidth={2} dot={{ r: 4 }} />
                         </LineChart>
@@ -795,7 +795,7 @@ export default function AthleteDetailPage() {
                           <XAxis {...xAxisProps(tsFormatter)} />
                           <YAxis stroke="#64748b" tick={AXIS_TICK} tickFormatter={(v) => Number(v).toFixed(1)}
                             label={{ value: "m/s²", angle: -90, position: "insideLeft", fill: "#94a3b8", fontSize: 11 }} />
-                          <Tooltip contentStyle={TOOLTIP_STYLE} labelFormatter={labelFormatter}
+                          <Tooltip contentStyle={TOOLTIP_STYLE} labelFormatter={labelFormatter as any}
                             formatter={(v: number | string) => [typeof v === "number" ? v.toFixed(2) : v, "Peak Decel"]} />
                           <Line type="monotone" dataKey="v" name="Peak Decel" stroke="#f43f5e" strokeWidth={2} dot={{ r: 4 }} />
                         </LineChart>
@@ -810,7 +810,7 @@ export default function AthleteDetailPage() {
                           <XAxis {...xAxisProps(tsFormatter)} />
                           <YAxis stroke="#64748b" tick={AXIS_TICK} tickFormatter={(v) => Number(v).toFixed(1)}
                             label={{ value: "m/s²", angle: -90, position: "insideLeft", fill: "#94a3b8", fontSize: 11 }} />
-                          <Tooltip contentStyle={TOOLTIP_STYLE} labelFormatter={labelFormatter}
+                          <Tooltip contentStyle={TOOLTIP_STYLE} labelFormatter={labelFormatter as any}
                             formatter={(v: number | string) => [typeof v === "number" ? v.toFixed(2) : v, "Peak Accel"]} />
                           <Line type="monotone" dataKey="v" name="Peak Accel" stroke="#fbbf24" strokeWidth={2} dot={{ r: 4 }} />
                         </LineChart>
@@ -837,7 +837,7 @@ export default function AthleteDetailPage() {
                           <XAxis {...xAxisProps(tsFormatter)} />
                           <YAxis stroke="#64748b" tick={AXIS_TICK} tickFormatter={(v) => Number(v).toFixed(2)}
                             label={{ value: "m", angle: -90, position: "insideLeft", fill: "#94a3b8", fontSize: 11 }} />
-                          <Tooltip contentStyle={TOOLTIP_STYLE} labelFormatter={labelFormatter}
+                          <Tooltip contentStyle={TOOLTIP_STYLE} labelFormatter={labelFormatter as any}
                             formatter={(v: number | string) => [typeof v === "number" ? v.toFixed(2) : v]} />
                           <Legend />
                           <Line type="monotone" dataKey="CMJ" stroke="#84cc16" strokeWidth={2} dot={{ r: 3 }} connectNulls />
@@ -853,7 +853,7 @@ export default function AthleteDetailPage() {
                           <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
                           <XAxis {...xAxisProps(tsFormatter)} />
                           <YAxis stroke="#64748b" tick={AXIS_TICK} tickFormatter={(v) => Number(v).toFixed(2)} />
-                          <Tooltip contentStyle={TOOLTIP_STYLE} labelFormatter={labelFormatter}
+                          <Tooltip contentStyle={TOOLTIP_STYLE} labelFormatter={labelFormatter as any}
                             formatter={(v: number | string) => [typeof v === "number" ? v.toFixed(2) : v]} />
                           <Legend />
                           <Line type="monotone" dataKey="RSI" stroke="#84cc16" strokeWidth={2} dot={{ r: 3 }} connectNulls />
@@ -870,7 +870,7 @@ export default function AthleteDetailPage() {
                           <XAxis {...xAxisProps(tsFormatter)} />
                           <YAxis stroke="#64748b" tick={AXIS_TICK} tickFormatter={(v) => Number(v).toFixed(3)}
                             label={{ value: "s", angle: -90, position: "insideLeft", fill: "#94a3b8", fontSize: 11 }} />
-                          <Tooltip contentStyle={TOOLTIP_STYLE} labelFormatter={labelFormatter}
+                          <Tooltip contentStyle={TOOLTIP_STYLE} labelFormatter={labelFormatter as any}
                             formatter={(v: number | string) => [typeof v === "number" ? v.toFixed(3) : v, "Contact time"]} />
                           <Line type="monotone" dataKey="ct" name="Contact time" stroke="#38bdf8" strokeWidth={2} dot={{ r: 3 }} />
                         </LineChart>
@@ -885,7 +885,7 @@ export default function AthleteDetailPage() {
                           <XAxis {...xAxisProps(tsFormatter)} />
                           <YAxis stroke="#64748b" tick={AXIS_TICK} tickFormatter={(v) => Math.round(Number(v)).toString()}
                             label={{ value: "N", angle: -90, position: "insideLeft", fill: "#94a3b8", fontSize: 11 }} />
-                          <Tooltip contentStyle={TOOLTIP_STYLE} labelFormatter={labelFormatter}
+                          <Tooltip contentStyle={TOOLTIP_STYLE} labelFormatter={labelFormatter as any}
                             formatter={(v: number | string) => [typeof v === "number" ? Math.round(v) : v, "Peak braking force"]} />
                           <Line type="monotone" dataKey="f" name="Peak braking force" stroke="#f43f5e" strokeWidth={2} dot={{ r: 3 }} />
                         </LineChart>
@@ -900,7 +900,7 @@ export default function AthleteDetailPage() {
                           <XAxis {...xAxisProps(tsFormatter)} />
                           <YAxis stroke="#64748b" tick={AXIS_TICK} tickFormatter={(v) => Number(v).toFixed(1)}
                             label={{ value: "N·s", angle: -90, position: "insideLeft", fill: "#94a3b8", fontSize: 11 }} />
-                          <Tooltip contentStyle={TOOLTIP_STYLE} labelFormatter={labelFormatter}
+                          <Tooltip contentStyle={TOOLTIP_STYLE} labelFormatter={labelFormatter as any}
                             formatter={(v: number | string) => [typeof v === "number" ? v.toFixed(1) : v]} />
                           <Legend />
                           <Line type="monotone" dataKey="CMJ" stroke="#84cc16" strokeWidth={2} dot={{ r: 3 }} connectNulls />
@@ -917,7 +917,7 @@ export default function AthleteDetailPage() {
                           <XAxis {...xAxisProps(tsFormatter)} />
                           <YAxis stroke="#64748b" tick={AXIS_TICK} tickFormatter={(v) => Number(v).toFixed(1)}
                             label={{ value: "N·s", angle: -90, position: "insideLeft", fill: "#94a3b8", fontSize: 11 }} />
-                          <Tooltip contentStyle={TOOLTIP_STYLE} labelFormatter={labelFormatter}
+                          <Tooltip contentStyle={TOOLTIP_STYLE} labelFormatter={labelFormatter as any}
                             formatter={(v: number | string) => [typeof v === "number" ? v.toFixed(1) : v]} />
                           <Legend />
                           <Line type="monotone" dataKey="CMJ" stroke="#84cc16" strokeWidth={2} dot={{ r: 3 }} connectNulls />
