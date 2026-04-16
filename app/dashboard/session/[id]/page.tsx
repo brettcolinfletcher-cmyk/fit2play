@@ -93,11 +93,13 @@ function computeRTSFromMetrics(metrics: Metric[]) {
   const getSummary = (key: string) =>
     summary.find((m) => m.key === key)?.value ?? null;
 
-  const peakSpeed = getSummary("peakSpeed");
-  const split20 = getSummary("split20m");
+  const peakSpeed = getSummary("top_speed") ?? getSummary("peak_speed") ??
+    Math.max(...reps.filter(m => (m.key === "top_speed" || m.key === "peak_speed") && m.value != null).map(m => m.value as number), ...[0]) || null;
+  const split20 = getSummary("total_time") ?? getSummary("split_20m") ??
+    (reps.filter(m => m.key === "total_time" && m.value != null).length > 0 ? Math.min(...reps.filter(m => m.key === "total_time" && m.value != null).map(m => m.value as number)) : null);
 
   const repSpeeds = reps
-    .filter((m) => m.key === "peakSpeed" && m.value != null)
+    .filter((m) => (m.key === "top_speed" || m.key === "peak_speed") && m.value != null)
     .map((m) => m.value as number);
 
   if (!peakSpeed || !split20 || repSpeeds.length < 2) return null;
@@ -504,7 +506,7 @@ export default function SessionPage() {
                                 ? `${excelPeakSpeed.toFixed(2)} m/s`
                                 : "—"
                             }
-                            metricKey="peakSpeed"
+                            metricKey="top_speed"
                             numericValue={excelPeakSpeed}
                             bands={performanceBands}
                             sessionTestType={session.test_type}
@@ -540,6 +542,22 @@ export default function SessionPage() {
                     </tbody>
                   </table>
                 </div>
+              </section>
+            )}
+
+            {isSprintLike && (
+              <section className="mb-6 rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
+                <h2 className="mb-2 text-sm font-semibold uppercase tracking-widest text-lime-300">
+                  RTS readiness
+                </h2>
+                {rtsScore != null ? (
+                  <div className="flex items-center gap-4">
+                    <span className="text-4xl font-bold tabular-nums text-lime-300">{rtsScore}</span>
+                    <span className="text-xs text-slate-400">/100 — based on top speed, total time and rep-to-rep consistency</span>
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-500">Insufficient data to calculate RTS score for this session.</p>
+                )}
               </section>
             )}
 
