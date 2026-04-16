@@ -354,6 +354,13 @@ export default function SessionPage() {
     return null;
   };
 
+  // Only apply top_speed performance bands for unresisted linear sprint sessions
+  const isUnresistedLinear = (() => {
+    const sub = (session?.test_sub_type ?? "").toLowerCase();
+    return sub.includes("running") || sub.includes("linear bilateral") || sub.includes("10m acceleration");
+  })();
+  const speedBandTestType = isUnresistedLinear ? "linear_sprint_unresisted" : null;
+
   const excelTotalTime = getBestMetric(["total_time", "totalTime", "time_s"], "min");
   const excelPeakSpeed = getBestMetric(["top_speed", "peak_speed", "peakSpeed", "topSpeed"], "max");
   const excelSplit05 = getBestMetric(["split_5m_time", "split5m", "split_0_5m", "split05m", "split_5m"], "min");
@@ -516,7 +523,7 @@ export default function SessionPage() {
                             metricKey="top_speed"
                             numericValue={excelPeakSpeed}
                             bands={performanceBands}
-                            sessionTestType={session.test_type}
+                            sessionTestType={speedBandTestType}
                           />
                         </td>
                         <td className="py-2 pr-4 text-xs text-slate-200">
