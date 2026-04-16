@@ -1,8 +1,7 @@
 import { Buffer } from "node:buffer";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { cookies } from "next/headers";
-import { createServerClient } from "@supabase/ssr";
+
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -17,13 +16,7 @@ function serviceClient() {
   );
 }
 
-function syncAuthorized(request: Request): boolean {
-  const secret = process.env.SYNC_SECRET;
-  if (!secret) return false;
-  const header = request.headers.get("x-sync-secret");
-  const q = new URL(request.url).searchParams.get("secret");
-  return header === secret || q === secret;
-}
+
 
 type MotionSample = {
   t: number;
