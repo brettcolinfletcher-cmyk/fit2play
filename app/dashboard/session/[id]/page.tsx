@@ -32,6 +32,7 @@ type Session = {
   test_type: string | null;
   test_sub_type?: string | null;
   file_name: string | null;
+  clinician_notes?: string | null;
 };
 
 type Metric = {
@@ -165,6 +166,11 @@ export default function SessionPage() {
   const [asymmetryRows, setAsymmetryRows] = useState<AsymmetryRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [viewerIsStaff, setViewerIsStaff] = useState(false);
+  const [clinicianNotesEditing, setClinicianNotesEditing] = useState(false);
+  const [clinicianNotesDraft, setClinicianNotesDraft] = useState("");
+  const [notesSaving, setNotesSaving] = useState(false);
+  const [notesError, setNotesError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -281,11 +287,59 @@ export default function SessionPage() {
 
       setAsymmetryRows(parseAsymmetryResults((asymData ?? []) as Record<string, unknown>[]));
 
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      let staff = false;
+      if (user) {
+        const { data: prof } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", user.id)
+          .maybeSingle();
+        staff = prof?.role === "staff";
+      }
+      setViewerIsStaff(staff);
+      setClinicianNotesEditing(false);
+      const rawSess = sess as Record<string, unknown>;
+      const cn =
+        typeof rawSess.clinician_notes === "string"
+          ? rawSess.clinician_notes
+          : rawSess.clinician_notes != null
+            ? String(rawSess.clinician_notes)
+            : "";
+      setClinicianNotesDraft(cn);
+      setNotesError(null);
+
       setLoading(false);
     }
 
     load();
   }, [sessionId]);
+
+  async function saveClinicianNotes() {
+    if (!sessionId || !viewerIsStaff) return;
+    setNotesSaving(true);
+    setNotesError(null);
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+    const value = clinicianNotesDraft.trim() || null;
+    const { error: upErr } = await supabase
+      .from("sessions")
+      .update({ clinician_notes: value })
+      .eq("id", sessionId);
+    setNotesSaving(false);
+    if (upErr) {
+      setNotesError(upErr.message);
+      return;
+    }
+    setSession((prev) =>
+      prev ? { ...prev, clinician_notes: value } : prev
+    );
+    setClinicianNotesEditing(false);
+  }
 
   const hasForcePlateMetrics = metrics.some((m) => m.key.startsWith("fp_"));
   const hasDynoMetrics = metrics.some((m) => m.key.startsWith("dyno_"));
@@ -646,6 +700,92 @@ export default function SessionPage() {
               bands={performanceBands}
               sessionTestType={session.test_type}
             />
+
+            <section className="mb-6 rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
+              <div className="mb-2 flex items-center gap-2">
+                <h2 className="text-sm font-semibold uppercase tracking-widest text-lime-300">
+                  Clinician notes
+                </h2>
+                <span
+                  className="inline-flex text-slate-500"
+                  title="Visible to athlete"
+                  aria-label="Visible to athlete"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                    className="h-3.5 w-3.5"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                </span>
+              </div>
+
+              {clinicianNotesEditing && viewerIsStaff ? (
+                <div className="space-y-3">
+                  <textarea
+                    value={clinicianNotesDraft}
+                    onChange={(e) => setClinicianNotesDraft(e.target.value)}
+                    rows={5}
+                    className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-200 placeholder:text-slate-600"
+                    placeholder="Clinician note…"
+                  />
+                  {notesError && (
+                    <p className="text-xs text-rose-400">{notesError}</p>
+                  )}
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void saveClinicianNotes()}
+                      disabled={notesSaving}
+                      className="rounded-full bg-lime-400 px-4 py-1.5 text-xs font-semibold text-slate-950 hover:brightness-110 disabled:opacity-50"
+                    >
+                      {notesSaving ? "Saving…" : "Save"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setClinicianNotesEditing(false);
+                        setClinicianNotesDraft(session.clinician_notes ?? "");
+                        setNotesError(null);
+                      }}
+                      className="rounded-full border border-slate-600 px-4 py-1.5 text-xs text-slate-300 hover:border-slate-500"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : viewerIsStaff ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setClinicianNotesDraft(session.clinician_notes ?? "");
+                    setClinicianNotesEditing(true);
+                    setNotesError(null);
+                  }}
+                  className="w-full rounded-lg border border-slate-800 bg-slate-950/80 px-3 py-3 text-left text-sm text-slate-200 hover:border-lime-400/40 hover:bg-slate-900"
+                >
+                  {session.clinician_notes?.trim() ? (
+                    <span className="whitespace-pre-wrap">{session.clinician_notes}</span>
+                  ) : (
+                    <span className="text-slate-500">Add clinician note…</span>
+                  )}
+                </button>
+              ) : (
+                <div className="w-full rounded-lg border border-slate-800 bg-slate-950/80 px-3 py-3 text-left text-sm text-slate-300">
+                  {session.clinician_notes?.trim() ? (
+                    <span className="whitespace-pre-wrap">{session.clinician_notes}</span>
+                  ) : (
+                    <span className="text-slate-500">No clinician note for this session.</span>
+                  )}
+                </div>
+              )}
+            </section>
           </>
         )}
       </section>

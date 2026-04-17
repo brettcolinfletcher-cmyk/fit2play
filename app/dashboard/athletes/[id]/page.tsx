@@ -129,6 +129,7 @@ type SessionRow = {
   test_type: string | null;
   test_sub_type: string | null;
   source: string | null;
+  clinician_notes?: string | null;
 };
 
 type MetricRow = {
@@ -308,7 +309,7 @@ export default function AthleteDetailPage() {
 
       const { data: s, error: sErr } = await supabase
         .from("sessions")
-        .select("id, session_date, test_type, test_sub_type, source")
+        .select("id, session_date, test_type, test_sub_type, source, clinician_notes")
         .eq("athlete_id", id)
         .order("session_date", { ascending: false });
 
@@ -565,10 +566,18 @@ export default function AthleteDetailPage() {
                 onClick={() => toggleExpand(s.id)}
               >
                 <span className="text-slate-200">{formatWhen(s.session_date)}</span>
-                <span className="text-xs text-slate-500">
-                  {s.test_type ?? "—"}
-                  {s.test_sub_type ? ` · ${s.test_sub_type}` : ""}
-                  {" · "}{rows.length} metrics
+                <span className="flex flex-wrap items-center gap-1 text-xs text-slate-500">
+                  {s.clinician_notes?.trim() ? (
+                    <span className="text-slate-400" title="Has clinician note">
+                      📝
+                    </span>
+                  ) : null}
+                  <span>
+                    {s.test_type ?? "—"}
+                    {s.test_sub_type ? ` · ${s.test_sub_type}` : ""}
+                    {" · "}
+                    {rows.length} metrics
+                  </span>
                 </span>
               </button>
               {open && (
@@ -656,7 +665,17 @@ export default function AthleteDetailPage() {
       <section className="mx-auto max-w-4xl px-4 pt-8 pb-20">
         <div className="flex flex-wrap items-center gap-3">
           <Link href="/dashboard/athletes" className="text-xs text-slate-400 hover:text-lime-300">← Athletes</Link>
-          <Link href={`/dashboard/athletes/${id}/edit`} className="ml-auto text-xs text-lime-300 hover:underline">Edit</Link>
+          <div className="ml-auto flex flex-wrap items-center gap-3">
+            <Link href={`/dashboard/athletes/${id}/edit`} className="text-xs text-lime-300 hover:underline">
+              Edit
+            </Link>
+            <Link
+              href={`/dashboard/athletes/${id}/hop-tests`}
+              className="text-xs text-slate-400 hover:text-lime-300"
+            >
+              Hop tests
+            </Link>
+          </div>
         </div>
 
         {loading ? (
@@ -933,7 +952,17 @@ export default function AthleteDetailPage() {
             )}
 
             {/* ── Sessions ── */}
-            <h2 className="mt-10 text-sm font-semibold uppercase tracking-wide text-lime-300">Sessions</h2>
+            <div className="mt-10 flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-lime-300">
+                Sessions
+              </h2>
+              <Link
+                href={`/dashboard/athletes/${id}/hop-tests`}
+                className="text-xs text-lime-300/90 hover:text-lime-300 hover:underline"
+              >
+                Hop tests →
+              </Link>
+            </div>
             <div className="mt-4 space-y-8">
               {grouped.hawkins.length > 0 && (
                 <div>
