@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
+import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
 
@@ -40,7 +42,21 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center px-4">
-      <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 p-6">
+      <div className="w-full max-w-md">
+        <div className="mb-8 flex flex-col items-center gap-2">
+          <Link href="/">
+            <Image
+              src="/logo_full_original.png"
+              alt="Fit2Play"
+              width={160}
+              height={60}
+              className="h-12 w-auto"
+              priority
+            />
+          </Link>
+          <p className="text-xs text-slate-400">Return-to-sport intelligence platform</p>
+        </div>
+        <div className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
         <h1 className="text-2xl font-semibold mb-4">
           {mode === "login" ? "Log in" : "Create account"}
         </h1>
@@ -93,6 +109,7 @@ export default function LoginPage() {
             ? "Need an account? Sign up"
             : "Already have an account? Log in"}
         </button>
+        </div>
       </div>
     </div>
   );

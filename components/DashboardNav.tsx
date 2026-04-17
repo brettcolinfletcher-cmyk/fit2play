@@ -129,10 +129,10 @@ export default function DashboardNav() {
         <div className="flex min-w-0 flex-1 items-center gap-3">
           <Link href="/dashboard" className="flex shrink-0 items-center gap-2">
             <Image
-              src="/fit2play_logo_transparent.png"
+              src="/logo_full_original.png"
               alt="Fit2Play logo"
-              width={120}
-              height={40}
+              width={160}
+              height={50}
               className="h-8 w-auto"
             />
           </Link>

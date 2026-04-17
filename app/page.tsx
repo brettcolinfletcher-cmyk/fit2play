@@ -7,7 +7,7 @@ export default function HomePage() {
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#111827_0,_#020617_55%)] text-slate-50">
       <header className="mx-auto flex max-w-5xl items-center justify-between px-4 pt-6">
         <Link href="/" className="flex items-center gap-2 font-semibold tracking-[0.18em]">
-          <Image src="/fit2play_logo_transparent.png" alt="Fit2Play logo" width={280} height={120} className="h-16 w-auto md:h-20" priority />
+          <Image src="/logo_full_original.png" alt="Fit2Play logo" width={280} height={120} className="h-16 w-auto md:h-20" priority />
         </Link>
         <nav className="hidden items-center gap-5 text-sm text-slate-300 md:flex">
           <a href="/#how-it-works" className="hover:text-lime-400">How it works</a>
