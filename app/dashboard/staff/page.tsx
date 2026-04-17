@@ -159,7 +159,7 @@ export default function StaffDashboardPage() {
               Staff dashboard
             </h1>
             <p className="mt-1 text-xs text-slate-400">
-              Upload 1080 sessions and browse recent tests.
+              Browse recent sessions and upload Hawkins CSV data.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
@@ -265,7 +265,7 @@ export default function StaffDashboardPage() {
                           {displayName}
                         </span>
                         <span className="text-xs text-lime-300">
-                          {String(s.test_type || "1080 Sprint")}
+                          {String(s.test_type ?? "").replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}
                         </span>
                       </div>
                       <div className="mt-1 flex justify-between text-[0.7rem] text-slate-400">
