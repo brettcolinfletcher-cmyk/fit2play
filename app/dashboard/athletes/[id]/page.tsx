@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
   CartesianGrid,
-  Legend,
   Line,
   LineChart,
   ResponsiveContainer,
@@ -262,28 +261,6 @@ function buildHopTestBlocks(rows: HopTestDbRow[]): HopTestTypeBlock[] {
   return blocks;
 }
 
-function isCmjSession(s: SessionRow): boolean {
-  const tt = (s.test_type ?? "").toLowerCase();
-  const st = (s.test_sub_type ?? "").toLowerCase();
-  if (tt === "force_plate_dj") return false;
-  if (tt === "force_plate_cmj") return true;
-  if (tt.includes("dj") || tt.includes("drop")) return false;
-  if (tt.includes("cmj")) return true;
-  if (st.includes("dj") || st.includes("drop")) return false;
-  if (st.includes("cmj")) return true;
-  return false;
-}
-
-function isDjSession(s: SessionRow): boolean {
-  const tt = (s.test_type ?? "").toLowerCase();
-  const st = (s.test_sub_type ?? "").toLowerCase();
-  if (tt === "force_plate_dj") return true;
-  if (tt === "force_plate_cmj") return false;
-  if (tt.includes("dj") || tt.includes("drop")) return true;
-  if (st.includes("dj") || st.includes("drop")) return true;
-  return false;
-}
-
 function is1080Session(s: SessionRow): boolean {
   return bucket(s.source) === "1080";
 }
@@ -320,18 +297,8 @@ function sessionsChronological(sess: SessionRow[]): SessionRow[] {
 
 // ─── Chart IDs ───────────────────────────────────────────────────────────────
 
-type JumpChartId = "jumpHeight" | "rsi" | "contact" | "peakBrake" | "concentric" | "eccentric";
 type SprintChartId = "topSpeed" | "peakForce" | "peakPower" | "split5m";
 type CodChartId = "topSpeed505" | "decelMax505" | "accelMax505";
-
-const JUMP_CHART_PILLS: { id: JumpChartId; label: string }[] = [
-  { id: "jumpHeight", label: "Jump Height" },
-  { id: "rsi", label: "RSI/mRSI" },
-  { id: "contact", label: "Contact Time" },
-  { id: "peakBrake", label: "Peak Braking Force" },
-  { id: "concentric", label: "Propulsive Impulse" },
-  { id: "eccentric", label: "Braking Impulse" },
-];
 
 const SPRINT_CHART_PILLS: { id: SprintChartId; label: string }[] = [
   { id: "topSpeed", label: "Top Speed" },
@@ -384,9 +351,6 @@ export default function AthleteDetailPage() {
   const [sectionCommentBySection, setSectionCommentBySection] = useState<
     Record<string, string | null>
   >({});
-  const [visibleJumpCharts, setVisibleJumpCharts] = useState<Set<JumpChartId>>(
-    () => new Set(JUMP_CHART_PILLS.map((p) => p.id))
-  );
   const [visibleSprintCharts, setVisibleSprintCharts] = useState<Set<SprintChartId>>(
     () => new Set(SPRINT_CHART_PILLS.map((p) => p.id))
   );
@@ -479,7 +443,6 @@ export default function AthleteDetailPage() {
     return { hawkins: h, motion1080: m, csv: c };
   }, [sessions]);
 
-  const hasHawkins = grouped.hawkins.length > 0;
   const has1080 = grouped.motion1080.length > 0;
   const has505 = sessions.some(is505Session);
   const hasLinearSprint = sessions.some(isLinearSprintSession);
@@ -524,93 +487,6 @@ export default function AthleteDetailPage() {
   function sectionNote(section: string): string | null {
     return sectionCommentBySection[section] ?? null;
   }
-
-  // ── Jump trend data ──────────────────────────────────────────────────────────
-
-  const trendJumpHeight = useMemo(() => {
-    const sorted = sessionsChronological(sessions);
-    const points: { t: number; label: string; CMJ: number | null; DJ: number | null }[] = [];
-    for (const s of sorted) {
-      if (!s.session_date) continue;
-      const v = metricAggregate(metricsBySession, s.id, "fp_jump_height", "max");
-      if (v == null) continue;
-      const t = new Date(s.session_date).getTime();
-      const label = formatChartAxisDate(s.session_date);
-      if (isCmjSession(s)) points.push({ t, label, CMJ: v, DJ: null });
-      else if (isDjSession(s)) points.push({ t, label, CMJ: null, DJ: v });
-    }
-    const n = points.filter((p) => p.CMJ != null).length + points.filter((p) => p.DJ != null).length;
-    return { points, enough: n >= 2 };
-  }, [sessions, metricsBySession]);
-
-  const trendRsi = useMemo(() => {
-    const sorted = sessionsChronological(sessions);
-    const points: { t: number; label: string; RSI: number | null; mRSI: number | null }[] = [];
-    for (const s of sorted) {
-      if (!s.session_date) continue;
-      const rsi = metricAggregate(metricsBySession, s.id, "fp_rsi_best", "max");
-      const mrsi = metricAggregate(metricsBySession, s.id, "fp_mrsi", "max");
-      if (rsi == null && mrsi == null) continue;
-      points.push({ t: new Date(s.session_date).getTime(), label: formatChartAxisDate(s.session_date), RSI: rsi, mRSI: mrsi });
-    }
-    return { points, enough: points.length >= 2 };
-  }, [sessions, metricsBySession]);
-
-  const trendContactDj = useMemo(() => {
-    const sorted = sessionsChronological(sessions);
-    const points: { t: number; label: string; ct: number }[] = [];
-    for (const s of sorted) {
-      if (!s.session_date || !isDjSession(s)) continue;
-      const v = metricAggregate(metricsBySession, s.id, "fp_contact_time", "min");
-      if (v == null) continue;
-      points.push({ t: new Date(s.session_date).getTime(), label: formatChartAxisDate(s.session_date), ct: v });
-    }
-    return { points, enough: points.length >= 2 };
-  }, [sessions, metricsBySession]);
-
-  const trendPeakBrake = useMemo(() => {
-    const sorted = sessionsChronological(sessions);
-    const points: { t: number; label: string; f: number }[] = [];
-    for (const s of sorted) {
-      if (!s.session_date) continue;
-      const v = metricAggregate(metricsBySession, s.id, "fp_peak_braking_force", "max");
-      if (v == null) continue;
-      points.push({ t: new Date(s.session_date).getTime(), label: formatChartAxisDate(s.session_date), f: v });
-    }
-    return { points, enough: points.length >= 2 };
-  }, [sessions, metricsBySession]);
-
-  const trendConcentric = useMemo(() => {
-    const sorted = sessionsChronological(sessions);
-    const points: { t: number; label: string; CMJ: number | null; DJ: number | null }[] = [];
-    for (const s of sorted) {
-      if (!s.session_date) continue;
-      const v = metricAggregate(metricsBySession, s.id, "fp_propulsive_impulse", "max");
-      if (v == null) continue;
-      const t = new Date(s.session_date).getTime();
-      const label = formatChartAxisDate(s.session_date);
-      if (isCmjSession(s)) points.push({ t, label, CMJ: v, DJ: null });
-      else if (isDjSession(s)) points.push({ t, label, CMJ: null, DJ: v });
-    }
-    const n = points.filter((p) => p.CMJ != null).length + points.filter((p) => p.DJ != null).length;
-    return { points, enough: n >= 2 };
-  }, [sessions, metricsBySession]);
-
-  const trendEccentric = useMemo(() => {
-    const sorted = sessionsChronological(sessions);
-    const points: { t: number; label: string; CMJ: number | null; DJ: number | null }[] = [];
-    for (const s of sorted) {
-      if (!s.session_date) continue;
-      const v = metricAggregate(metricsBySession, s.id, "fp_braking_impulse", "max");
-      if (v == null) continue;
-      const t = new Date(s.session_date).getTime();
-      const label = formatChartAxisDate(s.session_date);
-      if (isCmjSession(s)) points.push({ t, label, CMJ: v, DJ: null });
-      else if (isDjSession(s)) points.push({ t, label, CMJ: null, DJ: v });
-    }
-    const n = points.filter((p) => p.CMJ != null).length + points.filter((p) => p.DJ != null).length;
-    return { points, enough: n >= 2 };
-  }, [sessions, metricsBySession]);
 
   // ── Linear sprint trend data ──────────────────────────────────────────────────
 
@@ -706,9 +582,6 @@ export default function AthleteDetailPage() {
 
   function toggleExpand(sid: string) {
     setExpanded((prev) => { const n = new Set(prev); n.has(sid) ? n.delete(sid) : n.add(sid); return n; });
-  }
-  function toggleJumpChart(cid: JumpChartId) {
-    setVisibleJumpCharts((prev) => { const n = new Set(prev); n.has(cid) ? n.delete(cid) : n.add(cid); return n; });
   }
   function toggleSprintChart(cid: SprintChartId) {
     setVisibleSprintCharts((prev) => { const n = new Set(prev); n.has(cid) ? n.delete(cid) : n.add(cid); return n; });
@@ -1046,115 +919,6 @@ export default function AthleteDetailPage() {
               athleteId={id}
               sectionComment={sectionNote("dynamometry")}
             />
-
-            {/* ── Jump trends (Hawkins) ── */}
-            {hasHawkins && (
-              <>
-                <h2 className="mt-10 text-sm font-semibold uppercase tracking-wide text-lime-300">
-                  Jump trends — Hawkins
-                </h2>
-                <Pills pills={JUMP_CHART_PILLS} visible={visibleJumpCharts} toggle={toggleJumpChart} />
-                <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-                  {visibleJumpCharts.has("jumpHeight") && (
-                    <ChartShell title="Jump height over time" enough={trendJumpHeight.enough}>
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={trendJumpHeight.points}>
-                          <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
-                          <XAxis {...xAxisProps(tsFormatter)} />
-                          <YAxis stroke="#64748b" tick={AXIS_TICK} tickFormatter={(v) => Number(v).toFixed(2)}
-                            label={{ value: "m", angle: -90, position: "insideLeft", fill: "#94a3b8", fontSize: 11 }} />
-                          <Tooltip contentStyle={TOOLTIP_STYLE} labelFormatter={labelFormatter as any}
-                            formatter={(v: number | string) => [typeof v === "number" ? v.toFixed(2) : v]} />
-                          <Legend />
-                          <Line type="monotone" dataKey="CMJ" stroke="#84cc16" strokeWidth={2} dot={{ r: 3 }} connectNulls />
-                          <Line type="monotone" dataKey="DJ" stroke="#38bdf8" strokeWidth={2} dot={{ r: 3 }} connectNulls />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </ChartShell>
-                  )}
-                  {visibleJumpCharts.has("rsi") && (
-                    <ChartShell title="RSI / mRSI over time" enough={trendRsi.enough}>
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={trendRsi.points}>
-                          <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
-                          <XAxis {...xAxisProps(tsFormatter)} />
-                          <YAxis stroke="#64748b" tick={AXIS_TICK} tickFormatter={(v) => Number(v).toFixed(2)} />
-                          <Tooltip contentStyle={TOOLTIP_STYLE} labelFormatter={labelFormatter as any}
-                            formatter={(v: number | string) => [typeof v === "number" ? v.toFixed(2) : v]} />
-                          <Legend />
-                          <Line type="monotone" dataKey="RSI" stroke="#84cc16" strokeWidth={2} dot={{ r: 3 }} connectNulls />
-                          <Line type="monotone" dataKey="mRSI" stroke="#fbbf24" strokeWidth={2} dot={{ r: 3 }} connectNulls />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </ChartShell>
-                  )}
-                  {visibleJumpCharts.has("contact") && (
-                    <ChartShell title="Contact time over time (DJ)" enough={trendContactDj.enough}>
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={trendContactDj.points}>
-                          <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
-                          <XAxis {...xAxisProps(tsFormatter)} />
-                          <YAxis stroke="#64748b" tick={AXIS_TICK} tickFormatter={(v) => Number(v).toFixed(3)}
-                            label={{ value: "s", angle: -90, position: "insideLeft", fill: "#94a3b8", fontSize: 11 }} />
-                          <Tooltip contentStyle={TOOLTIP_STYLE} labelFormatter={labelFormatter as any}
-                            formatter={(v: number | string) => [typeof v === "number" ? v.toFixed(3) : v, "Contact time"]} />
-                          <Line type="monotone" dataKey="ct" name="Contact time" stroke="#38bdf8" strokeWidth={2} dot={{ r: 3 }} />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </ChartShell>
-                  )}
-                  {visibleJumpCharts.has("peakBrake") && (
-                    <ChartShell title="Peak braking force over time" enough={trendPeakBrake.enough}>
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={trendPeakBrake.points}>
-                          <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
-                          <XAxis {...xAxisProps(tsFormatter)} />
-                          <YAxis stroke="#64748b" tick={AXIS_TICK} tickFormatter={(v) => Math.round(Number(v)).toString()}
-                            label={{ value: "N", angle: -90, position: "insideLeft", fill: "#94a3b8", fontSize: 11 }} />
-                          <Tooltip contentStyle={TOOLTIP_STYLE} labelFormatter={labelFormatter as any}
-                            formatter={(v: number | string) => [typeof v === "number" ? Math.round(v) : v, "Peak braking force"]} />
-                          <Line type="monotone" dataKey="f" name="Peak braking force" stroke="#f43f5e" strokeWidth={2} dot={{ r: 3 }} />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </ChartShell>
-                  )}
-                  {visibleJumpCharts.has("concentric") && (
-                    <ChartShell title="Propulsive impulse over time" enough={trendConcentric.enough}>
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={trendConcentric.points}>
-                          <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
-                          <XAxis {...xAxisProps(tsFormatter)} />
-                          <YAxis stroke="#64748b" tick={AXIS_TICK} tickFormatter={(v) => Number(v).toFixed(1)}
-                            label={{ value: "N·s", angle: -90, position: "insideLeft", fill: "#94a3b8", fontSize: 11 }} />
-                          <Tooltip contentStyle={TOOLTIP_STYLE} labelFormatter={labelFormatter as any}
-                            formatter={(v: number | string) => [typeof v === "number" ? v.toFixed(1) : v]} />
-                          <Legend />
-                          <Line type="monotone" dataKey="CMJ" stroke="#84cc16" strokeWidth={2} dot={{ r: 3 }} connectNulls />
-                          <Line type="monotone" dataKey="DJ" stroke="#38bdf8" strokeWidth={2} dot={{ r: 3 }} connectNulls />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </ChartShell>
-                  )}
-                  {visibleJumpCharts.has("eccentric") && (
-                    <ChartShell title="Braking impulse over time" enough={trendEccentric.enough}>
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={trendEccentric.points}>
-                          <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
-                          <XAxis {...xAxisProps(tsFormatter)} />
-                          <YAxis stroke="#64748b" tick={AXIS_TICK} tickFormatter={(v) => Number(v).toFixed(1)}
-                            label={{ value: "N·s", angle: -90, position: "insideLeft", fill: "#94a3b8", fontSize: 11 }} />
-                          <Tooltip contentStyle={TOOLTIP_STYLE} labelFormatter={labelFormatter as any}
-                            formatter={(v: number | string) => [typeof v === "number" ? v.toFixed(1) : v]} />
-                          <Legend />
-                          <Line type="monotone" dataKey="CMJ" stroke="#84cc16" strokeWidth={2} dot={{ r: 3 }} connectNulls />
-                          <Line type="monotone" dataKey="DJ" stroke="#38bdf8" strokeWidth={2} dot={{ r: 3 }} connectNulls />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </ChartShell>
-                  )}
-                </div>
-              </>
-            )}
 
             {/* ── Sessions ── */}
             <div className="mt-10 flex flex-wrap items-center justify-between gap-2">
