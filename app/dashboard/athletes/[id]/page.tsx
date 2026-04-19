@@ -19,13 +19,15 @@ import ForcePlateCMJSection, {
   buildCmjDataPoints,
 } from "@/components/athletes/ForcePlateCMJSection";
 import ForcePlateDJSection, { buildDjDataPoints } from "@/components/athletes/ForcePlateDJSection";
-import HopTestsSection, {
-  type HopTestTableRow,
-  type HopTestTypeBlock,
-} from "@/components/athletes/HopTestsSection";
+import HopTestsSection from "@/components/athletes/HopTestsSection";
+import PdfExportModal from "@/components/athletes/PdfExportModal";
 import SectionComment from "@/components/athletes/SectionComment";
 import SectionJumpNav from "@/components/athletes/SectionJumpNav";
 import TimepointSummary from "@/components/athletes/TimepointSummary";
+import {
+  buildHopTestBlocks,
+  type ReportHopTestRow,
+} from "@/lib/athleteReportData";
 import { useRequireDashboardStaff } from "@/lib/useRequireDashboardStaff";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -180,88 +182,7 @@ function formatChartAxisDate(iso: string | null): string {
   } catch { return "—"; }
 }
 
-type HopTestDbRow = {
-  session_date: string;
-  test_type: string;
-  side: string;
-  best_cm: number | null;
-};
-
-const HOP_TEST_LABELS: Record<string, string> = {
-  slhd: "Single Leg Hop for Distance",
-  thd: "Triple Hop for Distance",
-  thcod: "Triple Crossover Hop",
-  single_leg_hop: "Single Leg Hop for Distance",
-  triple_hop: "Triple Hop for Distance",
-  triple_crossover_hop: "Triple Crossover Hop",
-  medial_hop: "Medial Hop for Distance",
-  lateral_hop: "Lateral Hop for Distance",
-};
-
-function hopTestDisplayName(testType: string): string {
-  return HOP_TEST_LABELS[testType] ?? testType.replace(/_/g, " ");
-}
-
-function buildHopTestBlocks(rows: HopTestDbRow[]): HopTestTypeBlock[] {
-  const byType = new Map<
-    string,
-    Map<string, { left: number | null; right: number | null }>
-  >();
-  for (const r of rows) {
-    const d = r.session_date;
-    if (!d) continue;
-    const dateMap = byType.get(r.test_type) ?? new Map();
-    const cur = dateMap.get(d) ?? { left: null, right: null };
-    const side = (r.side ?? "").toLowerCase();
-    if (side === "left") cur.left = r.best_cm;
-    else if (side === "right") cur.right = r.best_cm;
-    dateMap.set(d, cur);
-    byType.set(r.test_type, dateMap);
-  }
-  const blocks: HopTestTypeBlock[] = [];
-  for (const [testType, dateMap] of byType) {
-    const tableRows: HopTestTableRow[] = [];
-    for (const [sessionDate, pair] of dateMap) {
-      const leftBest = pair.left;
-      const rightBest = pair.right;
-      let lsi: number | null = null;
-      if (
-        leftBest != null &&
-        rightBest != null &&
-        Number.isFinite(leftBest) &&
-        Number.isFinite(rightBest)
-      ) {
-        const hi = Math.max(leftBest, rightBest);
-        const lo = Math.min(leftBest, rightBest);
-        if (hi > 0) lsi = Math.round((lo / hi) * 1000) / 10;
-      }
-      tableRows.push({
-        sessionDate,
-        dateLabel: formatChartAxisDate(`${sessionDate}T12:00:00`),
-        leftCm: leftBest,
-        rightCm: rightBest,
-        lsi,
-      });
-    }
-    tableRows.sort((a, b) => b.sessionDate.localeCompare(a.sessionDate));
-    const trendPoints = [...tableRows]
-      .sort((a, b) => a.sessionDate.localeCompare(b.sessionDate))
-      .filter((row) => row.lsi != null)
-      .map((row) => ({
-        label: row.dateLabel,
-        t: new Date(`${row.sessionDate}T12:00:00`).getTime(),
-        lsi: row.lsi!,
-      }));
-    blocks.push({
-      testType,
-      displayName: hopTestDisplayName(testType),
-      rows: tableRows,
-      trendPoints,
-    });
-  }
-  blocks.sort((a, b) => a.displayName.localeCompare(b.displayName));
-  return blocks;
-}
+type HopTestDbRow = ReportHopTestRow;
 
 function is1080Session(s: SessionRow): boolean {
   return bucket(s.source) === "1080";
@@ -361,6 +282,7 @@ export default function AthleteDetailPage() {
   );
   const [rangeStart, setRangeStart] = useState<string | null>(null);
   const [rangeEnd, setRangeEnd] = useState<string | null>(null);
+  const [pdfModalOpen, setPdfModalOpen] = useState(false);
 
   function inRange(dateIso: string | null): boolean {
     if (!dateIso) return true;
@@ -726,6 +648,13 @@ export default function AthleteDetailPage() {
         <div className="flex flex-wrap items-center gap-3">
           <Link href="/dashboard/athletes" className="text-xs text-slate-400 hover:text-lime-300">← Athletes</Link>
           <div className="ml-auto flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setPdfModalOpen(true)}
+              className="text-xs text-slate-400 hover:text-lime-300"
+            >
+              Export PDF
+            </button>
             <Link href={`/dashboard/athletes/${id}/edit`} className="text-xs text-lime-300 hover:underline">
               Edit
             </Link>
@@ -779,6 +708,16 @@ export default function AthleteDetailPage() {
               sessions={filteredSessions}
               metricsBySession={metricsBySession}
               hopTests={filteredHopTests}
+            />
+
+            <PdfExportModal
+              open={pdfModalOpen}
+              onClose={() => setPdfModalOpen(false)}
+              athlete={athlete}
+              sessions={filteredSessions}
+              metricsBySession={metricsBySession}
+              hopTests={filteredHopTests}
+              sectionComments={sectionCommentBySection}
               rangeStart={rangeStart}
               rangeEnd={rangeEnd}
             />
