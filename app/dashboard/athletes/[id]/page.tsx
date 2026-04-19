@@ -14,6 +14,17 @@ import {
   YAxis,
 } from "recharts";
 import DashboardNav from "@/components/DashboardNav";
+import DynamometrySection from "@/components/athletes/DynamometrySection";
+import ForcePlateCMJSection, {
+  buildCmjDataPoints,
+} from "@/components/athletes/ForcePlateCMJSection";
+import ForcePlateDJSection, { buildDjDataPoints } from "@/components/athletes/ForcePlateDJSection";
+import HopTestsSection, {
+  type HopTestTableRow,
+  type HopTestTypeBlock,
+} from "@/components/athletes/HopTestsSection";
+import SectionComment from "@/components/athletes/SectionComment";
+import SectionJumpNav from "@/components/athletes/SectionJumpNav";
 import { useRequireDashboardStaff } from "@/lib/useRequireDashboardStaff";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -168,6 +179,89 @@ function formatChartAxisDate(iso: string | null): string {
   } catch { return "—"; }
 }
 
+type HopTestDbRow = {
+  session_date: string;
+  test_type: string;
+  side: string;
+  best_cm: number | null;
+};
+
+const HOP_TEST_LABELS: Record<string, string> = {
+  slhd: "Single Leg Hop for Distance",
+  thd: "Triple Hop for Distance",
+  thcod: "Triple Crossover Hop",
+  single_leg_hop: "Single Leg Hop for Distance",
+  triple_hop: "Triple Hop for Distance",
+  triple_crossover_hop: "Triple Crossover Hop",
+  medial_hop: "Medial Hop for Distance",
+  lateral_hop: "Lateral Hop for Distance",
+};
+
+function hopTestDisplayName(testType: string): string {
+  return HOP_TEST_LABELS[testType] ?? testType.replace(/_/g, " ");
+}
+
+function buildHopTestBlocks(rows: HopTestDbRow[]): HopTestTypeBlock[] {
+  const byType = new Map<
+    string,
+    Map<string, { left: number | null; right: number | null }>
+  >();
+  for (const r of rows) {
+    const d = r.session_date;
+    if (!d) continue;
+    const dateMap = byType.get(r.test_type) ?? new Map();
+    const cur = dateMap.get(d) ?? { left: null, right: null };
+    const side = (r.side ?? "").toLowerCase();
+    if (side === "left") cur.left = r.best_cm;
+    else if (side === "right") cur.right = r.best_cm;
+    dateMap.set(d, cur);
+    byType.set(r.test_type, dateMap);
+  }
+  const blocks: HopTestTypeBlock[] = [];
+  for (const [testType, dateMap] of byType) {
+    const tableRows: HopTestTableRow[] = [];
+    for (const [sessionDate, pair] of dateMap) {
+      const leftBest = pair.left;
+      const rightBest = pair.right;
+      let lsi: number | null = null;
+      if (
+        leftBest != null &&
+        rightBest != null &&
+        Number.isFinite(leftBest) &&
+        Number.isFinite(rightBest)
+      ) {
+        const hi = Math.max(leftBest, rightBest);
+        const lo = Math.min(leftBest, rightBest);
+        if (hi > 0) lsi = Math.round((lo / hi) * 1000) / 10;
+      }
+      tableRows.push({
+        sessionDate,
+        dateLabel: formatChartAxisDate(`${sessionDate}T12:00:00`),
+        leftCm: leftBest,
+        rightCm: rightBest,
+        lsi,
+      });
+    }
+    tableRows.sort((a, b) => b.sessionDate.localeCompare(a.sessionDate));
+    const trendPoints = [...tableRows]
+      .sort((a, b) => a.sessionDate.localeCompare(b.sessionDate))
+      .filter((row) => row.lsi != null)
+      .map((row) => ({
+        label: row.dateLabel,
+        t: new Date(`${row.sessionDate}T12:00:00`).getTime(),
+        lsi: row.lsi!,
+      }));
+    blocks.push({
+      testType,
+      displayName: hopTestDisplayName(testType),
+      rows: tableRows,
+      trendPoints,
+    });
+  }
+  blocks.sort((a, b) => a.displayName.localeCompare(b.displayName));
+  return blocks;
+}
+
 function isCmjSession(s: SessionRow): boolean {
   const tt = (s.test_type ?? "").toLowerCase();
   const st = (s.test_sub_type ?? "").toLowerCase();
@@ -286,6 +380,10 @@ export default function AthleteDetailPage() {
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [hopTests, setHopTests] = useState<HopTestDbRow[]>([]);
+  const [sectionCommentBySection, setSectionCommentBySection] = useState<
+    Record<string, string | null>
+  >({});
   const [visibleJumpCharts, setVisibleJumpCharts] = useState<Set<JumpChartId>>(
     () => new Set(JUMP_CHART_PILLS.map((p) => p.id))
   );
@@ -321,23 +419,50 @@ export default function AthleteDetailPage() {
       setSessions(sess);
 
       const sids = sess.map((x) => x.id);
-      if (sids.length === 0) { setMetricsBySession(new Map()); setLoading(false); return; }
-
-      const { data: mrows, error: mErr } = await supabase
-        .from("metrics")
-        .select("session_id, key, value, rep_index")
-        .in("session_id", sids);
-
-      if (cancelled) return;
-      if (mErr) { setError(mErr.message); setLoading(false); return; }
-
       const map = new Map<string, MetricRow[]>();
-      for (const row of (mrows ?? []) as MetricRow[]) {
-        const list = map.get(row.session_id) ?? [];
-        list.push(row);
-        map.set(row.session_id, list);
+      if (sids.length > 0) {
+        const { data: mrows, error: mErr } = await supabase
+          .from("metrics")
+          .select("session_id, key, value, rep_index")
+          .in("session_id", sids);
+
+        if (cancelled) return;
+        if (mErr) {
+          setError(mErr.message);
+          setLoading(false);
+          return;
+        }
+        for (const row of (mrows ?? []) as MetricRow[]) {
+          const list = map.get(row.session_id) ?? [];
+          list.push(row);
+          map.set(row.session_id, list);
+        }
       }
       setMetricsBySession(map);
+
+      const [hRes, cRes] = await Promise.all([
+        supabase
+          .from("hop_tests")
+          .select("session_date, test_type, side, best_cm")
+          .eq("athlete_id", id)
+          .order("session_date", { ascending: true }),
+        supabase
+          .from("athlete_section_comments")
+          .select("section, comment")
+          .eq("athlete_id", id),
+      ]);
+      if (!cancelled) {
+        if (!hRes.error) setHopTests((hRes.data ?? []) as HopTestDbRow[]);
+        if (!cRes.error) {
+          const next: Record<string, string | null> = {};
+          for (const row of cRes.data ?? []) {
+            const r = row as { section: string; comment: string | null };
+            next[r.section] = r.comment;
+          }
+          setSectionCommentBySection(next);
+        }
+      }
+
       setLoading(false);
     })();
     return () => { cancelled = true; };
@@ -358,6 +483,47 @@ export default function AthleteDetailPage() {
   const has1080 = grouped.motion1080.length > 0;
   const has505 = sessions.some(is505Session);
   const hasLinearSprint = sessions.some(isLinearSprintSession);
+
+  const hawkinsCsvSessions = useMemo(
+    () =>
+      sessionsChronological(
+        sessions.filter((s) => (s.source ?? "").toLowerCase() === "hawkins_csv")
+      ),
+    [sessions]
+  );
+
+  const cmjSeries = useMemo(
+    () => buildCmjDataPoints(hawkinsCsvSessions, metricsBySession),
+    [hawkinsCsvSessions, metricsBySession]
+  );
+
+  const djSeries = useMemo(
+    () => buildDjDataPoints(hawkinsCsvSessions, metricsBySession),
+    [hawkinsCsvSessions, metricsBySession]
+  );
+
+  const hopTestBlocks = useMemo(() => buildHopTestBlocks(hopTests), [hopTests]);
+
+  const sectionsWithData = useMemo(() => {
+    const keys: string[] = [];
+    if (has1080 && hasLinearSprint) keys.push("linear");
+    if (has505) keys.push("cod");
+    if (cmjSeries.length > 0) keys.push("cmj");
+    if (djSeries.length > 0) keys.push("drop_jump");
+    if (hopTestBlocks.length > 0) keys.push("hop_tests");
+    return keys;
+  }, [
+    has1080,
+    hasLinearSprint,
+    has505,
+    cmjSeries.length,
+    djSeries.length,
+    hopTestBlocks.length,
+  ]);
+
+  function sectionNote(section: string): string | null {
+    return sectionCommentBySection[section] ?? null;
+  }
 
   // ── Jump trend data ──────────────────────────────────────────────────────────
 
@@ -710,10 +876,12 @@ export default function AthleteDetailPage() {
               </dl>
             </header>
 
+            <SectionJumpNav sectionsWithData={sectionsWithData} />
+
             {/* ── Linear sprint trends (1080) ── */}
-            {has1080 && (
-              <>
-                <h2 className="mt-10 text-sm font-semibold uppercase tracking-wide text-lime-300">
+            {has1080 && hasLinearSprint && (
+              <section id="linear" className="scroll-mt-28 mt-8">
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-lime-300">
                   Sprint trends — Linear
                 </h2>
                 <Pills pills={SPRINT_CHART_PILLS} visible={visibleSprintCharts} toggle={toggleSprintChart} />
@@ -779,13 +947,18 @@ export default function AthleteDetailPage() {
                     </ChartShell>
                   )}
                 </div>
-              </>
+                <SectionComment
+                  athleteId={id}
+                  section="linear"
+                  initialComment={sectionNote("linear")}
+                />
+              </section>
             )}
 
             {/* ── 5-10-5 COD trends ── */}
             {has505 && (
-              <>
-                <h2 className="mt-10 text-sm font-semibold uppercase tracking-wide text-lime-300">
+              <section id="cod" className="scroll-mt-28 mt-10">
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-lime-300">
                   COD trends — 5-10-5
                 </h2>
                 <p className="mt-1 text-xs text-slate-500">
@@ -839,8 +1012,40 @@ export default function AthleteDetailPage() {
                     </ChartShell>
                   )}
                 </div>
-              </>
+                <SectionComment
+                  athleteId={id}
+                  section="cod"
+                  initialComment={sectionNote("cod")}
+                />
+              </section>
             )}
+
+            {cmjSeries.length > 0 && (
+              <ForcePlateCMJSection
+                athleteId={id}
+                data={cmjSeries}
+                sectionComment={sectionNote("cmj")}
+              />
+            )}
+
+            {djSeries.length > 0 && (
+              <ForcePlateDJSection
+                athleteId={id}
+                data={djSeries}
+                sectionComment={sectionNote("drop_jump")}
+              />
+            )}
+
+            <HopTestsSection
+              athleteId={id}
+              blocks={hopTestBlocks}
+              sectionComment={sectionNote("hop_tests")}
+            />
+
+            <DynamometrySection
+              athleteId={id}
+              sectionComment={sectionNote("dynamometry")}
+            />
 
             {/* ── Jump trends (Hawkins) ── */}
             {hasHawkins && (
