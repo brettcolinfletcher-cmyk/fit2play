@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 const NAV_ITEMS: { id: string; label: string; key: string }[] = [
+  { id: "summary", label: "Summary", key: "summary" },
   { id: "linear", label: "Sprint", key: "linear" },
   { id: "cod", label: "COD", key: "cod" },
   { id: "cmj", label: "Force Plate CMJ", key: "cmj" },
@@ -20,11 +21,13 @@ export default function SectionJumpNav({ sectionsWithData }: Props) {
     () =>
       NAV_ITEMS.filter(
         (item) =>
-          item.key === "dynamometry" || sectionsWithData.includes(item.key)
+          item.key === "summary" ||
+          item.key === "dynamometry" ||
+          sectionsWithData.includes(item.key)
       ),
     [sectionsWithData]
   );
-  const [active, setActive] = useState<string>("linear");
+  const [active, setActive] = useState<string>("summary");
   const observerRef = useRef<IntersectionObserver | null>(null);
 
   useEffect(() => {
@@ -35,7 +38,10 @@ export default function SectionJumpNav({ sectionsWithData }: Props) {
   useEffect(() => {
     const seen = new Set(sectionsWithData);
     const ids = NAV_ITEMS.filter(
-      (item) => item.key === "dynamometry" || seen.has(item.key)
+      (item) =>
+        item.key === "summary" ||
+        item.key === "dynamometry" ||
+        seen.has(item.key)
     ).map((i) => i.id);
 
     const elements = ids

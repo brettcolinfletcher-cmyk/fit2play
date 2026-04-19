@@ -13,6 +13,7 @@ import {
   YAxis,
 } from "recharts";
 import DashboardNav from "@/components/DashboardNav";
+import DateRangeBar from "@/components/athletes/DateRangeBar";
 import DynamometrySection from "@/components/athletes/DynamometrySection";
 import ForcePlateCMJSection, {
   buildCmjDataPoints,
@@ -24,6 +25,7 @@ import HopTestsSection, {
 } from "@/components/athletes/HopTestsSection";
 import SectionComment from "@/components/athletes/SectionComment";
 import SectionJumpNav from "@/components/athletes/SectionJumpNav";
+import TimepointSummary from "@/components/athletes/TimepointSummary";
 import { useRequireDashboardStaff } from "@/lib/useRequireDashboardStaff";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -357,6 +359,16 @@ export default function AthleteDetailPage() {
   const [visibleCodCharts, setVisibleCodCharts] = useState<Set<CodChartId>>(
     () => new Set(COD_CHART_PILLS.map((p) => p.id))
   );
+  const [rangeStart, setRangeStart] = useState<string | null>(null);
+  const [rangeEnd, setRangeEnd] = useState<string | null>(null);
+
+  function inRange(dateIso: string | null): boolean {
+    if (!dateIso) return true;
+    const d = dateIso.slice(0, 10);
+    if (rangeStart && d < rangeStart) return false;
+    if (rangeEnd && d > rangeEnd) return false;
+    return true;
+  }
 
   useEffect(() => {
     if (!staffOk || !id) return;
@@ -443,16 +455,29 @@ export default function AthleteDetailPage() {
     return { hawkins: h, motion1080: m, csv: c };
   }, [sessions]);
 
-  const has1080 = grouped.motion1080.length > 0;
-  const has505 = sessions.some(is505Session);
-  const hasLinearSprint = sessions.some(isLinearSprintSession);
+  const filteredSessions = useMemo(
+    () => sessions.filter((s) => inRange(s.session_date)),
+    [sessions, rangeStart, rangeEnd]
+  );
+
+  const filteredHopTests = useMemo(
+    () => hopTests.filter((h) => inRange(h.session_date)),
+    [hopTests, rangeStart, rangeEnd]
+  );
+
+  const has1080Charts = useMemo(
+    () => filteredSessions.some((s) => bucket(s.source) === "1080"),
+    [filteredSessions]
+  );
+  const has505 = filteredSessions.some(is505Session);
+  const hasLinearSprint = filteredSessions.some(isLinearSprintSession);
 
   const hawkinsCsvSessions = useMemo(
     () =>
       sessionsChronological(
-        sessions.filter((s) => (s.source ?? "").toLowerCase() === "hawkins_csv")
+        filteredSessions.filter((s) => (s.source ?? "").toLowerCase() === "hawkins_csv")
       ),
-    [sessions]
+    [filteredSessions]
   );
 
   const cmjSeries = useMemo(
@@ -465,17 +490,20 @@ export default function AthleteDetailPage() {
     [hawkinsCsvSessions, metricsBySession]
   );
 
-  const hopTestBlocks = useMemo(() => buildHopTestBlocks(hopTests), [hopTests]);
+  const hopTestBlocks = useMemo(
+    () => buildHopTestBlocks(filteredHopTests),
+    [filteredHopTests]
+  );
 
   const sectionsWithData = useMemo(() => {
-    const keys: string[] = [];
-    if (has1080 && hasLinearSprint) keys.push("linear");
+    const keys: string[] = ["summary"];
+    if (has1080Charts && hasLinearSprint) keys.push("linear");
     if (has505) keys.push("cod");
     if (cmjSeries.length > 0) keys.push("cmj");
     if (djSeries.length > 0) keys.push("drop_jump");
     keys.push("hop_tests");
     return keys;
-  }, [has1080, hasLinearSprint, has505, cmjSeries.length, djSeries.length]);
+  }, [has1080Charts, hasLinearSprint, has505, cmjSeries.length, djSeries.length]);
 
   function sectionNote(section: string): string | null {
     return sectionCommentBySection[section] ?? null;
@@ -484,7 +512,7 @@ export default function AthleteDetailPage() {
   // ── Linear sprint trend data ──────────────────────────────────────────────────
 
   const trendTopSpeed = useMemo(() => {
-    const sorted = sessionsChronological(sessions.filter(isLinearSprintSession));
+    const sorted = sessionsChronological(filteredSessions.filter(isLinearSprintSession));
     const points: { t: number; label: string; v: number }[] = [];
     for (const s of sorted) {
       if (!s.session_date) continue;
@@ -493,10 +521,10 @@ export default function AthleteDetailPage() {
       points.push({ t: new Date(s.session_date).getTime(), label: formatChartAxisDate(s.session_date), v });
     }
     return { points, enough: points.length >= 2 };
-  }, [sessions, metricsBySession]);
+  }, [filteredSessions, metricsBySession]);
 
   const trendPeakForce = useMemo(() => {
-    const sorted = sessionsChronological(sessions.filter(isLinearSprintSession));
+    const sorted = sessionsChronological(filteredSessions.filter(isLinearSprintSession));
     const points: { t: number; label: string; v: number }[] = [];
     for (const s of sorted) {
       if (!s.session_date) continue;
@@ -505,10 +533,10 @@ export default function AthleteDetailPage() {
       points.push({ t: new Date(s.session_date).getTime(), label: formatChartAxisDate(s.session_date), v });
     }
     return { points, enough: points.length >= 2 };
-  }, [sessions, metricsBySession]);
+  }, [filteredSessions, metricsBySession]);
 
   const trendPeakPower = useMemo(() => {
-    const sorted = sessionsChronological(sessions.filter(isLinearSprintSession));
+    const sorted = sessionsChronological(filteredSessions.filter(isLinearSprintSession));
     const points: { t: number; label: string; v: number }[] = [];
     for (const s of sorted) {
       if (!s.session_date) continue;
@@ -517,10 +545,10 @@ export default function AthleteDetailPage() {
       points.push({ t: new Date(s.session_date).getTime(), label: formatChartAxisDate(s.session_date), v });
     }
     return { points, enough: points.length >= 2 };
-  }, [sessions, metricsBySession]);
+  }, [filteredSessions, metricsBySession]);
 
   const trendSplit5m = useMemo(() => {
-    const sorted = sessionsChronological(sessions.filter(isLinearSprintSession));
+    const sorted = sessionsChronological(filteredSessions.filter(isLinearSprintSession));
     const points: { t: number; label: string; v: number }[] = [];
     for (const s of sorted) {
       if (!s.session_date) continue;
@@ -529,12 +557,12 @@ export default function AthleteDetailPage() {
       points.push({ t: new Date(s.session_date).getTime(), label: formatChartAxisDate(s.session_date), v });
     }
     return { points, enough: points.length >= 2 };
-  }, [sessions, metricsBySession]);
+  }, [filteredSessions, metricsBySession]);
 
   // ── 5-10-5 COD trend data ─────────────────────────────────────────────────────
 
   const trend505TopSpeed = useMemo(() => {
-    const sorted = sessionsChronological(sessions.filter(is505Session));
+    const sorted = sessionsChronological(filteredSessions.filter(is505Session));
     const points: { t: number; label: string; v: number }[] = [];
     for (const s of sorted) {
       if (!s.session_date) continue;
@@ -543,10 +571,10 @@ export default function AthleteDetailPage() {
       points.push({ t: new Date(s.session_date).getTime(), label: formatChartAxisDate(s.session_date), v });
     }
     return { points, enough: points.length >= 2 };
-  }, [sessions, metricsBySession]);
+  }, [filteredSessions, metricsBySession]);
 
   const trend505DecelMax = useMemo(() => {
-    const sorted = sessionsChronological(sessions.filter(is505Session));
+    const sorted = sessionsChronological(filteredSessions.filter(is505Session));
     const points: { t: number; label: string; v: number }[] = [];
     for (const s of sorted) {
       if (!s.session_date) continue;
@@ -555,10 +583,10 @@ export default function AthleteDetailPage() {
       points.push({ t: new Date(s.session_date).getTime(), label: formatChartAxisDate(s.session_date), v });
     }
     return { points, enough: points.length >= 2 };
-  }, [sessions, metricsBySession]);
+  }, [filteredSessions, metricsBySession]);
 
   const trend505AccelMax = useMemo(() => {
-    const sorted = sessionsChronological(sessions.filter(is505Session));
+    const sorted = sessionsChronological(filteredSessions.filter(is505Session));
     const points: { t: number; label: string; v: number }[] = [];
     for (const s of sorted) {
       if (!s.session_date) continue;
@@ -567,7 +595,7 @@ export default function AthleteDetailPage() {
       points.push({ t: new Date(s.session_date).getTime(), label: formatChartAxisDate(s.session_date), v });
     }
     return { points, enough: points.length >= 2 };
-  }, [sessions, metricsBySession]);
+  }, [filteredSessions, metricsBySession]);
 
   // ── Misc ─────────────────────────────────────────────────────────────────────
 
@@ -738,8 +766,25 @@ export default function AthleteDetailPage() {
 
             <SectionJumpNav sectionsWithData={sectionsWithData} />
 
+            <DateRangeBar
+              rangeStart={rangeStart}
+              rangeEnd={rangeEnd}
+              onChange={(s, e) => {
+                setRangeStart(s);
+                setRangeEnd(e);
+              }}
+            />
+
+            <TimepointSummary
+              sessions={filteredSessions}
+              metricsBySession={metricsBySession}
+              hopTests={filteredHopTests}
+              rangeStart={rangeStart}
+              rangeEnd={rangeEnd}
+            />
+
             {/* ── Linear sprint trends (1080) ── */}
-            {has1080 && hasLinearSprint && (
+            {has1080Charts && hasLinearSprint && (
               <section id="linear" className="scroll-mt-28 mt-8">
                 <h2 className="text-sm font-semibold uppercase tracking-wide text-lime-300">
                   Sprint trends — Linear
