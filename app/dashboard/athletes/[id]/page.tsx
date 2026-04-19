@@ -473,16 +473,9 @@ export default function AthleteDetailPage() {
     if (has505) keys.push("cod");
     if (cmjSeries.length > 0) keys.push("cmj");
     if (djSeries.length > 0) keys.push("drop_jump");
-    if (hopTestBlocks.length > 0) keys.push("hop_tests");
+    keys.push("hop_tests");
     return keys;
-  }, [
-    has1080,
-    hasLinearSprint,
-    has505,
-    cmjSeries.length,
-    djSeries.length,
-    hopTestBlocks.length,
-  ]);
+  }, [has1080, hasLinearSprint, has505, cmjSeries.length, djSeries.length]);
 
   function sectionNote(section: string): string | null {
     return sectionCommentBySection[section] ?? null;
@@ -708,12 +701,6 @@ export default function AthleteDetailPage() {
             <Link href={`/dashboard/athletes/${id}/edit`} className="text-xs text-lime-300 hover:underline">
               Edit
             </Link>
-            <Link
-              href={`/dashboard/athletes/${id}/hop-tests`}
-              className="text-xs text-slate-400 hover:text-lime-300"
-            >
-              Hop tests
-            </Link>
           </div>
         </div>
 
@@ -913,6 +900,14 @@ export default function AthleteDetailPage() {
               athleteId={id}
               blocks={hopTestBlocks}
               sectionComment={sectionNote("hop_tests")}
+              onHopTestSaved={async () => {
+                const { data } = await supabase
+                  .from("hop_tests")
+                  .select("session_date, test_type, side, best_cm")
+                  .eq("athlete_id", id)
+                  .order("session_date", { ascending: true });
+                if (data) setHopTests(data as HopTestDbRow[]);
+              }}
             />
 
             <DynamometrySection
