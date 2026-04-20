@@ -23,13 +23,6 @@ const styles = StyleSheet.create({
     width: "100%",
     backgroundColor: "#84cc16",
   },
-  headerBrand: {
-    fontSize: 9,
-    fontWeight: 700,
-    letterSpacing: 0.8,
-    color: "#6b7280",
-    marginBottom: 4,
-  },
   headerName: {
     fontSize: 20,
     fontWeight: 700,
@@ -294,20 +287,20 @@ export default function AthletePdfDocument({
         </View>
         <Image
           src="https://fit2play.vercel.app/fit2play-logo.png"
-          style={{ width: 80, marginBottom: 8 }}
+          style={{ width: 48, marginBottom: 4 }}
         />
-        <Text style={styles.headerBrand}>FIT2PLAY</Text>
         <Text style={styles.headerName}>{athleteName}</Text>
         <Text style={styles.headerReportType}>Athlete Performance Report</Text>
         <Text style={styles.headerMeta}>Date range: {rangeLine}</Text>
 
         <View style={styles.rule} />
 
-        <Text style={styles.sectionBanner}>SUMMARY</Text>
-        <Text style={styles.body}>
-          {summaryComment?.trim() ? summaryComment.trim() : "—"}
-        </Text>
-        <View style={styles.rule} />
+        {summaryComment?.trim() ? (
+          <>
+            <Text style={styles.sectionBanner}>SUMMARY</Text>
+            <Text style={styles.body}>{summaryComment.trim()}</Text>
+          </>
+        ) : null}
 
         {mode === "best" ? (
           <Text style={styles.sectionBanner}>Best Performance</Text>
