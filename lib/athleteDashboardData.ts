@@ -3,6 +3,7 @@
 export type NormalizedSession = {
   sessionId: string;
   createdAt: string;
+  sessionDate: string | null;
   testType: string | null;
   testSubType: string | null;
   fileName: string | null;
@@ -83,6 +84,7 @@ export function normalizeSessionRow(raw: Record<string, unknown>): NormalizedSes
   return {
     sessionId,
     createdAt,
+    sessionDate: pickStr(raw, ["session_date", "sessionDate"]),
     testType: pickStr(raw, ["test_type", "testType"]),
     testSubType: pickStr(raw, ["test_sub_type", "testSubType"]),
     fileName: pickStr(raw, ["file_name", "fileName"]),

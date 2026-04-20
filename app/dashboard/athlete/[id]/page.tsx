@@ -192,7 +192,8 @@ export default function AthleteProfilePage() {
     () =>
       [...sessions].sort(
         (a, b) =>
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          new Date(b.sessionDate ?? b.createdAt).getTime() -
+          new Date(a.sessionDate ?? a.createdAt).getTime()
       ),
     [sessions]
   );
@@ -203,7 +204,8 @@ export default function AthleteProfilePage() {
         .filter((s) => isSprintLikeType(s.testType))
         .sort(
           (a, b) =>
-            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+            new Date(a.sessionDate ?? a.createdAt).getTime() -
+            new Date(b.sessionDate ?? b.createdAt).getTime()
         ),
     [sessions]
   );
@@ -214,7 +216,8 @@ export default function AthleteProfilePage() {
         .filter((s) => isForcePlateType(s.testType))
         .sort(
           (a, b) =>
-            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+            new Date(a.sessionDate ?? a.createdAt).getTime() -
+            new Date(b.sessionDate ?? b.createdAt).getTime()
         ),
     [sessions]
   );
@@ -225,7 +228,8 @@ export default function AthleteProfilePage() {
         .filter((s) => isDynamometerType(s.testType))
         .sort(
           (a, b) =>
-            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+            new Date(a.sessionDate ?? a.createdAt).getTime() -
+            new Date(b.sessionDate ?? b.createdAt).getTime()
         ),
     [sessions]
   );
@@ -242,7 +246,7 @@ export default function AthleteProfilePage() {
   const lastTestDate = useMemo(() => {
     if (!sessions.length) return null;
     const t = Math.max(
-      ...sessions.map((s) => new Date(s.createdAt).getTime())
+      ...sessions.map((s) => new Date(s.sessionDate ?? s.createdAt).getTime())
     );
     return new Date(t);
   }, [sessions]);
@@ -266,7 +270,7 @@ export default function AthleteProfilePage() {
     const arr = sessions.filter((s) => isSprintLikeType(s.testType));
     if (!arr.length) return null;
     return new Date(
-      Math.max(...arr.map((s) => new Date(s.createdAt).getTime()))
+      Math.max(...arr.map((s) => new Date(s.sessionDate ?? s.createdAt).getTime()))
     );
   }, [sessions]);
 
@@ -274,7 +278,7 @@ export default function AthleteProfilePage() {
     const arr = sessions.filter((s) => isForcePlateType(s.testType));
     if (!arr.length) return null;
     return new Date(
-      Math.max(...arr.map((s) => new Date(s.createdAt).getTime()))
+      Math.max(...arr.map((s) => new Date(s.sessionDate ?? s.createdAt).getTime()))
     );
   }, [sessions]);
 
@@ -282,7 +286,7 @@ export default function AthleteProfilePage() {
     const arr = sessions.filter((s) => isDynamometerType(s.testType));
     if (!arr.length) return null;
     return new Date(
-      Math.max(...arr.map((s) => new Date(s.createdAt).getTime()))
+      Math.max(...arr.map((s) => new Date(s.sessionDate ?? s.createdAt).getTime()))
     );
   }, [sessions]);
 
@@ -337,7 +341,7 @@ export default function AthleteProfilePage() {
   const sprintChartData = useMemo(
     () =>
       sprintChrono.map((s) => ({
-        label: new Date(s.createdAt).toLocaleDateString("en-AU", {
+        label: new Date(s.sessionDate ?? s.createdAt).toLocaleDateString("en-AU", {
           day: "2-digit",
           month: "short",
         }),
@@ -351,7 +355,7 @@ export default function AthleteProfilePage() {
       fpChrono
         .filter((s) => s.jumpHeightCm != null)
         .map((s) => ({
-          label: new Date(s.createdAt).toLocaleDateString("en-AU", {
+          label: new Date(s.sessionDate ?? s.createdAt).toLocaleDateString("en-AU", {
             day: "2-digit",
             month: "short",
           }),
@@ -835,7 +839,7 @@ export default function AthleteProfilePage() {
                           }}
                         >
                           <td className="whitespace-nowrap px-5 py-3 text-xs text-slate-200">
-                            {new Date(s.createdAt).toLocaleDateString(
+                            {new Date(s.sessionDate ?? s.createdAt).toLocaleDateString(
                               "en-AU",
                               {
                                 day: "2-digit",
