@@ -82,19 +82,16 @@ export default function DashboardNav() {
         active: pathname.startsWith("/dashboard/sprint-report"),
       },
       {
-        href: "/dashboard/add-test",
-        label: "Add Test",
-        active: pathname.startsWith("/dashboard/add-test"),
-      },
-      {
         href: "/dashboard/sync",
         label: "Sync",
         active: pathname.startsWith("/dashboard/sync"),
       },
       {
         href: "/dashboard/upload",
-        label: "Upload",
-        active: pathname.startsWith("/dashboard/upload"),
+        label: "Add Data",
+        active:
+          pathname.startsWith("/dashboard/upload") ||
+          pathname.startsWith("/dashboard/add-test"),
       }
     );
   }
@@ -201,12 +198,6 @@ export default function DashboardNav() {
               {item.label}
             </Link>
           ))}
-          <Link
-            href="/"
-            className="ml-1 rounded-full border border-slate-700 px-3 py-2 text-xs text-slate-300 hover:border-lime-400 hover:text-lime-300 sm:text-sm"
-          >
-            Home
-          </Link>
           <button
             type="button"
             onClick={() => void handleLogout()}
@@ -231,12 +222,6 @@ export default function DashboardNav() {
               {item.label}
             </Link>
           ))}
-          <Link
-            href="/"
-            className="rounded-full border border-slate-700 px-3 py-2 text-center text-xs text-slate-300 hover:border-lime-400 hover:text-lime-300"
-          >
-            Home
-          </Link>
           <button
             type="button"
             onClick={() => void handleLogout()}

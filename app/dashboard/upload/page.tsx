@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
+import Link from "next/link";
 import Papa from "papaparse";
 import DashboardNav from "@/components/DashboardNav";
 import { useRequireDashboardStaff } from "@/lib/useRequireDashboardStaff";
@@ -434,12 +435,25 @@ export default function UploadPage() {
       <DashboardNav />
       <section className="mx-auto max-w-7xl px-4 pt-8 pb-24">
         <h1 className="text-xl font-semibold tracking-tight text-slate-50">
-          CSV upload
+          Add data
         </h1>
         <p className="mt-1 text-sm text-slate-400">
-          Import Hawkins and 1080 Motion exports. Parse locally, preview, then
-          submit.
+          Import CSV exports or enter test data manually.
         </p>
+
+        {/* Manual entry shortcut */}
+        <div className="mt-8 rounded-2xl border border-slate-800 bg-slate-900/30 p-5">
+          <h2 className="text-sm font-medium text-lime-300">Manual entry</h2>
+          <p className="mt-1 text-xs text-slate-500">
+            Enter dynamometry, hop test, or force plate results by hand.
+          </p>
+          <Link
+            href="/dashboard/add-test"
+            className="mt-4 inline-block rounded-lg border border-slate-700 px-4 py-2 text-xs text-slate-300 hover:border-lime-400/50 hover:text-lime-300"
+          >
+            Open manual entry →
+          </Link>
+        </div>
 
         <div className="mt-10 grid gap-8 lg:grid-cols-2">
           {/* Hawkins */}
