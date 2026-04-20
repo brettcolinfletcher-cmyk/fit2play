@@ -62,7 +62,19 @@ export default function DashboardNav() {
       {
         href: "/dashboard/athletes",
         label: "Athletes",
-        active: pathname.startsWith("/dashboard/athletes"),
+        active:
+          pathname.startsWith("/dashboard/athletes") &&
+          !pathname.startsWith("/dashboard/athletes/compare"),
+      },
+      {
+        href: "/dashboard/athletes/compare",
+        label: "Compare",
+        active: pathname.startsWith("/dashboard/athletes/compare"),
+      },
+      {
+        href: "/dashboard/teams",
+        label: "Teams",
+        active: pathname.startsWith("/dashboard/teams"),
       },
       {
         href: "/dashboard/sprint-report",

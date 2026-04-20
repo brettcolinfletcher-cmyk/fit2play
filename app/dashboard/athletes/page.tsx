@@ -124,6 +124,12 @@ export default function AthletesListPage() {
             <p className="mt-1 text-sm text-slate-400">
               Manage roster, sessions, and profiles.
             </p>
+            <Link
+              href="/dashboard/athletes/compare"
+              className="mt-2 inline-block text-xs text-slate-400 hover:text-lime-300 hover:underline"
+            >
+              Compare athletes →
+            </Link>
           </div>
           <Link
             href="/dashboard/athletes/new"
