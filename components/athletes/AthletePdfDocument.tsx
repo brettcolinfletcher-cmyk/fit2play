@@ -1,4 +1,4 @@
-import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
+import { Document, Image, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 import type {
   BestInRangeData,
   DateComparisonData,
@@ -6,50 +6,70 @@ import type {
 
 const styles = StyleSheet.create({
   page: {
-    paddingTop: 36,
-    paddingBottom: 40,
+    paddingTop: 0,
+    paddingBottom: 48,
     paddingHorizontal: 40,
     fontSize: 8,
     fontFamily: "Helvetica",
     color: "#374151",
     backgroundColor: "#ffffff",
   },
-  title: {
-    fontSize: 14,
+  limeTopBarWrap: {
+    marginHorizontal: -40,
+    marginBottom: 16,
+  },
+  limeTopBar: {
+    height: 4,
+    width: "100%",
+    backgroundColor: "#84cc16",
+  },
+  headerBrand: {
+    fontSize: 9,
+    fontWeight: 700,
+    letterSpacing: 0.8,
+    color: "#6b7280",
+    marginBottom: 4,
+  },
+  headerName: {
+    fontSize: 20,
     fontWeight: 700,
     color: "#111827",
     marginBottom: 4,
   },
-  subtitle: {
+  headerReportType: {
     fontSize: 9,
-    color: "#374151",
+    color: "#6b7280",
     marginBottom: 2,
   },
-  meta: {
+  headerMeta: {
     fontSize: 8,
-    color: "#6b7280",
+    color: "#9ca3af",
     marginBottom: 12,
   },
   rule: {
     borderBottomWidth: 1,
-    borderBottomColor: "#e5e7eb",
+    borderBottomColor: "#f3f4f6",
     marginVertical: 10,
   },
   sectionBanner: {
-    fontSize: 9,
-    fontWeight: 700,
-    color: "#111827",
-    marginBottom: 6,
-    paddingLeft: 6,
-    borderLeftWidth: 3,
-    borderLeftColor: "#84cc16",
-  },
-  h2: {
     fontSize: 10,
     fontWeight: 700,
     color: "#111827",
-    marginTop: 8,
-    marginBottom: 4,
+    marginTop: 4,
+    marginBottom: 8,
+    paddingLeft: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: "#84cc16",
+  },
+  h2: {
+    fontSize: 9,
+    fontWeight: 700,
+    color: "#111827",
+    marginTop: 14,
+    marginBottom: 6,
+    paddingBottom: 3,
+    borderBottomWidth: 0.5,
+    borderBottomColor: "#e5e7eb",
   },
   body: {
     fontSize: 8,
@@ -59,22 +79,25 @@ const styles = StyleSheet.create({
   tableHeader: {
     flexDirection: "row",
     borderBottomWidth: 1,
-    borderBottomColor: "#d1d5db",
+    borderBottomColor: "#f3f4f6",
     paddingVertical: 4,
-    backgroundColor: "#f3f4f6",
+    paddingHorizontal: 4,
+    backgroundColor: "#f0fdf4",
   },
   row: {
     flexDirection: "row",
     paddingVertical: 3,
+    paddingHorizontal: 4,
     borderBottomWidth: 0.5,
-    borderBottomColor: "#e5e7eb",
+    borderBottomColor: "#f3f4f6",
   },
   rowAlt: {
     flexDirection: "row",
     paddingVertical: 3,
+    paddingHorizontal: 4,
     borderBottomWidth: 0.5,
-    borderBottomColor: "#e5e7eb",
-    backgroundColor: "#f9fafb",
+    borderBottomColor: "#f3f4f6",
+    backgroundColor: "#fafafa",
   },
   colMetric: { width: "38%" },
   colBest: { width: "28%" },
@@ -82,11 +105,16 @@ const styles = StyleSheet.create({
   colA: { width: "28%" },
   colB: { width: "28%" },
   colD: { width: "16%" },
-  th: { fontSize: 7, fontWeight: 700, color: "#111827" },
+  th: {
+    fontSize: 7.5,
+    fontWeight: 700,
+    color: "#374151",
+  },
   td: { fontSize: 8, color: "#374151" },
-  tdMono: { fontSize: 8, color: "#111827" },
+  tdMono: { fontSize: 8.5, color: "#111827" },
   footer: {
     marginTop: 14,
+    paddingTop: 10,
     fontSize: 7,
     color: "#9ca3af",
     textAlign: "center",
@@ -256,14 +284,23 @@ export default function AthletePdfDocument({
     ([, v]) => v != null && String(v).trim() !== ""
   );
 
+  const footerText = `Fit2Play Performance Testing · fit2play.vercel.app · Generated ${gen}`;
+
   return (
     <Document>
       <Page size="A4" style={styles.page} wrap>
-        <Text style={styles.title}>FIT2PLAY — Athlete Report</Text>
-        <Text style={styles.subtitle}>{athleteName}</Text>
-        <Text style={styles.meta}>
-          Date range: {rangeLine} · Generated: {gen}
-        </Text>
+        <View style={styles.limeTopBarWrap}>
+          <View style={styles.limeTopBar} />
+        </View>
+        <Image
+          src="https://fit2play.vercel.app/fit2play-logo.png"
+          style={{ width: 80, marginBottom: 8 }}
+        />
+        <Text style={styles.headerBrand}>FIT2PLAY</Text>
+        <Text style={styles.headerName}>{athleteName}</Text>
+        <Text style={styles.headerReportType}>Athlete Performance Report</Text>
+        <Text style={styles.headerMeta}>Date range: {rangeLine}</Text>
+
         <View style={styles.rule} />
 
         <Text style={styles.sectionBanner}>SUMMARY</Text>
@@ -273,8 +310,15 @@ export default function AthletePdfDocument({
         <View style={styles.rule} />
 
         {mode === "best" ? (
+          <Text style={styles.sectionBanner}>Best Performance</Text>
+        ) : (
+          <Text style={styles.sectionBanner}>
+            {`Session Comparison — ${compareDateALabel} vs ${compareDateBLabel}`}
+          </Text>
+        )}
+
+        {mode === "best" ? (
           <>
-            <Text style={styles.sectionBanner}>[MODE: BEST IN RANGE]</Text>
             <BestTable title="LINEAR SPRINT" rows={linearBestRows} />
             <BestTable title="FORCE PLATE — CMJ" rows={cmjBestRows} />
             <BestTable title="FORCE PLATE — DROP JUMP" rows={djBestRows} />
@@ -288,7 +332,6 @@ export default function AthletePdfDocument({
         ) : (
           dc && (
             <>
-              <Text style={styles.sectionBanner}>[MODE: DATE COMPARISON]</Text>
               <CompareTable
                 title="LINEAR SPRINT"
                 labelA={compareDateALabel}
@@ -333,7 +376,7 @@ export default function AthletePdfDocument({
         ) : null}
 
         <View style={styles.rule} />
-        <Text style={styles.footer}>Generated by Fit2Play · fit2play.vercel.app</Text>
+        <Text style={styles.footer}>{footerText}</Text>
       </Page>
     </Document>
   );
