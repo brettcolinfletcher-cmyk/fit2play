@@ -5,6 +5,8 @@ import DashboardNav from "@/components/DashboardNav";
 import { useRequireDashboardStaff } from "@/lib/useRequireDashboardStaff";
 import {
   computeBestInRangeData,
+  type BestInRangeData,
+  type BestRow,
   type ReportHopTestRow,
   type ReportMetricRow,
   type ReportSessionRow,
@@ -18,6 +20,11 @@ type AthleteOption = {
   last_name: string | null;
 };
 
+type TeamOption = {
+  id: string;
+  name: string;
+};
+
 type InjuryRow = {
   id: string;
   athlete_id: string;
@@ -25,6 +32,19 @@ type InjuryRow = {
   date_injured: string | null;
   date_rtp: string | null;
 };
+
+type CompareMode = "aa" | "at" | "tt";
+
+const LINEAR_METRIC_ORDER = ["Top Speed", "Peak Force", "Peak Power", "5m Split"] as const;
+const CMJ_METRIC_ORDER = [
+  "Jump Height",
+  "Propulsive Impulse",
+  "Braking Impulse",
+  "Peak Propulsive Force",
+  "Peak Braking Force",
+  "mRSI",
+] as const;
+const DJ_METRIC_ORDER = ["RSI", "Jump Height", "Contact Time"] as const;
 
 function displayName(a: Pick<AthleteOption, "first_name" | "last_name">): string {
   const n = `${a.first_name ?? ""} ${a.last_name ?? ""}`.trim();
@@ -69,6 +89,111 @@ function commonBodyRegionLabels(injA: InjuryRow[], injB: InjuryRow[]): string[] 
   return [...map.values()].sort((a, b) => a.localeCompare(b));
 }
 
+/** Mirrors parsing in athleteVsAthleteComparison for delta math on aggregated strings. */
+function parseNumericFromBestDisplay(s: string): number | null {
+  const t = s.replace(/,/g, "").trim();
+  if (!t || t === "—") return null;
+  const m = t.match(/-?\d*\.?\d+/);
+  if (!m) return null;
+  const n = Number(m[0]);
+  return Number.isFinite(n) ? n : null;
+}
+
+function meanNullable(nums: number[]): number | null {
+  const f = nums.filter((n) => n != null && Number.isFinite(n));
+  if (f.length === 0) return null;
+  return f.reduce((a, b) => a + b, 0) / f.length;
+}
+
+function formatTeamLinear(metric: string, mean: number): string {
+  if (metric === "Top Speed") return `${mean.toFixed(2)} m/s (avg)`;
+  if (metric === "Peak Force") return `${Math.round(mean)} N (avg)`;
+  if (metric === "Peak Power") return `${Math.round(mean)} W (avg)`;
+  if (metric === "5m Split") return `${mean.toFixed(2)} s (avg)`;
+  return `${mean.toFixed(2)} (avg)`;
+}
+
+function formatTeamCmj(metric: string, mean: number): string {
+  if (metric === "Jump Height") return `${mean.toFixed(1)} cm (avg)`;
+  if (metric === "Propulsive Impulse" || metric === "Braking Impulse") return `${mean.toFixed(1)} N·s (avg)`;
+  if (metric === "Peak Propulsive Force" || metric === "Peak Braking Force") return `${Math.round(mean)} N (avg)`;
+  if (metric === "mRSI") return `${mean.toFixed(3)} (avg)`;
+  return `${mean.toFixed(2)} (avg)`;
+}
+
+function formatTeamDj(metric: string, mean: number): string {
+  if (metric === "RSI") return `${mean.toFixed(3)} (avg)`;
+  if (metric === "Jump Height") return `${mean.toFixed(1)} cm (avg)`;
+  if (metric === "Contact Time") return `${mean.toFixed(1)} ms (avg)`;
+  return `${mean.toFixed(2)} (avg)`;
+}
+
+function collectMetricMeans(rowsPerAthlete: BestRow[][]): Map<string, number[]> {
+  const map = new Map<string, number[]>();
+  for (const rows of rowsPerAthlete) {
+    for (const r of rows) {
+      const n = parseNumericFromBestDisplay(r.best);
+      if (n == null) continue;
+      const arr = map.get(r.metric) ?? [];
+      arr.push(n);
+      map.set(r.metric, arr);
+    }
+  }
+  return map;
+}
+
+function aggregateBestRows(
+  sources: BestInRangeData[],
+  key: "linear" | "cmj" | "dj",
+  order: readonly string[],
+  fmt: (metric: string, mean: number) => string
+): BestRow[] {
+  const rowsPerAthlete = sources.map((s) => s[key]);
+  const means = collectMetricMeans(rowsPerAthlete);
+  const out: BestRow[] = [];
+  for (const metric of order) {
+    const vals = means.get(metric);
+    const m = vals?.length ? meanNullable(vals) : null;
+    if (m == null) continue;
+    out.push({ metric, best: fmt(metric, m), date: "—" });
+  }
+  return out;
+}
+
+function aggregateHopRows(sources: BestInRangeData[]): { test: string; best: string; date: string }[] {
+  const rowsPerAthlete = sources.map((s) => s.hop);
+  const byTest = new Map<string, number[]>();
+  for (const rows of rowsPerAthlete) {
+    for (const r of rows) {
+      const n = parseNumericFromBestDisplay(r.best);
+      if (n == null) continue;
+      const arr = byTest.get(r.test) ?? [];
+      arr.push(n);
+      byTest.set(r.test, arr);
+    }
+  }
+  const out: { test: string; best: string; date: string }[] = [];
+  for (const [test, vals] of byTest) {
+    const m = meanNullable(vals);
+    if (m == null) continue;
+    out.push({ test, best: `${m.toFixed(1)}% (avg)`, date: "—" });
+  }
+  out.sort((a, b) => a.test.localeCompare(b.test));
+  return out;
+}
+
+function aggregateBestInRangeData(sources: BestInRangeData[]): BestInRangeData {
+  if (sources.length === 0) return { linear: [], cmj: [], dj: [], hop: [] };
+  const hasCmj = sources.some((s) => s.cmj.length > 0);
+  const hasDj = sources.some((s) => s.dj.length > 0);
+  return {
+    linear: aggregateBestRows(sources, "linear", LINEAR_METRIC_ORDER, formatTeamLinear),
+    cmj: hasCmj ? aggregateBestRows(sources, "cmj", CMJ_METRIC_ORDER, formatTeamCmj) : [],
+    dj: hasDj ? aggregateBestRows(sources, "dj", DJ_METRIC_ORDER, formatTeamDj) : [],
+    hop: aggregateHopRows(sources),
+  };
+}
+
 async function fetchMetricsMap(sessionIds: string[]): Promise<Map<string, ReportMetricRow[]>> {
   const map = new Map<string, ReportMetricRow[]>();
   if (sessionIds.length === 0) return map;
@@ -85,16 +210,72 @@ async function fetchMetricsMap(sessionIds: string[]): Promise<Map<string, Report
   return map;
 }
 
+async function loadAthleteBestBundle(
+  athleteId: string,
+  injuryCtx: { injuries: InjuryRow[]; region: string } | null
+): Promise<BestInRangeData> {
+  const sessRes = await supabase
+    .from("sessions")
+    .select("id, session_date, test_type, test_sub_type, source")
+    .eq("athlete_id", athleteId)
+    .order("session_date", { ascending: true });
+  if (sessRes.error) throw new Error(sessRes.error.message);
+  let sessions = (sessRes.data ?? []) as ReportSessionRow[];
+  if (injuryCtx) {
+    const rk = regionKey(injuryCtx.region);
+    const w = unionWindowsForRegion(injuryCtx.injuries, rk);
+    sessions = sessions.filter((s) => sessionInAnyWindow(s.session_date, w));
+  }
+
+  const sessionIds = sessions.map((s) => s.id);
+  const [metricsMap, hopRes] = await Promise.all([
+    fetchMetricsMap(sessionIds),
+    supabase
+      .from("hop_tests")
+      .select("session_date, test_type, side, best_cm")
+      .eq("athlete_id", athleteId)
+      .order("session_date", { ascending: true }),
+  ]);
+  if (hopRes.error) throw new Error(hopRes.error.message);
+  let hops = (hopRes.data ?? []) as ReportHopTestRow[];
+  if (injuryCtx) {
+    const rk = regionKey(injuryCtx.region);
+    const w = unionWindowsForRegion(injuryCtx.injuries, rk);
+    hops = hops.filter((h) => sessionInAnyWindow(h.session_date, w));
+  }
+  return computeBestInRangeData(sessions, metricsMap, hops);
+}
+
+async function loadTeamData(teamId: string): Promise<BestInRangeData> {
+  const { data, error } = await supabase.from("athlete_teams").select("athlete_id").eq("team_id", teamId);
+  if (error) throw new Error(error.message);
+  const athleteIds = [
+    ...new Set(
+      (data ?? [])
+        .map((r: { athlete_id: string }) => r.athlete_id)
+        .filter((id: string | undefined): id is string => Boolean(id))
+    ),
+  ];
+  if (athleteIds.length === 0) return { linear: [], cmj: [], dj: [], hop: [] };
+  const bundles = await Promise.all(athleteIds.map((id) => loadAthleteBestBundle(id, null)));
+  return aggregateBestInRangeData(bundles);
+}
+
 export default function AthleteComparePage() {
   const staffOk = useRequireDashboardStaff();
   const [athletes, setAthletes] = useState<AthleteOption[]>([]);
+  const [teams, setTeams] = useState<TeamOption[]>([]);
+  const [compareMode, setCompareMode] = useState<CompareMode>("aa");
   const [athleteAId, setAthleteAId] = useState<string>("");
   const [athleteBId, setAthleteBId] = useState<string>("");
+  const [teamAId, setTeamAId] = useState<string>("");
+  const [teamBId, setTeamBId] = useState<string>("");
   const [injuryFilter, setInjuryFilter] = useState(false);
   const [bodyRegion, setBodyRegion] = useState<string>("");
   const [injuriesA, setInjuriesA] = useState<InjuryRow[]>([]);
   const [injuriesB, setInjuriesB] = useState<InjuryRow[]>([]);
   const [loadingAthletes, setLoadingAthletes] = useState(true);
+  const [loadingTeams, setLoadingTeams] = useState(true);
   const [compareLoading, setCompareLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [nameA, setNameA] = useState("");
@@ -125,6 +306,26 @@ export default function AthleteComparePage() {
     };
   }, [staffOk]);
 
+  useEffect(() => {
+    if (!staffOk) return;
+    let cancelled = false;
+    (async () => {
+      setLoadingTeams(true);
+      const { data, error: e } = await supabase.from("teams").select("id, name").order("name", { ascending: true });
+      if (cancelled) return;
+      if (e) {
+        setError((prev) => prev ?? e.message);
+        setLoadingTeams(false);
+        return;
+      }
+      setTeams((data ?? []) as TeamOption[]);
+      setLoadingTeams(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [staffOk]);
+
   const loadInjuries = useCallback(async (aId: string, bId: string) => {
     if (!aId || !bId) {
       setInjuriesA([]);
@@ -142,10 +343,10 @@ export default function AthleteComparePage() {
   }, []);
 
   useEffect(() => {
-    if (!staffOk || !injuryFilter) return;
+    if (!staffOk || !injuryFilter || compareMode !== "aa") return;
     if (!athleteAId || !athleteBId) return;
     void loadInjuries(athleteAId, athleteBId);
-  }, [staffOk, injuryFilter, athleteAId, athleteBId, loadInjuries]);
+  }, [staffOk, injuryFilter, compareMode, athleteAId, athleteBId, loadInjuries]);
 
   const commonRegions = useMemo(
     () => commonBodyRegionLabels(injuriesA, injuriesB),
@@ -153,24 +354,41 @@ export default function AthleteComparePage() {
   );
 
   const injuryWarning =
-    injuryFilter && athleteAId && athleteBId && commonRegions.length === 0;
+    compareMode === "aa" && injuryFilter && athleteAId && athleteBId && commonRegions.length === 0;
 
   const runCompare = useCallback(async () => {
     setError(null);
     setCompared(false);
     setSections([]);
-    if (!athleteAId || !athleteBId) {
-      setError("Select both athletes.");
-      return;
-    }
-    if (athleteAId === athleteBId) {
-      setError("Choose two different athletes.");
-      return;
+
+    if (compareMode === "aa") {
+      if (!athleteAId || !athleteBId) {
+        setError("Select both athletes.");
+        return;
+      }
+      if (athleteAId === athleteBId) {
+        setError("Choose two different athletes.");
+        return;
+      }
+    } else if (compareMode === "at") {
+      if (!athleteAId || !teamBId) {
+        setError("Select an athlete (Side A) and a team (Side B).");
+        return;
+      }
+    } else {
+      if (!teamAId || !teamBId) {
+        setError("Select both teams.");
+        return;
+      }
+      if (teamAId === teamBId) {
+        setError("Choose two different teams.");
+        return;
+      }
     }
 
     let injA: InjuryRow[] = [];
     let injB: InjuryRow[] = [];
-    if (injuryFilter) {
+    if (compareMode === "aa" && injuryFilter) {
       const [ia, ib] = await Promise.all([
         supabase
           .from("injuries")
@@ -200,67 +418,45 @@ export default function AthleteComparePage() {
     try {
       const aOpt = athletes.find((x) => x.id === athleteAId);
       const bOpt = athletes.find((x) => x.id === athleteBId);
-      setNameA(aOpt ? displayName(aOpt) : "");
-      setNameB(bOpt ? displayName(bOpt) : "");
+      const teamAOpt = teams.find((t) => t.id === teamAId);
+      const teamBOpt = teams.find((t) => t.id === teamBId);
 
-      const [aSessionsRes, bSessionsRes] = await Promise.all([
-        supabase
-          .from("sessions")
-          .select("id, session_date, test_type, test_sub_type, source")
-          .eq("athlete_id", athleteAId)
-          .order("session_date", { ascending: true }),
-        supabase
-          .from("sessions")
-          .select("id, session_date, test_type, test_sub_type, source")
-          .eq("athlete_id", athleteBId)
-          .order("session_date", { ascending: true }),
-      ]);
-      if (aSessionsRes.error) throw new Error(aSessionsRes.error.message);
-      if (bSessionsRes.error) throw new Error(bSessionsRes.error.message);
-
-      let sessionsA = (aSessionsRes.data ?? []) as ReportSessionRow[];
-      let sessionsB = (bSessionsRes.data ?? []) as ReportSessionRow[];
-
-      if (injuryFilter && bodyRegion.trim()) {
-        const rk = regionKey(bodyRegion);
-        const wa = unionWindowsForRegion(injA, rk);
-        const wb = unionWindowsForRegion(injB, rk);
-        sessionsA = sessionsA.filter((s) => sessionInAnyWindow(s.session_date, wa));
-        sessionsB = sessionsB.filter((s) => sessionInAnyWindow(s.session_date, wb));
+      if (compareMode === "aa") {
+        setNameA(aOpt ? displayName(aOpt) : "");
+        setNameB(bOpt ? displayName(bOpt) : "");
+      } else if (compareMode === "at") {
+        setNameA(aOpt ? displayName(aOpt) : "");
+        setNameB(teamBOpt?.name ?? "Team");
+      } else {
+        setNameA(teamAOpt?.name ?? "Team");
+        setNameB(teamBOpt?.name ?? "Team");
       }
 
-      const idsA = sessionsA.map((s) => s.id);
-      const idsB = sessionsB.map((s) => s.id);
-      const [mapA, mapB, hopARes, hopBRes] = await Promise.all([
-        fetchMetricsMap(idsA),
-        fetchMetricsMap(idsB),
-        supabase
-          .from("hop_tests")
-          .select("session_date, test_type, side, best_cm")
-          .eq("athlete_id", athleteAId)
-          .order("session_date", { ascending: true }),
-        supabase
-          .from("hop_tests")
-          .select("session_date, test_type, side, best_cm")
-          .eq("athlete_id", athleteBId)
-          .order("session_date", { ascending: true }),
-      ]);
-      if (hopARes.error) throw new Error(hopARes.error.message);
-      if (hopBRes.error) throw new Error(hopBRes.error.message);
+      let bestA: BestInRangeData;
+      let bestB: BestInRangeData;
 
-      let hopsA = (hopARes.data ?? []) as ReportHopTestRow[];
-      let hopsB = (hopBRes.data ?? []) as ReportHopTestRow[];
-
-      if (injuryFilter && bodyRegion.trim()) {
-        const rk = regionKey(bodyRegion);
-        const wa = unionWindowsForRegion(injA, rk);
-        const wb = unionWindowsForRegion(injB, rk);
-        hopsA = hopsA.filter((h) => sessionInAnyWindow(h.session_date, wa));
-        hopsB = hopsB.filter((h) => sessionInAnyWindow(h.session_date, wb));
+      if (compareMode === "aa") {
+        const injuryA =
+          injuryFilter && bodyRegion.trim()
+            ? { injuries: injA, region: bodyRegion }
+            : null;
+        const injuryB =
+          injuryFilter && bodyRegion.trim()
+            ? { injuries: injB, region: bodyRegion }
+            : null;
+        [bestA, bestB] = await Promise.all([
+          loadAthleteBestBundle(athleteAId, injuryA),
+          loadAthleteBestBundle(athleteBId, injuryB),
+        ]);
+      } else if (compareMode === "at") {
+        [bestA, bestB] = await Promise.all([
+          loadAthleteBestBundle(athleteAId, null),
+          loadTeamData(teamBId),
+        ]);
+      } else {
+        [bestA, bestB] = await Promise.all([loadTeamData(teamAId), loadTeamData(teamBId)]);
       }
 
-      const bestA = computeBestInRangeData(sessionsA, mapA, hopsA);
-      const bestB = computeBestInRangeData(sessionsB, mapB, hopsB);
       setSections(buildAthleteVsAthleteSections(bestA, bestB));
       setCompared(true);
     } catch (e) {
@@ -268,7 +464,36 @@ export default function AthleteComparePage() {
     } finally {
       setCompareLoading(false);
     }
-  }, [athleteAId, athleteBId, athletes, bodyRegion, injuryFilter]);
+  }, [
+    athleteAId,
+    athleteBId,
+    athletes,
+    bodyRegion,
+    compareMode,
+    injuryFilter,
+    teamAId,
+    teamBId,
+    teams,
+  ]);
+
+  const modePill = (mode: CompareMode, label: string) => (
+    <button
+      type="button"
+      onClick={() => {
+        setCompareMode(mode);
+        setCompared(false);
+        setSections([]);
+        setError(null);
+      }}
+      className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+        compareMode === mode
+          ? "bg-lime-500/25 text-lime-200 ring-1 ring-lime-500/50"
+          : "bg-slate-800/80 text-slate-400 hover:text-slate-200"
+      }`}
+    >
+      {label}
+    </button>
+  );
 
   if (!staffOk) {
     return (
@@ -279,6 +504,7 @@ export default function AthleteComparePage() {
   }
 
   const tableWrap = "mt-3 overflow-x-auto rounded-lg border border-slate-800 bg-slate-900/50";
+  const controlsDisabled = compareLoading || loadingAthletes || loadingTeams;
 
   return (
     <main className="min-h-screen bg-slate-950 text-slate-50">
@@ -288,81 +514,166 @@ export default function AthleteComparePage() {
           Athlete comparison
         </h1>
 
-        <div className="mt-6 grid gap-4 md:grid-cols-2">
-          <div>
-            <label className="block text-xs font-medium text-slate-400">Athlete A</label>
-            <select
-              value={athleteAId}
-              onChange={(e) => setAthleteAId(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-200"
-            >
-              <option value="">—</option>
-              {athletes.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {displayName(a)}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-slate-400">Athlete B</label>
-            <select
-              value={athleteBId}
-              onChange={(e) => setAthleteBId(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-200"
-            >
-              <option value="">—</option>
-              {athletes.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {displayName(a)}
-                </option>
-              ))}
-            </select>
-          </div>
+        <div className="mt-6 flex flex-wrap gap-2">
+          {modePill("aa", "Athlete vs Athlete")}
+          {modePill("at", "Athlete vs Team")}
+          {modePill("tt", "Team vs Team")}
         </div>
 
-        <div className="mt-6 rounded-xl border border-slate-800 bg-slate-900/40 p-4">
-          <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-200">
-            <input
-              type="checkbox"
-              checked={injuryFilter}
-              onChange={(e) => {
-                setInjuryFilter(e.target.checked);
-                if (!e.target.checked) setBodyRegion("");
-              }}
-              className="rounded border-slate-600 bg-slate-950 text-lime-500"
-            />
-            Injury filter
-          </label>
-          {injuryFilter ? (
-            <div className="mt-3">
-              <label className="block text-xs font-medium text-slate-400">Body region</label>
-              <select
-                value={bodyRegion}
-                onChange={(e) => setBodyRegion(e.target.value)}
-                disabled={commonRegions.length === 0}
-                className="mt-1 w-full max-w-md rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-200 disabled:opacity-50"
-              >
-                <option value="">— Select —</option>
-                {commonRegions.map((r) => (
-                  <option key={r} value={r}>
-                    {r}
-                  </option>
-                ))}
-              </select>
-              {injuryWarning ? (
-                <p className="mt-2 text-xs text-amber-300/90">
-                  No matching injury history found for both athletes.
-                </p>
-              ) : null}
-            </div>
-          ) : null}
+        <div className="mt-6 grid gap-4 md:grid-cols-2">
+          {compareMode === "aa" ? (
+            <>
+              <div>
+                <label className="block text-xs font-medium text-slate-400">Athlete A</label>
+                <select
+                  value={athleteAId}
+                  onChange={(e) => setAthleteAId(e.target.value)}
+                  disabled={controlsDisabled}
+                  className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-200 disabled:opacity-50"
+                >
+                  <option value="">—</option>
+                  {athletes.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {displayName(a)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-400">Athlete B</label>
+                <select
+                  value={athleteBId}
+                  onChange={(e) => setAthleteBId(e.target.value)}
+                  disabled={controlsDisabled}
+                  className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-200 disabled:opacity-50"
+                >
+                  <option value="">—</option>
+                  {athletes.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {displayName(a)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </>
+          ) : compareMode === "at" ? (
+            <>
+              <div>
+                <label className="block text-xs font-medium text-slate-400">Athlete (Side A)</label>
+                <select
+                  value={athleteAId}
+                  onChange={(e) => setAthleteAId(e.target.value)}
+                  disabled={controlsDisabled}
+                  className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-200 disabled:opacity-50"
+                >
+                  <option value="">—</option>
+                  {athletes.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {displayName(a)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-400">Team (Side B)</label>
+                <select
+                  value={teamBId}
+                  onChange={(e) => setTeamBId(e.target.value)}
+                  disabled={controlsDisabled}
+                  className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-200 disabled:opacity-50"
+                >
+                  <option value="">—</option>
+                  {teams.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </>
+          ) : (
+            <>
+              <div>
+                <label className="block text-xs font-medium text-slate-400">Team (Side A)</label>
+                <select
+                  value={teamAId}
+                  onChange={(e) => setTeamAId(e.target.value)}
+                  disabled={controlsDisabled}
+                  className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-200 disabled:opacity-50"
+                >
+                  <option value="">—</option>
+                  {teams.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-400">Team (Side B)</label>
+                <select
+                  value={teamBId}
+                  onChange={(e) => setTeamBId(e.target.value)}
+                  disabled={controlsDisabled}
+                  className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-200 disabled:opacity-50"
+                >
+                  <option value="">—</option>
+                  {teams.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </>
+          )}
         </div>
+
+        {compareMode === "aa" ? (
+          <div className="mt-6 rounded-xl border border-slate-800 bg-slate-900/40 p-4">
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-200">
+              <input
+                type="checkbox"
+                checked={injuryFilter}
+                onChange={(e) => {
+                  setInjuryFilter(e.target.checked);
+                  if (!e.target.checked) setBodyRegion("");
+                }}
+                disabled={controlsDisabled}
+                className="rounded border-slate-600 bg-slate-950 text-lime-500 disabled:opacity-50"
+              />
+              Injury filter
+            </label>
+            {injuryFilter ? (
+              <div className="mt-3">
+                <label className="block text-xs font-medium text-slate-400">Body region</label>
+                <select
+                  value={bodyRegion}
+                  onChange={(e) => setBodyRegion(e.target.value)}
+                  disabled={commonRegions.length === 0 || controlsDisabled}
+                  className="mt-1 w-full max-w-md rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-200 disabled:opacity-50"
+                >
+                  <option value="">— Select —</option>
+                  {commonRegions.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                </select>
+                {injuryWarning ? (
+                  <p className="mt-2 text-xs text-amber-300/90">
+                    No matching injury history found for both athletes.
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
 
         <button
           type="button"
           onClick={() => void runCompare()}
-          disabled={compareLoading || loadingAthletes}
+          disabled={controlsDisabled}
           className="mt-6 rounded-full border border-lime-500/50 bg-lime-500/15 px-6 py-2 text-sm font-medium text-lime-200 hover:bg-lime-500/25 disabled:opacity-50"
         >
           {compareLoading ? "Comparing…" : "Compare"}
@@ -373,7 +684,7 @@ export default function AthleteComparePage() {
         {compared && !error ? (
           <div className="mt-10 space-y-8">
             {sections.length === 0 ? (
-              <p className="text-sm text-slate-500">No overlapping comparison data for these athletes.</p>
+              <p className="text-sm text-slate-500">No overlapping comparison data for these selections.</p>
             ) : (
               sections.map((sec) => (
                 <div key={sec.id}>
@@ -385,8 +696,8 @@ export default function AthleteComparePage() {
                       <thead>
                         <tr className="border-b border-slate-800 bg-slate-900/60 text-slate-500">
                           <th className="px-3 py-2 font-medium">Metric</th>
-                          <th className="px-3 py-2 font-medium">{nameA || "Athlete A"}</th>
-                          <th className="px-3 py-2 font-medium">{nameB || "Athlete B"}</th>
+                          <th className="px-3 py-2 font-medium">{nameA || "Side A"}</th>
+                          <th className="px-3 py-2 font-medium">{nameB || "Side B"}</th>
                           <th className="px-3 py-2 font-medium">Δ</th>
                         </tr>
                       </thead>
