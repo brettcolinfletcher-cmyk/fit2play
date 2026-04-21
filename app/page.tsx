@@ -21,7 +21,7 @@ export default function HomePage() {
         <Link href="/" className="flex shrink-0 items-center gap-2">
           {/* TODO: replace logo with transparent-bg export from Canva — current asset has baked-in dark background */}
           <Image
-            src="/logo_full_original.png"
+            src="/fit2play_logo_transparent.png"
             alt="Fit2Play logo"
             width={200}
             height={80}
@@ -258,6 +258,10 @@ export default function HomePage() {
               title="Functional hop battery"
               body="Standard hop tests (single, triple, crossover, timed) for late-stage return-to-sport decision-making."
             />
+            <BatteryCard
+              title="Clinical review"
+              body="Every testing session includes an in-person interpretation with a sports-trained physiotherapist, translating the numbers into specific next steps for training, rehab and return-to-sport timing."
+            />
           </div>
           <p className="mt-6 text-center text-[0.72rem] text-slate-500 md:text-xs">
             Testing is performed using force plates, sprint timing systems and calibrated dynamometry widely used in elite professional sport.
@@ -334,7 +338,7 @@ export default function HomePage() {
         <div className="mx-auto flex max-w-5xl flex-col items-center justify-between gap-4 px-4 py-8 text-xs text-slate-500 md:flex-row">
           <Link href="/" className="opacity-90 hover:opacity-100">
             <Image
-              src="/logo_full_original.png"
+              src="/fit2play_logo_transparent.png"
               alt="Fit2Play"
               width={160}
               height={64}
