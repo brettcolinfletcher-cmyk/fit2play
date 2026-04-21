@@ -14,7 +14,7 @@ const supabase = createClient(
 );
 
 type Athlete = { id: string; first_name: string | null; last_name: string | null };
-type SessionRow = { id: string; athlete_id: string; created_at: string; test_type: string | null };
+type SessionRow = { id: string; athlete_id: string; created_at: string; session_date: string | null; test_type: string | null };
 type MetricRow = { session_id: string; key: string; value: number };
 type ReportRow = {
   date: string; rawDate: string;
@@ -70,8 +70,8 @@ export default function SprintReportPage() {
     setLoading(true);
     async function load() {
       const { data: sessData } = await supabase
-        .from("sessions").select("id, athlete_id, created_at, test_type")
-        .eq("athlete_id", selectedId).order("created_at", { ascending: true });
+        .from("sessions").select("id, athlete_id, created_at, session_date, test_type")
+        .eq("athlete_id", selectedId).order("session_date", { ascending: true });
       const sprintSessions = ((sessData ?? []) as any[]).filter((s) => isSprintType(s.test_type)) as SessionRow[];
       setSessions(sprintSessions);
       if (!sprintSessions.length) { setMetrics([]); setLoading(false); return; }
@@ -90,7 +90,7 @@ export default function SprintReportPage() {
     return sessions.map((s) => {
       const m = mm[s.id] ?? {};
       return {
-        date: fmtDate(s.created_at), rawDate: s.created_at,
+        date: fmtDate(s.session_date ?? s.created_at), rawDate: s.session_date ?? s.created_at,
         topSpeed: m.top_speed ?? null, totalTime: m.total_time ?? null,
         split5m: m.split_5m_time ?? null, maxAcceleration: m.accel_max ?? null,
         peakForce: m.peak_force ?? null, peakPower: m.peak_power ?? null,
