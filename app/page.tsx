@@ -27,7 +27,7 @@ export default function HomePage() {
               Objective return-to-sport testing for high-performance athletes.
             </h1>
             <p className="mb-5 max-w-xl text-sm text-slate-300 md:text-base">
-              Fit2Play brings together 1080 Motion and Hawkins force plate data into one performance dashboard — built for physios and S&amp;C coaches who need clear, trackable criteria to guide return-to-sport decisions.
+              Fit2Play brings together 1080 Motion and Hawkins force plate data into one performance dashboard — built for physios and S&amp;C coaches working with athletes at all levels. Whether returning from injury or chasing a performance edge, we give you clear, trackable criteria backed by objective data.
             </p>
             <div className="mb-4 flex flex-wrap gap-3">
               <a href="#contact" className="inline-flex items-center justify-center rounded-full bg-lime-400 px-5 py-2 text-xs font-semibold text-slate-950 shadow-md hover:brightness-110 md:text-sm">
@@ -38,7 +38,7 @@ export default function HomePage() {
               </Link>
             </div>
             <div className="flex flex-wrap gap-6 text-[0.72rem] text-slate-400 md:text-xs">
-              <span>Objective RTS criteria · No more guesswork.</span>
+              <span>Injury rehab · Performance testing · Injury prevention.</span>
               <span>1080 Motion · Hawkins force plates · Clinical strength.</span>
             </div>
           </div>
@@ -104,17 +104,17 @@ export default function HomePage() {
         <section id="contact">
           <div className="flex flex-col gap-4 rounded-2xl border border-lime-400/50 bg-gradient-to-r from-lime-400/20 to-emerald-500/10 px-5 py-4 text-sm text-slate-50 md:flex-row md:items-center md:justify-between">
             <div>
-              <p className="font-semibold">Ready to build your return-to-sport testing pipeline?</p>
-              <p className="text-xs text-slate-200/80 md:text-sm">Book a discovery call to plan your testing battery, reporting templates and dashboard setup.</p>
+              <p className="font-semibold">Ready to get started?</p>
+              <p className="text-xs text-slate-200/80 md:text-sm">Book directly online, call us, or get in touch via email or referral. We work with athletes at all stages — from injury rehab to elite performance.</p>
             </div>
-            <a href="mailto:info@fit2play.com" className="inline-flex items-center justify-center rounded-full bg-slate-950/90 px-4 py-2 text-xs font-semibold text-lime-400 ring-1 ring-lime-400 hover:bg-slate-900">
-              Email info@fit2play.com
+            <a href="mailto:info@fit2play.com.au" className="inline-flex items-center justify-center rounded-full bg-slate-950/90 px-4 py-2 text-xs font-semibold text-lime-400 ring-1 ring-lime-400 hover:bg-slate-900 whitespace-nowrap">
+              info@fit2play.com.au
             </a>
           </div>
           <nav className="mt-6 flex justify-center gap-4 text-xs text-slate-400 md:hidden">
             <a href="/#how-it-works" className="hover:text-lime-400">How it works</a>
             <Link href="/services" className="hover:text-lime-400">Services</Link>
-            <a href="mailto:info@fit2play.com" className="hover:text-lime-400">Contact</a>
+            <a href="mailto:info@fit2play.com.au" className="hover:text-lime-400">Contact</a>
             <Link href="/login" className="hover:text-lime-400">Login</Link>
           </nav>
         </section>
