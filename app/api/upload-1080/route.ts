@@ -122,6 +122,7 @@ export async function POST(req: Request) {
           test_type: resolvedType,
           test_sub_type: sub,
           file_name: fileName ?? null,
+          source: "1080_csv",
         })
         .select("id")
         .single();
@@ -215,6 +216,7 @@ export async function POST(req: Request) {
         test_type: legacyType,
         test_sub_type: legacySub,
         file_name: fileName ?? null,
+        source: "1080_csv",
       })
       .select("id")
       .single();
