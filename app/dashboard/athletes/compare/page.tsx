@@ -202,7 +202,7 @@ async function fetchMetricsMap(sessionIds: string[]): Promise<Map<string, Report
   if (sessionIds.length === 0) return map;
   const { data: mrows, error } = await supabase
     .from("metrics")
-    .select("session_id, key, value, rep_index")
+    .select("session_id, key, value, rep_index, side")
     .in("session_id", sessionIds);
   if (error) throw new Error(error.message);
   for (const row of (mrows ?? []) as ReportMetricRow[]) {

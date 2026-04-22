@@ -19,6 +19,8 @@ export type ReportMetricRow = {
   key: string;
   value: number | null;
   rep_index: number | null;
+  /** Present when 1080 stores metrics per lateral rep */
+  side?: string | null;
 };
 
 export type ReportHopTestRow = {

@@ -178,7 +178,7 @@ export default function AthleteCompareChartPanel({
       }
       return row;
     });
-    return { keys: rows.map((r) => r.metricId), data };
+    return { data };
   }, [profiles, athleteIds]);
 
   const radarData = useMemo(() => {

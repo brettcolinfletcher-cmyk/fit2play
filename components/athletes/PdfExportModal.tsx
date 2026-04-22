@@ -13,6 +13,10 @@ import {
   type ReportMetricRow,
   type ReportSessionRow,
 } from "@/lib/athleteReportData";
+import {
+  buildPdfReportCharts,
+  type MetricRowWithSide,
+} from "@/lib/pdfReportChartData";
 import { supabase } from "@/lib/supabaseClient";
 
 type Props = {
@@ -147,6 +151,16 @@ export default function PdfExportModal({
         metricsBySession,
         scopeHopTests
       );
+      const pdfCharts =
+        mode === "best"
+          ? buildPdfReportCharts(
+              scopeSessions,
+              metricsBySession as Map<string, MetricRowWithSide[]>,
+              scopeHopTests,
+              exportFrom,
+              exportTo
+            )
+          : null;
       const dateComparisonData =
         mode === "date_comparison"
           ? computeDateComparisonData(
@@ -188,6 +202,7 @@ export default function PdfExportModal({
           sectionComments={sectionComments}
           bestInRange={bestInRange}
           dateComparisonData={dateComparisonData}
+          pdfCharts={pdfCharts}
         />
       ).toBlob();
 

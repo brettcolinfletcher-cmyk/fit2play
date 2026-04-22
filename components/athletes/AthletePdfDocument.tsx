@@ -1,8 +1,12 @@
 import { Document, Image, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
+import PdfBarChart from "@/components/athletes/pdf/charts/PdfBarChart";
+import PdfGroupedBarChart from "@/components/athletes/pdf/charts/PdfGroupedBarChart";
+import PdfLineChart from "@/components/athletes/pdf/charts/PdfLineChart";
 import type {
   BestInRangeData,
   DateComparisonData,
 } from "@/lib/athleteReportData";
+import type { PdfReportCharts } from "@/lib/pdfReportChartData";
 
 const styles = StyleSheet.create({
   page: {
@@ -153,6 +157,8 @@ export type PdfProps = {
   sectionComments: Record<string, string | null>;
   bestInRange: BestInRangeData;
   dateComparisonData?: DateComparisonData;
+  /** Native SVG charts for "best" mode only */
+  pdfCharts?: PdfReportCharts | null;
 };
 
 const SECTION_NOTE_LABELS: Record<string, string> = {
@@ -172,7 +178,7 @@ function BestTable({
   col2Header = "Best",
   col3Header = "Date",
 }: {
-  title: string;
+  title?: string;
   rows: { c1: string; c2: string; c3: string }[];
   col1Header?: string;
   col2Header?: string;
@@ -181,7 +187,7 @@ function BestTable({
   if (rows.length === 0) return null;
   return (
     <View style={{ marginBottom: 8 }}>
-      <Text style={styles.h2}>{title}</Text>
+      {title ? <Text style={styles.h2}>{title}</Text> : null}
       <View style={styles.tableHeader}>
         <Text style={[styles.colMetric, styles.th]}>{col1Header}</Text>
         <Text style={[styles.colBest, styles.th]}>{col2Header}</Text>
@@ -243,6 +249,7 @@ export default function AthletePdfDocument({
   sectionComments,
   bestInRange,
   dateComparisonData,
+  pdfCharts = null,
 }: PdfProps) {
   const rangeLine =
     rangeStart || rangeEnd
@@ -312,15 +319,133 @@ export default function AthletePdfDocument({
 
         {mode === "best" ? (
           <>
-            <BestTable title="LINEAR SPRINT" rows={linearBestRows} />
-            <BestTable title="FORCE PLATE — CMJ" rows={cmjBestRows} />
-            <BestTable title="FORCE PLATE — DROP JUMP" rows={djBestRows} />
-            <BestTable
-              title="HOP TESTS"
-              rows={hopBestRows}
-              col1Header="Test"
-              col2Header="Best LSI%"
-            />
+            {(pdfCharts?.sprint != null || linearBestRows.length > 0) && (
+              <View style={{ marginBottom: 6 }}>
+                <Text style={styles.sectionBanner}>LINEAR SPRINT</Text>
+                {pdfCharts?.sprint ? (
+                  <PdfBarChart
+                    title={pdfCharts.sprint.title}
+                    dateCaption={pdfCharts.sprint.dateCaption}
+                    unit={pdfCharts.sprint.unit}
+                    items={pdfCharts.sprint.items}
+                  />
+                ) : null}
+                {linearBestRows.length > 0 ? (
+                  <BestTable title="" rows={linearBestRows} />
+                ) : null}
+              </View>
+            )}
+
+            {pdfCharts?.cod != null && (
+              <View style={{ marginBottom: 6 }}>
+                <Text style={styles.sectionBanner}>CHANGE OF DIRECTION (5-10-5)</Text>
+                <PdfGroupedBarChart
+                  title={pdfCharts.cod.title}
+                  dateCaption={pdfCharts.cod.dateCaption}
+                  unit={pdfCharts.cod.unit}
+                  groups={[
+                    {
+                      label: "Entry time",
+                      left: pdfCharts.cod.left,
+                      right: pdfCharts.cod.right,
+                      annotation:
+                        pdfCharts.cod.lsiPct != null
+                          ? `LSI ${pdfCharts.cod.lsiPct.toFixed(1)}%`
+                          : null,
+                    },
+                  ]}
+                />
+              </View>
+            )}
+
+            {(pdfCharts?.jump != null || cmjBestRows.length > 0 || djBestRows.length > 0) && (
+              <View style={{ marginBottom: 6 }}>
+                <Text style={styles.sectionBanner}>FORCE PLATE — JUMP</Text>
+                {pdfCharts?.jump?.variant === "line" ? (
+                  <PdfLineChart
+                    title={pdfCharts.jump.title}
+                    dateCaption={pdfCharts.jump.dateCaption}
+                    leftAxisLabel="Jump height (cm)"
+                    rightAxisLabel="RSI"
+                    points={pdfCharts.jump.points.map((p) => ({
+                      xLabel: p.xLabel,
+                      jumpCm: p.jumpCm,
+                      rsi: p.rsi,
+                    }))}
+                  />
+                ) : null}
+                {pdfCharts?.jump?.variant === "bar" ? (
+                  <View>
+                    {pdfCharts.jump.jumpCm != null ? (
+                      <PdfBarChart
+                        title="Jump height — latest session"
+                        dateCaption={pdfCharts.jump.dateCaption}
+                        unit="cm"
+                        items={[{ label: "Jump height", value: pdfCharts.jump.jumpCm }]}
+                      />
+                    ) : null}
+                    {pdfCharts.jump.rsi != null ? (
+                      <PdfBarChart
+                        title="RSI — latest session"
+                        dateCaption={pdfCharts.jump.dateCaption}
+                        unit="RSI"
+                        items={[{ label: "RSI", value: pdfCharts.jump.rsi }]}
+                      />
+                    ) : null}
+                  </View>
+                ) : null}
+                {cmjBestRows.length > 0 ? (
+                  <BestTable title="FORCE PLATE — CMJ" rows={cmjBestRows} />
+                ) : null}
+                {djBestRows.length > 0 ? (
+                  <BestTable title="FORCE PLATE — DROP JUMP" rows={djBestRows} />
+                ) : null}
+              </View>
+            )}
+
+            {pdfCharts?.strength != null && (
+              <View style={{ marginBottom: 6 }}>
+                <Text style={styles.sectionBanner}>STRENGTH (DYNAMOMETRY)</Text>
+                <PdfGroupedBarChart
+                  title={pdfCharts.strength.title}
+                  dateCaption={pdfCharts.strength.dateCaption}
+                  unit={pdfCharts.strength.unit}
+                  groups={pdfCharts.strength.pairs.map((p) => ({
+                    label: p.label,
+                    left: p.left,
+                    right: p.right,
+                    annotation: p.lsiPct != null ? `LSI ${p.lsiPct.toFixed(1)}%` : null,
+                  }))}
+                />
+              </View>
+            )}
+
+            {(pdfCharts?.hop != null || hopBestRows.length > 0) && (
+              <View style={{ marginBottom: 6 }}>
+                <Text style={styles.sectionBanner}>HOP TESTS</Text>
+                {pdfCharts?.hop ? (
+                  <PdfGroupedBarChart
+                    title={pdfCharts.hop.title}
+                    dateCaption={pdfCharts.hop.dateCaption}
+                    unit={pdfCharts.hop.unit}
+                    groups={pdfCharts.hop.pairs.map((p) => ({
+                      label: p.label,
+                      left: p.left,
+                      right: p.right,
+                      annotation: p.lsiPct != null ? `LSI ${p.lsiPct.toFixed(1)}%` : null,
+                    }))}
+                  />
+                ) : null}
+                {hopBestRows.length > 0 ? (
+                  <BestTable
+                    title=""
+                    rows={hopBestRows}
+                    col1Header="Test"
+                    col2Header="Best LSI%"
+                  />
+                ) : null}
+              </View>
+            )}
           </>
         ) : (
           dc && (

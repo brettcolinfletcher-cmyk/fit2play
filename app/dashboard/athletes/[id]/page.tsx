@@ -151,6 +151,7 @@ type MetricRow = {
   key: string;
   value: number | null;
   rep_index: number | null;
+  side?: string | null;
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -321,7 +322,7 @@ export default function AthleteDetailPage() {
       if (sids.length > 0) {
         const { data: mrows, error: mErr } = await supabase
           .from("metrics")
-          .select("session_id, key, value, rep_index")
+          .select("session_id, key, value, rep_index, side")
           .in("session_id", sids);
 
         if (cancelled) return;
