@@ -368,6 +368,7 @@ export default function AthletePdfDocument({
                     leftAxisLabel="Jump height (cm)"
                     rightAxisLabel="RSI"
                     points={pdfCharts.jump.points.map((p) => ({
+                      t: p.t,
                       xLabel: p.xLabel,
                       jumpCm: p.jumpCm,
                       rsi: p.rsi,

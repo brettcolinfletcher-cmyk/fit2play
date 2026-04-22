@@ -224,7 +224,7 @@ export function buildPdfReportCharts(
 
   let jump: PdfJumpChart | null = null;
   const withAny = merged.filter((p) => p.jumpCm != null || p.rsi != null);
-  if (withAny.length >= 2) {
+  if (withAny.length >= 1) {
     jump = {
       variant: "line",
       title: "Jump performance over time",
@@ -235,15 +235,6 @@ export function buildPdfReportCharts(
         jumpCm: p.jumpCm,
         rsi: p.rsi,
       })),
-    };
-  } else if (withAny.length === 1) {
-    const p = withAny[0]!;
-    jump = {
-      variant: "bar",
-      title: "Jump performance — latest session",
-      dateCaption: p.xLabel,
-      jumpCm: p.jumpCm,
-      rsi: p.rsi,
     };
   }
 
