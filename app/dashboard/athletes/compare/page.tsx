@@ -1,6 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import AthleteCompareChartPanel, {
+  type AthleteRawBundle,
+} from "@/components/athletes/AthleteCompareChartPanel";
 import DashboardNav from "@/components/DashboardNav";
 import { useRequireDashboardStaff } from "@/lib/useRequireDashboardStaff";
 import {
@@ -210,10 +213,10 @@ async function fetchMetricsMap(sessionIds: string[]): Promise<Map<string, Report
   return map;
 }
 
-async function loadAthleteBestBundle(
+async function loadAthleteRawBundle(
   athleteId: string,
   injuryCtx: { injuries: InjuryRow[]; region: string } | null
-): Promise<BestInRangeData> {
+): Promise<AthleteRawBundle> {
   const sessRes = await supabase
     .from("sessions")
     .select("id, session_date, test_type, test_sub_type, source")
@@ -243,7 +246,15 @@ async function loadAthleteBestBundle(
     const w = unionWindowsForRegion(injuryCtx.injuries, rk);
     hops = hops.filter((h) => sessionInAnyWindow(h.session_date, w));
   }
-  return computeBestInRangeData(sessions, metricsMap, hops);
+  return { sessions, metricsBySession: metricsMap, hopTests: hops };
+}
+
+async function loadAthleteBestBundle(
+  athleteId: string,
+  injuryCtx: { injuries: InjuryRow[]; region: string } | null
+): Promise<BestInRangeData> {
+  const raw = await loadAthleteRawBundle(athleteId, injuryCtx);
+  return computeBestInRangeData(raw.sessions, raw.metricsBySession, raw.hopTests);
 }
 
 async function loadTeamData(teamId: string): Promise<BestInRangeData> {
@@ -282,6 +293,11 @@ export default function AthleteComparePage() {
   const [nameB, setNameB] = useState("");
   const [sections, setSections] = useState<ReturnType<typeof buildAthleteVsAthleteSections>>([]);
   const [compared, setCompared] = useState(false);
+  const [chartAthleteIds, setChartAthleteIds] = useState<string[]>([]);
+  const [chartBundles, setChartBundles] = useState<Map<string, AthleteRawBundle>>(() => new Map());
+  const [chartLoadError, setChartLoadError] = useState<string | null>(null);
+  const chartBundlesRef = useRef(chartBundles);
+  chartBundlesRef.current = chartBundles;
 
   useEffect(() => {
     if (!staffOk) return;
@@ -444,16 +460,30 @@ export default function AthleteComparePage() {
           injuryFilter && bodyRegion.trim()
             ? { injuries: injB, region: bodyRegion }
             : null;
-        [bestA, bestB] = await Promise.all([
-          loadAthleteBestBundle(athleteAId, injuryA),
-          loadAthleteBestBundle(athleteBId, injuryB),
+        const [rawA, rawB] = await Promise.all([
+          loadAthleteRawBundle(athleteAId, injuryA),
+          loadAthleteRawBundle(athleteBId, injuryB),
         ]);
+        bestA = computeBestInRangeData(rawA.sessions, rawA.metricsBySession, rawA.hopTests);
+        bestB = computeBestInRangeData(rawB.sessions, rawB.metricsBySession, rawB.hopTests);
+        setChartBundles(
+          new Map<string, AthleteRawBundle>([
+            [athleteAId, rawA],
+            [athleteBId, rawB],
+          ])
+        );
+        setChartAthleteIds([athleteAId, athleteBId]);
+        setChartLoadError(null);
       } else if (compareMode === "at") {
+        setChartAthleteIds([]);
+        setChartBundles(new Map());
         [bestA, bestB] = await Promise.all([
           loadAthleteBestBundle(athleteAId, null),
           loadTeamData(teamBId),
         ]);
       } else {
+        setChartAthleteIds([]);
+        setChartBundles(new Map());
         [bestA, bestB] = await Promise.all([loadTeamData(teamAId), loadTeamData(teamBId)]);
       }
 
@@ -476,6 +506,58 @@ export default function AthleteComparePage() {
     teams,
   ]);
 
+  useEffect(() => {
+    if (chartAthleteIds.length === 0) return;
+    setChartBundles((prev) => {
+      const next = new Map(prev);
+      let changed = false;
+      for (const k of [...next.keys()]) {
+        if (!chartAthleteIds.includes(k)) {
+          next.delete(k);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [chartAthleteIds]);
+
+  useEffect(() => {
+    if (!compared || compareMode !== "aa" || injuryFilter) return;
+    if (chartAthleteIds.length < 2 || chartAthleteIds.length > 6) return;
+    let cancelled = false;
+    (async () => {
+      const missing = chartAthleteIds.filter((id) => !chartBundlesRef.current.has(id));
+      if (missing.length === 0) return;
+      setChartLoadError(null);
+      try {
+        const pairs = await Promise.all(
+          missing.map(async (id) => [id, await loadAthleteRawBundle(id, null)] as const)
+        );
+        if (cancelled) return;
+        setChartBundles((prev) => {
+          const next = new Map(prev);
+          for (const [id, raw] of pairs) next.set(id, raw);
+          return next;
+        });
+      } catch (e) {
+        if (!cancelled) setChartLoadError(e instanceof Error ? e.message : "Chart load failed");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [chartAthleteIds, compared, compareMode, injuryFilter]);
+
+  const toggleChartAthlete = useCallback((id: string) => {
+    setChartAthleteIds((prev) => {
+      if (prev.includes(id)) {
+        if (prev.length <= 2) return prev;
+        return prev.filter((x) => x !== id);
+      }
+      return [...prev, id];
+    });
+  }, []);
+
   const modePill = (mode: CompareMode, label: string) => (
     <button
       type="button"
@@ -483,6 +565,8 @@ export default function AthleteComparePage() {
         setCompareMode(mode);
         setCompared(false);
         setSections([]);
+        setChartAthleteIds([]);
+        setChartBundles(new Map());
         setError(null);
       }}
       className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
@@ -716,6 +800,45 @@ export default function AthleteComparePage() {
                 </div>
               ))
             )}
+
+            {compareMode === "aa" && chartAthleteIds.length > 6 ? (
+              <p className="text-xs text-slate-500">
+                Comparison charts are most readable with 2–6 athletes. Showing table only.
+              </p>
+            ) : null}
+
+            {compareMode === "aa" && chartAthleteIds.length >= 2 && chartAthleteIds.length <= 6 ? (
+              <>
+                {!injuryFilter ? (
+                  <div className="mt-6 rounded-xl border border-slate-800 bg-slate-900/40 p-4">
+                    <p className="text-xs font-medium text-slate-400">Athletes in charts</p>
+                    <div className="mt-2 flex flex-wrap gap-3">
+                      {athletes.map((a) => (
+                        <label key={a.id} className="flex cursor-pointer items-center gap-2 text-xs text-slate-300">
+                          <input
+                            type="checkbox"
+                            checked={chartAthleteIds.includes(a.id)}
+                            onChange={() => toggleChartAthlete(a.id)}
+                            className="rounded border-slate-600 bg-slate-950 text-lime-500"
+                          />
+                          {displayName(a)}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                {chartLoadError ? <p className="mt-2 text-xs text-rose-400">{chartLoadError}</p> : null}
+                {chartAthleteIds.every((id) => chartBundles.has(id)) ? (
+                  <AthleteCompareChartPanel
+                    athletes={athletes}
+                    bundles={chartBundles}
+                    athleteIdsOrdered={chartAthleteIds}
+                  />
+                ) : (
+                  <p className="mt-6 text-xs text-slate-500">Loading comparison charts…</p>
+                )}
+              </>
+            ) : null}
           </div>
         ) : null}
       </section>
