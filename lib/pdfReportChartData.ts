@@ -15,6 +15,7 @@ import {
   type ReportMetricRow,
   type ReportSessionRow,
 } from "@/lib/athleteReportData";
+import { normalizeMetricsBySessionMap } from "@/lib/metricKeyNormalise";
 
 export type MetricRowWithSide = ReportMetricRow & { side?: string | null };
 
@@ -128,6 +129,10 @@ export function buildPdfReportCharts(
   rangeStart: string | null,
   rangeEnd: string | null
 ): PdfReportCharts {
+  const metricsNorm = normalizeMetricsBySessionMap(
+    metricsBySession as Map<string, ReportMetricRow[]>
+  ) as Map<string, MetricRowWithSide[]>;
+
   const rangeCaption =
     rangeStart || rangeEnd
       ? `${rangeStart ?? "…"} – ${rangeEnd ?? "…"}`
@@ -145,7 +150,7 @@ export function buildPdfReportCharts(
     ] as const;
     for (const d of defs) {
       const v = metricAggregate(
-        metricsBySession as Map<string, ReportMetricRow[]>,
+        metricsNorm as Map<string, ReportMetricRow[]>,
         linearLatest.id,
         d.key,
         "min"
@@ -169,7 +174,7 @@ export function buildPdfReportCharts(
   let cod: PdfCodChart | null = null;
   const codLatest = latestSession(sessions, is505Session);
   if (codLatest) {
-    const rows = metricsBySession.get(codLatest.id) ?? [];
+    const rows = metricsNorm.get(codLatest.id) ?? [];
     const left = minTotalTimeForSide(rows, "left");
     const right = minTotalTimeForSide(rows, "right");
     if (left != null && right != null) {
@@ -189,8 +194,8 @@ export function buildPdfReportCharts(
   const hawkinsCsv = sessionsChronological(
     sessions.filter((s) => (s.source ?? "").toLowerCase() === "hawkins_csv")
   );
-  const cmjPts = buildCmjDataPoints(hawkinsCsv, metricsBySession as Map<string, { key: string; value: number | null; rep_index: number | null }[]>);
-  const djPts = buildDjDataPoints(hawkinsCsv, metricsBySession as Map<string, { key: string; value: number | null; rep_index: number | null }[]>);
+  const cmjPts = buildCmjDataPoints(hawkinsCsv, metricsNorm as Map<string, { key: string; value: number | null; rep_index: number | null }[]>);
+  const djPts = buildDjDataPoints(hawkinsCsv, metricsNorm as Map<string, { key: string; value: number | null; rep_index: number | null }[]>);
 
   const merged: { t: number; xLabel: string; jumpCm: number | null; rsi: number | null }[] = [];
   const byT = new Map<number, { t: number; xLabel: string; jumpCm: number | null; rsi: number | null }>();
@@ -251,7 +256,7 @@ export function buildPdfReportCharts(
       return tb - ta;
     });
   for (const s of dynoSessions) {
-    const rows = metricsBySession.get(s.id) ?? [];
+    const rows = metricsNorm.get(s.id) ?? [];
     if (!rows.some((r) => r.key.startsWith("dyno_"))) continue;
     const map = buildSummaryMap(rows);
     const lr = buildLrDisplayRows(map).filter((r) => r.left != null && r.right != null);

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import DashboardNav from "@/components/DashboardNav";
+import { normalizeReportMetricRow } from "@/lib/metricKeyNormalise";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ResponsiveContainer,
@@ -78,7 +79,9 @@ export default function SprintReportPage() {
       const ids = sprintSessions.map((s) => s.id);
       const { data: mData } = await supabase.from("metrics")
         .select("session_id, key, value").in("session_id", ids);
-      setMetrics((mData ?? []) as MetricRow[]);
+      setMetrics(
+        ((mData ?? []) as MetricRow[]).map((r) => normalizeReportMetricRow(r))
+      );
       setLoading(false);
     }
     load();

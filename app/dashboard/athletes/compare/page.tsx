@@ -15,6 +15,7 @@ import {
   type ReportSessionRow,
 } from "@/lib/athleteReportData";
 import { buildAthleteVsAthleteSections } from "@/lib/athleteVsAthleteComparison";
+import { normalizeReportMetricRow } from "@/lib/metricKeyNormalise";
 import { supabase } from "@/lib/supabaseClient";
 
 type AthleteOption = {
@@ -207,7 +208,7 @@ async function fetchMetricsMap(sessionIds: string[]): Promise<Map<string, Report
   if (error) throw new Error(error.message);
   for (const row of (mrows ?? []) as ReportMetricRow[]) {
     const list = map.get(row.session_id) ?? [];
-    list.push(row);
+    list.push(normalizeReportMetricRow(row));
     map.set(row.session_id, list);
   }
   return map;

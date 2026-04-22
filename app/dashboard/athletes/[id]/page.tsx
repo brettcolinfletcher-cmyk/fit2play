@@ -28,6 +28,7 @@ import {
   buildHopTestBlocks,
   type ReportHopTestRow,
 } from "@/lib/athleteReportData";
+import { normalizeReportMetricRow } from "@/lib/metricKeyNormalise";
 import { useRequireDashboardStaff } from "@/lib/useRequireDashboardStaff";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -333,7 +334,7 @@ export default function AthleteDetailPage() {
         }
         for (const row of (mrows ?? []) as MetricRow[]) {
           const list = map.get(row.session_id) ?? [];
-          list.push(row);
+          list.push(normalizeReportMetricRow(row));
           map.set(row.session_id, list);
         }
       }
