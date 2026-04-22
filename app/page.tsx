@@ -43,12 +43,6 @@ export default function HomePage() {
           <span className="text-slate-600" aria-hidden>
             ·
           </span>
-          <a href="#about" className="hover:text-lime-400">
-            About
-          </a>
-          <span className="text-slate-600" aria-hidden>
-            ·
-          </span>
           <a href="#contact" className="hover:text-lime-400">
             Contact
           </a>
@@ -96,9 +90,6 @@ export default function HomePage() {
             </a>
             <a href="#testing" className="hover:text-lime-400" onClick={closeMenu}>
               Testing
-            </a>
-            <a href="#about" className="hover:text-lime-400" onClick={closeMenu}>
-              About
             </a>
             <a href="#contact" className="hover:text-lime-400" onClick={closeMenu}>
               Contact
@@ -175,13 +166,6 @@ export default function HomePage() {
               <p>Every session is stored against the athlete and test type — so you can track change over time and measure readiness against objective thresholds.</p>
             </div>
           </div>
-        </section>
-
-        <section className="w-screen relative left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] border-y border-slate-800 bg-slate-900/40 py-4">
-          {/* TODO: replace with logo row when assets available */}
-          <p className="mx-auto max-w-5xl px-4 text-center text-xs text-slate-400">
-            Used in elite and community sport — Fremantle Football Club (AFLW) · Western Australia Cricket · East Vic Park Physiotherapy
-          </p>
         </section>
 
         <section id="who" className="scroll-mt-24 pb-16 pt-16">
@@ -290,16 +274,6 @@ export default function HomePage() {
               </p>
             </div>
           </div>
-        </section>
-
-        <section id="about" className="scroll-mt-24 pb-16">
-          <h2 className="mb-1 text-sm font-semibold uppercase tracking-[0.2em] text-lime-300">About</h2>
-          <h3 className="mb-4 text-xl font-semibold text-slate-50 md:text-2xl">
-            Built by a clinician working in elite sport.
-          </h3>
-          <p className="max-w-3xl text-sm text-slate-300 md:text-base">
-            Fit2Play is built and led by Brett Fletcher — consulting physiotherapist to Fremantle Football Club (AFLW), Western Australia Cricket, and principal physiotherapist at East Vic Park Physiotherapy. Every test, threshold and report has been developed in active elite and community clinical practice.
-          </p>
         </section>
 
         <section id="contact" className="scroll-mt-24 pb-8">
