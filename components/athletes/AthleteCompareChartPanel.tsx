@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -23,22 +23,36 @@ import {
   athleteDisplayName,
   buildAthleteCompareSeries,
   COMPARE_METRIC_LABELS,
-  COMPARE_METRIC_ORDER,
   latestValue,
   mergeTrendRowsForMetric,
   radarScoresForLatest,
   type AthleteCompareSeries,
   type CompareMetricId,
 } from "@/lib/athleteCompareCharts";
-import { compareMetricUnit, type AthleteRawBundle } from "@/lib/compareMetrics";
+import {
+  COMPARE_METRICS,
+  compareMetricUnit,
+  type AthleteRawBundle,
+  type MetricGroup,
+} from "@/lib/compareMetrics";
 import { formatChartAxisDate } from "@/lib/athleteReportData";
 
 type AthleteOpt = { id: string; first_name: string | null; last_name: string | null };
 
 export type { AthleteRawBundle } from "@/lib/compareMetrics";
 
-
 type ChartView = "trends" | "current" | "overview";
+type TopTab = MetricGroup | "overview";
+
+const GROUP_PRIORITY: MetricGroup[] = ["sprint", "cod", "jump", "reactive", "hop"];
+
+const GROUP_TAB_LABEL: Record<MetricGroup, string> = {
+  sprint: "Sprint",
+  cod: "COD",
+  jump: "Jump",
+  reactive: "Reactive",
+  hop: "Hop",
+};
 
 const AXIS_TICK = { fill: "#94a3b8", fontSize: 11 };
 const TOOLTIP_STYLE = {
@@ -49,6 +63,28 @@ const TOOLTIP_STYLE = {
 };
 
 const shellClass = "rounded-lg border border-slate-800 bg-slate-900/50 p-4";
+
+/** True if this athlete has ≥1 finite point for the metric (absence ≠ zero). */
+function athleteHasMetricPoint(prof: AthleteCompareSeries, metricId: CompareMetricId): boolean {
+  const pts = prof.series[metricId];
+  if (!pts?.length) return false;
+  return pts.some((p) => p.v != null && Number.isFinite(p.v));
+}
+
+/**
+ * True iff at least one selected athlete has ≥1 data point for at least one metric in `group`.
+ */
+function groupHasComparableData(profiles: AthleteCompareSeries[], group: MetricGroup): boolean {
+  return COMPARE_METRICS.some(
+    (def) =>
+      def.group === group &&
+      profiles.some((p) => athleteHasMetricPoint(p, def.id as CompareMetricId))
+  );
+}
+
+function metricIdsForGroup(group: MetricGroup): CompareMetricId[] {
+  return COMPARE_METRICS.filter((m) => m.group === group).map((m) => m.id as CompareMetricId);
+}
 
 function SmallMultLine({
   title,
@@ -116,6 +152,9 @@ export default function AthleteCompareChartPanel({
   athleteIdsOrdered: string[];
 }) {
   const [view, setView] = useState<ChartView>("trends");
+  const [activeTopTab, setActiveTopTab] = useState<TopTab>("sprint");
+  const selectionKey = athleteIdsOrdered.join("|");
+  const prevSelectionKey = useRef(selectionKey);
 
   const profiles: AthleteCompareSeries[] = useMemo(() => {
     const out: AthleteCompareSeries[] = [];
@@ -139,18 +178,57 @@ export default function AthleteCompareChartPanel({
     return m;
   }, [profiles]);
 
+  const visibleGroupTabs = useMemo(
+    () => GROUP_PRIORITY.filter((g) => groupHasComparableData(profiles, g)),
+    [profiles]
+  );
+
+  const showOverviewTopTab = visibleGroupTabs.length >= 2;
+
+  /** Representative metric ids for groups that currently have a visible tab. */
+  const overviewRepresentativeMetricIds = useMemo(() => {
+    return COMPARE_METRICS.filter(
+      (m) => m.isRepresentative && visibleGroupTabs.includes(m.group)
+    ).map((m) => m.id as CompareMetricId);
+  }, [visibleGroupTabs]);
+
+  useEffect(() => {
+    if (visibleGroupTabs.length === 0) return;
+    const allowed: TopTab[] = [
+      ...visibleGroupTabs,
+      ...(showOverviewTopTab ? (["overview"] as const) : []),
+    ];
+
+    if (prevSelectionKey.current !== selectionKey) {
+      prevSelectionKey.current = selectionKey;
+      setActiveTopTab(visibleGroupTabs[0]!);
+      setView("trends");
+      return;
+    }
+
+    setActiveTopTab((cur) => {
+      if (allowed.includes(cur)) return cur;
+      return visibleGroupTabs[0]!;
+    });
+  }, [selectionKey, visibleGroupTabs, showOverviewTopTab]);
+
+  const metricIdsInActiveGroup = useMemo((): CompareMetricId[] => {
+    if (activeTopTab === "overview") return [];
+    return metricIdsForGroup(activeTopTab);
+  }, [activeTopTab]);
+
   const trendMultiples = useMemo(() => {
-    return COMPARE_METRIC_ORDER.map((metric) => ({
+    return metricIdsInActiveGroup.map((metric) => ({
       metric,
       label: COMPARE_METRIC_LABELS[metric],
       rows: mergeTrendRowsForMetric(profiles, metric, athleteIds),
       unit: compareMetricUnit(metric),
     }));
-  }, [profiles, athleteIds]);
+  }, [profiles, athleteIds, metricIdsInActiveGroup]);
 
   const barRows = useMemo(() => {
     const rows: { metric: string; metricId: CompareMetricId }[] = [];
-    for (const metric of COMPARE_METRIC_ORDER) {
+    for (const metric of metricIdsInActiveGroup) {
       const hasAny = athleteIds.some((id) => {
         const prof = profiles.find((p) => p.athleteId === id);
         if (!prof) return false;
@@ -168,11 +246,10 @@ export default function AthleteCompareChartPanel({
       return row;
     });
     return { data };
-  }, [profiles, athleteIds]);
+  }, [profiles, athleteIds, metricIdsInActiveGroup]);
 
-  const radarData = useMemo(() => {
-    // TODO: switch to benchmark normalisation once thresholds land
-    const metrics = COMPARE_METRIC_ORDER.filter((metric) =>
+  const radarDataInGroup = useMemo(() => {
+    const metrics = metricIdsInActiveGroup.filter((metric) =>
       athleteIds.every((id) => {
         const prof = profiles.find((p) => p.athleteId === id);
         return prof && latestValue(prof.series[metric]) != null;
@@ -188,7 +265,26 @@ export default function AthleteCompareChartPanel({
       }
       return row;
     });
-  }, [profiles, athleteIds]);
+  }, [profiles, athleteIds, metricIdsInActiveGroup]);
+
+  const radarDataOverview = useMemo(() => {
+    const metrics = overviewRepresentativeMetricIds.filter((metric) =>
+      athleteIds.every((id) => {
+        const prof = profiles.find((p) => p.athleteId === id);
+        return prof && latestValue(prof.series[metric]) != null;
+      })
+    );
+    return metrics.map((metric) => {
+      const row: Record<string, string | number | null> = {
+        metric: COMPARE_METRIC_LABELS[metric],
+      };
+      const scores = radarScoresForLatest(profiles, metric, athleteIds);
+      for (const id of athleteIds) {
+        row[id] = scores.get(id) ?? null;
+      }
+      return row;
+    });
+  }, [profiles, athleteIds, overviewRepresentativeMetricIds]);
 
   const segmented = (v: ChartView, label: string) => (
     <button
@@ -206,20 +302,56 @@ export default function AthleteCompareChartPanel({
     </button>
   );
 
+  const topTabButton = (tab: TopTab) => {
+    const label = tab === "overview" ? "Overview" : GROUP_TAB_LABEL[tab];
+    const active = activeTopTab === tab;
+    return (
+      <button
+        key={tab}
+        type="button"
+        onClick={() => {
+          setActiveTopTab(tab);
+          if (tab !== "overview") setView("trends");
+        }}
+        className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
+          active
+            ? "bg-sky-500/20 text-sky-200 ring-1 ring-sky-500/40"
+            : "bg-slate-800/80 text-slate-400 hover:text-slate-200"
+        }`}
+      >
+        {label}
+      </button>
+    );
+  };
+
+  const inRange = athleteIds.length >= 2 && athleteIds.length <= 6;
+  const noComparableData = inRange && visibleGroupTabs.length === 0;
+
   return (
     <div className="mt-8 rounded-xl border border-slate-800 bg-slate-900/40 p-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-400">Comparison charts</h2>
-        <div className="flex flex-wrap gap-1 rounded-lg border border-slate-800 bg-slate-950/80 p-1">
-          {segmented("trends", "Trends")}
-          {segmented("current", "Current session")}
-          {segmented("overview", "Overview")}
-        </div>
-      </div>
-
-      {athleteIds.length >= 2 && athleteIds.length <= 6 ? (
+      {noComparableData ? (
+        <p className="py-10 text-center text-sm text-slate-500">
+          No comparable test data for the selected athletes yet.
+        </p>
+      ) : inRange && visibleGroupTabs.length > 0 ? (
         <>
-          {view === "trends" && (
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-400">Comparison charts</h2>
+            <div className="flex flex-wrap gap-1 rounded-lg border border-slate-800 bg-slate-950/80 p-1">
+              {visibleGroupTabs.map((t) => topTabButton(t))}
+              {showOverviewTopTab ? topTabButton("overview") : null}
+            </div>
+          </div>
+
+          {activeTopTab !== "overview" && (
+            <div className="mt-3 flex flex-wrap justify-end gap-1 rounded-lg border border-slate-800 bg-slate-950/80 p-1">
+              {segmented("trends", "Trends")}
+              {segmented("current", "Current session")}
+              {segmented("overview", "Overview")}
+            </div>
+          )}
+
+          {activeTopTab !== "overview" && view === "trends" && (
             <>
               <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
                 {trendMultiples.map((tm) => (
@@ -237,14 +369,22 @@ export default function AthleteCompareChartPanel({
             </>
           )}
 
-          {view === "current" && (
+          {activeTopTab !== "overview" && view === "current" && (
             <>
               <div className={`mt-4 ${shellClass}`}>
                 <div className="h-80 w-full min-w-0">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={barRows.data} margin={{ top: 8, right: 8, left: 4, bottom: 48 }}>
                       <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
-                      <XAxis dataKey="metric" stroke="#64748b" tick={AXIS_TICK} interval={0} angle={-20} textAnchor="end" height={70} />
+                      <XAxis
+                        dataKey="metric"
+                        stroke="#64748b"
+                        tick={AXIS_TICK}
+                        interval={0}
+                        angle={-20}
+                        textAnchor="end"
+                        height={70}
+                      />
                       <YAxis stroke="#64748b" tick={AXIS_TICK} />
                       <Tooltip contentStyle={TOOLTIP_STYLE} />
                       <Legend
@@ -268,17 +408,17 @@ export default function AthleteCompareChartPanel({
             </>
           )}
 
-          {view === "overview" && (
+          {activeTopTab !== "overview" && view === "overview" && (
             <>
               <div className={`mt-4 ${shellClass}`}>
-                {radarData.length === 0 ? (
+                {radarDataInGroup.length === 0 ? (
                   <p className="text-xs text-slate-500">
                     Not enough overlapping metrics across athletes for an overview chart.
                   </p>
                 ) : (
                   <div className="h-96 w-full min-w-0">
                     <ResponsiveContainer width="100%" height="100%">
-                      <RadarChart data={radarData} cx="50%" cy="50%" outerRadius="75%">
+                      <RadarChart data={radarDataInGroup} cx="50%" cy="50%" outerRadius="75%">
                         <PolarGrid stroke="#334155" />
                         <PolarAngleAxis dataKey="metric" tick={{ fill: "#94a3b8", fontSize: 9 }} />
                         <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fill: "#64748b", fontSize: 9 }} />
@@ -305,6 +445,47 @@ export default function AthleteCompareChartPanel({
               </div>
               <p className="mt-3 text-xs text-slate-500">
                 Latest session, normalised. Larger shape = stronger overall profile.
+              </p>
+            </>
+          )}
+
+          {activeTopTab === "overview" && (
+            <>
+              <div className={`mt-4 ${shellClass}`}>
+                {radarDataOverview.length === 0 ? (
+                  <p className="text-xs text-slate-500">
+                    Not enough overlapping representative metrics across athletes for an overview chart.
+                  </p>
+                ) : (
+                  <div className="h-96 w-full min-w-0">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <RadarChart data={radarDataOverview} cx="50%" cy="50%" outerRadius="75%">
+                        <PolarGrid stroke="#334155" />
+                        <PolarAngleAxis dataKey="metric" tick={{ fill: "#94a3b8", fontSize: 9 }} />
+                        <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fill: "#64748b", fontSize: 9 }} />
+                        <Tooltip contentStyle={TOOLTIP_STYLE} />
+                        <Legend
+                          formatter={(value) => nameById.get(String(value)) ?? String(value)}
+                          wrapperStyle={{ fontSize: 11 }}
+                        />
+                        {athleteIds.map((id, i) => (
+                          <Radar
+                            key={id}
+                            name={nameById.get(id) ?? id}
+                            dataKey={id}
+                            stroke={ATHLETE_COMPARE_LINE_COLORS[i % ATHLETE_COMPARE_LINE_COLORS.length]}
+                            fill={ATHLETE_COMPARE_LINE_COLORS[i % ATHLETE_COMPARE_LINE_COLORS.length]}
+                            fillOpacity={0.15}
+                            strokeWidth={2}
+                          />
+                        ))}
+                      </RadarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </div>
+              <p className="mt-3 text-xs text-slate-500">
+                One representative metric per visible group. Latest session, normalised 0–100.
               </p>
             </>
           )}
