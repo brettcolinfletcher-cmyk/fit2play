@@ -1,15 +1,12 @@
-import { buildCmjDataPoints } from "@/components/athletes/ForcePlateCMJSection";
-import { buildDjDataPoints } from "@/components/athletes/ForcePlateDJSection";
 import {
-  bucket,
-  formatChartAxisDate,
-  isLinearSprintSession,
-  metricAggregate,
-  sessionsChronological,
-  type ReportHopTestRow,
-  type ReportMetricRow,
-  type ReportSessionRow,
-} from "@/lib/athleteReportData";
+  COMPARE_METRICS,
+  COMPARE_METRIC_LABELS,
+  COMPARE_METRIC_ORDER,
+  compareMetricById,
+  type AthleteRawBundle,
+  type CompareMetricId,
+} from "@/lib/compareMetrics";
+import { formatChartAxisDate } from "@/lib/athleteReportData";
 
 /** Matches sprint/COD line colours on `app/dashboard/athletes/[id]/page.tsx`. */
 export const ATHLETE_COMPARE_LINE_COLORS = [
@@ -21,39 +18,8 @@ export const ATHLETE_COMPARE_LINE_COLORS = [
   "#f472b6",
 ] as const;
 
-export type CompareMetricId =
-  | "sprint10m"
-  | "sprint40m"
-  | "cod505"
-  | "cmjHeight"
-  | "rsiDj"
-  | "lsiHop";
-
-export const COMPARE_METRIC_ORDER: CompareMetricId[] = [
-  "sprint10m",
-  "sprint40m",
-  "cod505",
-  "cmjHeight",
-  "rsiDj",
-  "lsiHop",
-];
-
-export const COMPARE_METRIC_LABELS: Record<CompareMetricId, string> = {
-  sprint10m: "10m sprint",
-  sprint40m: "40m sprint",
-  cod505: "5-10-5 COD",
-  cmjHeight: "CMJ height",
-  rsiDj: "RSI (drop jump)",
-  lsiHop: "LSI (symmetry)",
-};
-
-function is1080(s: ReportSessionRow): boolean {
-  return bucket(s.source) === "1080";
-}
-
-function is505Session(s: ReportSessionRow): boolean {
-  return is1080(s) && (s.test_sub_type ?? "").toLowerCase().includes("5-10-5");
-}
+export type { AthleteRawBundle, CompareMetricId } from "@/lib/compareMetrics";
+export { COMPARE_METRIC_LABELS, COMPARE_METRIC_ORDER } from "@/lib/compareMetrics";
 
 export type ComparePoint = {
   sessionDate: string;
@@ -68,123 +34,37 @@ export type AthleteCompareSeries = {
   series: Record<CompareMetricId, ComparePoint[]>;
 };
 
-function pointForSession(
-  s: ReportSessionRow,
-  value: number | null
-): ComparePoint | null {
-  if (!s.session_date) return null;
-  const t = new Date(s.session_date).getTime();
-  return { sessionDate: s.session_date, t, v: value };
-}
-
-function buildLsiSeries(hopTests: ReportHopTestRow[]): ComparePoint[] {
-  const pairByDate = new Map<
-    string,
-    Map<string, { left: number | null; right: number | null }>
-  >();
-  for (const r of hopTests) {
-    const d = r.session_date?.slice(0, 10);
-    if (!d) continue;
-    const m = pairByDate.get(d) ?? new Map();
-    const cur = m.get(r.test_type) ?? { left: null as number | null, right: null as number | null };
-    const side = (r.side ?? "").toLowerCase();
-    if (side === "left") cur.left = r.best_cm;
-    else if (side === "right") cur.right = r.best_cm;
-    m.set(r.test_type, cur);
-    pairByDate.set(d, m);
-  }
-  const out: ComparePoint[] = [];
-  for (const [d, typeMap] of pairByDate) {
-    let minLsi: number | null = null;
-    for (const pair of typeMap.values()) {
-      if (
-        pair.left != null &&
-        pair.right != null &&
-        Number.isFinite(pair.left) &&
-        Number.isFinite(pair.right)
-      ) {
-        const hi = Math.max(pair.left, pair.right);
-        if (hi > 0) {
-          const lo = Math.min(pair.left, pair.right);
-          const lsi = Math.round((lo / hi) * 1000) / 10;
-          if (minLsi == null || lsi < minLsi) minLsi = lsi;
-        }
-      }
-    }
-    if (minLsi != null) {
-      const sessionDate = `${d}T12:00:00`;
-      out.push({
-        sessionDate,
-        t: new Date(sessionDate).getTime(),
-        v: minLsi,
-      });
-    }
-  }
-  out.sort((a, b) => a.t - b.t);
-  return out;
+function toComparePoints(
+  rows: Array<{ sessionDate: string; value: number }>
+): ComparePoint[] {
+  return rows.map((r) => ({
+    sessionDate: r.sessionDate,
+    t: new Date(r.sessionDate).getTime(),
+    v: r.value,
+  }));
 }
 
 /**
- * Per-athlete time series for the six comparison metrics (same shaping rules as the athlete dashboard).
+ * Per-athlete time series for all comparison metrics (keys + protocol filters from `COMPARE_METRICS`).
  */
 export function buildAthleteCompareSeries(
   athleteId: string,
   firstName: string | null,
   lastName: string | null,
-  sessions: ReportSessionRow[],
-  metricsBySession: Map<string, ReportMetricRow[]>,
-  hopTests: ReportHopTestRow[]
+  sessions: AthleteRawBundle["sessions"],
+  metricsBySession: AthleteRawBundle["metricsBySession"],
+  hopTests: AthleteRawBundle["hopTests"]
 ): AthleteCompareSeries {
-  const linearSorted = sessionsChronological(sessions.filter(isLinearSprintSession));
-  const sprint10m: ComparePoint[] = [];
-  const sprint40m: ComparePoint[] = [];
-  for (const s of linearSorted) {
-    const v10 = metricAggregate(metricsBySession, s.id, "split_10m_time", "min");
-    const p10 = pointForSession(s, v10);
-    if (p10) sprint10m.push(p10);
-    const v40 = metricAggregate(metricsBySession, s.id, "split_40m_time", "min");
-    const p40 = pointForSession(s, v40);
-    if (p40) sprint40m.push(p40);
+  const bundle: AthleteRawBundle = { sessions, metricsBySession, hopTests };
+  const series = {} as Record<CompareMetricId, ComparePoint[]>;
+  for (const def of COMPARE_METRICS) {
+    series[def.id as CompareMetricId] = toComparePoints(def.extract(bundle));
   }
-
-  const codSorted = sessionsChronological(sessions.filter(is505Session));
-  const cod505: ComparePoint[] = [];
-  for (const s of codSorted) {
-    const v = metricAggregate(metricsBySession, s.id, "total_time", "min");
-    const p = pointForSession(s, v);
-    if (p) cod505.push(p);
-  }
-
-  const hawkinsCsv = sessionsChronological(
-    sessions.filter((s) => (s.source ?? "").toLowerCase() === "hawkins_csv")
-  );
-  const cmjPts = buildCmjDataPoints(hawkinsCsv, metricsBySession);
-  const djPts = buildDjDataPoints(hawkinsCsv, metricsBySession);
-  const cmjHeight: ComparePoint[] = cmjPts.map((p) => ({
-    sessionDate: new Date(p.t).toISOString(),
-    t: p.t,
-    v: p.jump_height,
-  }));
-  const rsiDj: ComparePoint[] = djPts.map((p) => ({
-    sessionDate: new Date(p.t).toISOString(),
-    t: p.t,
-    v: p.rsi,
-  }));
-
-  const lsiHop = buildLsiSeries(hopTests);
-
   return {
     athleteId,
     firstName,
     lastName,
-    series: {
-      sprint10m,
-      sprint40m,
-      cod505,
-      cmjHeight,
-      rsiDj,
-      lsiHop,
-    },
+    series,
   };
 }
 
@@ -247,15 +127,17 @@ export function mergeTrendRowsForMetric(
     });
 }
 
-/** For radar: higher = better on 0–100 scale. Time metrics are inverted using min/max across athletes. */
+/** For radar: higher = better on 0–100 scale. Time-like metrics use `betterDirection === "lower"`. */
 export function radarScoresForLatest(
   profiles: AthleteCompareSeries[],
   metric: CompareMetricId,
   athleteIds: string[]
 ): Map<string, number | null> {
+  const def = compareMetricById(metric);
+  const lowerIsBetter = def?.betterDirection === "lower";
+
   const raw = new Map<string, number | null>();
   for (const id of athleteIds) raw.set(id, null);
-  const timeLike: CompareMetricId[] = ["sprint10m", "sprint40m", "cod505"];
   for (const id of athleteIds) {
     const prof = profiles.find((p) => p.athleteId === id);
     if (!prof) continue;
@@ -278,7 +160,7 @@ export function radarScoresForLatest(
       out.set(id, 50);
       continue;
     }
-    if (timeLike.includes(metric)) {
+    if (lowerIsBetter) {
       out.set(id, ((maxV - v) / span) * 100);
     } else {
       out.set(id, ((v - minV) / span) * 100);

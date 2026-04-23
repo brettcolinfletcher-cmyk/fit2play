@@ -30,16 +30,12 @@ import {
   type AthleteCompareSeries,
   type CompareMetricId,
 } from "@/lib/athleteCompareCharts";
+import { compareMetricUnit, type AthleteRawBundle } from "@/lib/compareMetrics";
 import { formatChartAxisDate } from "@/lib/athleteReportData";
-import type { ReportHopTestRow, ReportMetricRow, ReportSessionRow } from "@/lib/athleteReportData";
 
 type AthleteOpt = { id: string; first_name: string | null; last_name: string | null };
 
-export type AthleteRawBundle = {
-  sessions: ReportSessionRow[];
-  metricsBySession: Map<string, ReportMetricRow[]>;
-  hopTests: ReportHopTestRow[];
-};
+export type { AthleteRawBundle } from "@/lib/compareMetrics";
 
 
 type ChartView = "trends" | "current" | "overview";
@@ -110,13 +106,6 @@ function SmallMultLine({
   );
 }
 
-function unitForMetric(m: CompareMetricId): string {
-  if (m === "sprint10m" || m === "sprint40m" || m === "cod505") return "s";
-  if (m === "cmjHeight") return "cm";
-  if (m === "rsiDj") return "RSI";
-  return "%";
-}
-
 export default function AthleteCompareChartPanel({
   athletes,
   bundles,
@@ -155,7 +144,7 @@ export default function AthleteCompareChartPanel({
       metric,
       label: COMPARE_METRIC_LABELS[metric],
       rows: mergeTrendRowsForMetric(profiles, metric, athleteIds),
-      unit: unitForMetric(metric),
+      unit: compareMetricUnit(metric),
     }));
   }, [profiles, athleteIds]);
 
