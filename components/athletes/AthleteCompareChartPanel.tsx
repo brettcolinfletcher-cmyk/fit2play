@@ -86,19 +86,49 @@ function metricIdsForGroup(group: MetricGroup): CompareMetricId[] {
   return COMPARE_METRICS.filter((m) => m.group === group).map((m) => m.id as CompareMetricId);
 }
 
+/** Athletes who have ≥1 finite Y value in this trend dataset (omit lines for complete absence). */
+function athleteIdsWithTrendLineData(
+  rows: Array<{ t: number; label: string; [k: string]: unknown }>,
+  ids: string[]
+): string[] {
+  return ids.filter((id) =>
+    rows.some((row) => {
+      const v = row[id];
+      return typeof v === "number" && Number.isFinite(v);
+    })
+  );
+}
+
+/** Athletes with ≥1 finite normalised score in radar rows (omit empty polygons). */
+function athleteIdsWithRadarPolygon(
+  rows: Array<Record<string, string | number | null>>,
+  ids: string[]
+): string[] {
+  return ids.filter((id) =>
+    rows.some((row) => {
+      const v = row[id];
+      return typeof v === "number" && Number.isFinite(v);
+    })
+  );
+}
+
 function SmallMultLine({
   title,
   data,
   athleteIds,
   unit,
   nameById,
+  plotAthleteIds,
 }: {
   title: string;
   data: { t: number; label: string; [k: string]: number | string | null }[];
   athleteIds: string[];
+  /** Subset of `athleteIds` that have ≥1 point; lines omitted for others. */
+  plotAthleteIds: string[];
   unit: string;
   nameById: Map<string, string>;
 }) {
+  const colorIndex = (id: string) => athleteIds.indexOf(id);
   return (
     <div className={shellClass}>
       <h3 className="mb-2 text-xs font-medium text-slate-400">{title}</h3>
@@ -123,18 +153,22 @@ function SmallMultLine({
             />
             <Tooltip contentStyle={TOOLTIP_STYLE} labelStyle={{ color: "#e2e8f0" }} />
             <Legend formatter={(v) => nameById.get(String(v)) ?? String(v)} wrapperStyle={{ fontSize: 11 }} />
-            {athleteIds.map((id, i) => (
-              <Line
-                key={id}
-                type="monotone"
-                dataKey={id}
-                name={nameById.get(id) ?? id}
-                stroke={ATHLETE_COMPARE_LINE_COLORS[i % ATHLETE_COMPARE_LINE_COLORS.length]}
-                strokeWidth={2}
-                dot={{ r: 3 }}
-                connectNulls={false}
-              />
-            ))}
+            {plotAthleteIds.map((id) => {
+              const i = colorIndex(id);
+              const ci = i >= 0 ? i % ATHLETE_COMPARE_LINE_COLORS.length : 0;
+              return (
+                <Line
+                  key={id}
+                  type="monotone"
+                  dataKey={id}
+                  name={nameById.get(id) ?? id}
+                  stroke={ATHLETE_COMPARE_LINE_COLORS[ci]}
+                  strokeWidth={2}
+                  dot={{ r: 3 }}
+                  connectNulls={false}
+                />
+              );
+            })}
           </LineChart>
         </ResponsiveContainer>
       </div>
@@ -250,7 +284,7 @@ export default function AthleteCompareChartPanel({
 
   const radarDataInGroup = useMemo(() => {
     const metrics = metricIdsInActiveGroup.filter((metric) =>
-      athleteIds.every((id) => {
+      athleteIds.some((id) => {
         const prof = profiles.find((p) => p.athleteId === id);
         return prof && latestValue(prof.series[metric]) != null;
       })
@@ -267,9 +301,14 @@ export default function AthleteCompareChartPanel({
     });
   }, [profiles, athleteIds, metricIdsInActiveGroup]);
 
+  const athleteIdsInGroupRadar = useMemo(
+    () => athleteIdsWithRadarPolygon(radarDataInGroup, athleteIds),
+    [radarDataInGroup, athleteIds]
+  );
+
   const radarDataOverview = useMemo(() => {
     const metrics = overviewRepresentativeMetricIds.filter((metric) =>
-      athleteIds.every((id) => {
+      athleteIds.some((id) => {
         const prof = profiles.find((p) => p.athleteId === id);
         return prof && latestValue(prof.series[metric]) != null;
       })
@@ -285,6 +324,11 @@ export default function AthleteCompareChartPanel({
       return row;
     });
   }, [profiles, athleteIds, overviewRepresentativeMetricIds]);
+
+  const athleteIdsInOverviewRadar = useMemo(
+    () => athleteIdsWithRadarPolygon(radarDataOverview, athleteIds),
+    [radarDataOverview, athleteIds]
+  );
 
   const segmented = (v: ChartView, label: string) => (
     <button
@@ -360,6 +404,7 @@ export default function AthleteCompareChartPanel({
                     title={tm.label}
                     data={tm.rows}
                     athleteIds={athleteIds}
+                    plotAthleteIds={athleteIdsWithTrendLineData(tm.rows, athleteIds)}
                     unit={tm.unit}
                     nameById={nameById}
                   />
@@ -413,7 +458,7 @@ export default function AthleteCompareChartPanel({
               <div className={`mt-4 ${shellClass}`}>
                 {radarDataInGroup.length === 0 ? (
                   <p className="text-xs text-slate-500">
-                    Not enough overlapping metrics across athletes for an overview chart.
+                    No metrics in this group have data for any selected athlete yet.
                   </p>
                 ) : (
                   <div className="h-96 w-full min-w-0">
@@ -427,17 +472,22 @@ export default function AthleteCompareChartPanel({
                           formatter={(value) => nameById.get(String(value)) ?? String(value)}
                           wrapperStyle={{ fontSize: 11 }}
                         />
-                        {athleteIds.map((id, i) => (
-                          <Radar
-                            key={id}
-                            name={nameById.get(id) ?? id}
-                            dataKey={id}
-                            stroke={ATHLETE_COMPARE_LINE_COLORS[i % ATHLETE_COMPARE_LINE_COLORS.length]}
-                            fill={ATHLETE_COMPARE_LINE_COLORS[i % ATHLETE_COMPARE_LINE_COLORS.length]}
-                            fillOpacity={0.15}
-                            strokeWidth={2}
-                          />
-                        ))}
+                        {athleteIdsInGroupRadar.map((id) => {
+                          const i = athleteIds.indexOf(id);
+                          const ci = i >= 0 ? i % ATHLETE_COMPARE_LINE_COLORS.length : 0;
+                          return (
+                            <Radar
+                              key={id}
+                              name={nameById.get(id) ?? id}
+                              dataKey={id}
+                              stroke={ATHLETE_COMPARE_LINE_COLORS[ci]}
+                              fill={ATHLETE_COMPARE_LINE_COLORS[ci]}
+                              fillOpacity={0.15}
+                              strokeWidth={2}
+                              connectNulls
+                            />
+                          );
+                        })}
                       </RadarChart>
                     </ResponsiveContainer>
                   </div>
@@ -454,7 +504,7 @@ export default function AthleteCompareChartPanel({
               <div className={`mt-4 ${shellClass}`}>
                 {radarDataOverview.length === 0 ? (
                   <p className="text-xs text-slate-500">
-                    Not enough overlapping representative metrics across athletes for an overview chart.
+                    No representative metrics have data for any selected athlete yet.
                   </p>
                 ) : (
                   <div className="h-96 w-full min-w-0">
@@ -468,17 +518,22 @@ export default function AthleteCompareChartPanel({
                           formatter={(value) => nameById.get(String(value)) ?? String(value)}
                           wrapperStyle={{ fontSize: 11 }}
                         />
-                        {athleteIds.map((id, i) => (
-                          <Radar
-                            key={id}
-                            name={nameById.get(id) ?? id}
-                            dataKey={id}
-                            stroke={ATHLETE_COMPARE_LINE_COLORS[i % ATHLETE_COMPARE_LINE_COLORS.length]}
-                            fill={ATHLETE_COMPARE_LINE_COLORS[i % ATHLETE_COMPARE_LINE_COLORS.length]}
-                            fillOpacity={0.15}
-                            strokeWidth={2}
-                          />
-                        ))}
+                        {athleteIdsInOverviewRadar.map((id) => {
+                          const i = athleteIds.indexOf(id);
+                          const ci = i >= 0 ? i % ATHLETE_COMPARE_LINE_COLORS.length : 0;
+                          return (
+                            <Radar
+                              key={id}
+                              name={nameById.get(id) ?? id}
+                              dataKey={id}
+                              stroke={ATHLETE_COMPARE_LINE_COLORS[ci]}
+                              fill={ATHLETE_COMPARE_LINE_COLORS[ci]}
+                              fillOpacity={0.15}
+                              strokeWidth={2}
+                              connectNulls
+                            />
+                          );
+                        })}
                       </RadarChart>
                     </ResponsiveContainer>
                   </div>
