@@ -284,7 +284,7 @@ export default function AthletePdfDocument({
     ([, v]) => v != null && String(v).trim() !== ""
   );
 
-  const footerText = `Fit2Play Performance Testing · fit2play.vercel.app · Generated ${gen}`;
+  const footerText = `Fit2Play Performance Testing · fit2perform.com.au · Generated ${gen}`;
 
   return (
     <Document>
