@@ -293,7 +293,7 @@ export default function AthletePdfDocument({
           <View style={styles.limeTopBar} />
         </View>
         <Image
-          src="https://fit2play.vercel.app/fit2play-logo.png"
+          src="https://www.fit2perform.com.au/fit2play_logo_transparent.png"
           style={{ width: 48, marginBottom: 4 }}
         />
         <Text style={styles.headerName}>{athleteName}</Text>
