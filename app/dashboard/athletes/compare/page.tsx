@@ -220,7 +220,7 @@ async function loadAthleteRawBundle(
 ): Promise<AthleteRawBundle> {
   const sessRes = await supabase
     .from("sessions")
-    .select("id, session_date, test_type, test_sub_type, source")
+    .select("id, session_date, test_type, test_sub_type, source, lr_starting_leg")
     .eq("athlete_id", athleteId)
     .order("session_date", { ascending: true });
   if (sessRes.error) throw new Error(sessRes.error.message);
@@ -559,6 +559,50 @@ export default function AthleteComparePage() {
     });
   }, []);
 
+  /** Phase D-B: optimistic save for sessions.lr_starting_leg from the LR editor. */
+  const handleUpdateLrStartingLeg = useCallback(
+    async (
+      athleteId: string,
+      sessionId: string,
+      value: "left" | "right" | null
+    ) => {
+      let previousValue: "left" | "right" | null | undefined;
+      setChartBundles((prev) => {
+        const cur = prev.get(athleteId);
+        if (!cur) return prev;
+        const nextSessions = cur.sessions.map((s) => {
+          if (s.id !== sessionId) return s;
+          previousValue = (s.lr_starting_leg ?? null) as "left" | "right" | null;
+          return { ...s, lr_starting_leg: value };
+        });
+        const next = new Map(prev);
+        next.set(athleteId, { ...cur, sessions: nextSessions });
+        return next;
+      });
+      const { error: upErr } = await supabase
+        .from("sessions")
+        .update({ lr_starting_leg: value })
+        .eq("id", sessionId);
+      if (upErr) {
+        setChartLoadError(`Could not save starting leg: ${upErr.message}`);
+        // Revert
+        setChartBundles((prev) => {
+          const cur = prev.get(athleteId);
+          if (!cur) return prev;
+          const nextSessions = cur.sessions.map((s) =>
+            s.id === sessionId ? { ...s, lr_starting_leg: previousValue ?? null } : s
+          );
+          const next = new Map(prev);
+          next.set(athleteId, { ...cur, sessions: nextSessions });
+          return next;
+        });
+      } else {
+        setChartLoadError(null);
+      }
+    },
+    []
+  );
+
   const modePill = (mode: CompareMode, label: string) => (
     <button
       type="button"
@@ -834,6 +878,7 @@ export default function AthleteComparePage() {
                     athletes={athletes}
                     bundles={chartBundles}
                     athleteIdsOrdered={chartAthleteIds}
+                    onUpdateLrStartingLeg={handleUpdateLrStartingLeg}
                   />
                 ) : (
                   <p className="mt-6 text-xs text-slate-500">Loading comparison charts…</p>

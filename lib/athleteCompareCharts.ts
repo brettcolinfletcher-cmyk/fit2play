@@ -2,9 +2,16 @@ import {
   COMPARE_METRICS,
   COMPARE_METRIC_LABELS,
   COMPARE_METRIC_ORDER,
+  COMPARE_LR_METRICS,
   compareMetricById,
+  compareLRMetricById,
+  extractLRPoints,
+  hasAnyLRData,
   type AthleteRawBundle,
   type CompareMetricId,
+  type CompareLRMetricDef,
+  type CompareLRMetricId,
+  type LRPoint,
 } from "@/lib/compareMetrics";
 import { formatChartAxisDate } from "@/lib/athleteReportData";
 
@@ -18,8 +25,8 @@ export const ATHLETE_COMPARE_LINE_COLORS = [
   "#f472b6",
 ] as const;
 
-export type { AthleteRawBundle, CompareMetricId } from "@/lib/compareMetrics";
-export { COMPARE_METRIC_LABELS, COMPARE_METRIC_ORDER } from "@/lib/compareMetrics";
+export type { AthleteRawBundle, CompareMetricId, CompareLRMetricId, LRPoint } from "@/lib/compareMetrics";
+export { COMPARE_METRIC_LABELS, COMPARE_METRIC_ORDER, COMPARE_LR_METRICS } from "@/lib/compareMetrics";
 
 export type ComparePoint = {
   sessionDate: string;
@@ -168,3 +175,242 @@ export function radarScoresForLatest(
   }
   return out;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase D LR helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AthleteLRSeries = {
+  athleteId: string;
+  firstName: string | null;
+  lastName: string | null;
+  series: Record<CompareLRMetricId, LRPoint[]>;
+};
+
+/** Per-athlete LR series for every metric in `COMPARE_LR_METRICS`. */
+export function buildAthleteLRSeries(
+  athleteId: string,
+  firstName: string | null,
+  lastName: string | null,
+  sessions: AthleteRawBundle["sessions"],
+  metricsBySession: AthleteRawBundle["metricsBySession"],
+  hopTests: AthleteRawBundle["hopTests"]
+): AthleteLRSeries {
+  const bundle: AthleteRawBundle = { sessions, metricsBySession, hopTests };
+  const series = {} as Record<CompareLRMetricId, LRPoint[]>;
+  for (const def of COMPARE_LR_METRICS) {
+    series[def.id as CompareLRMetricId] = extractLRPoints(def, bundle);
+  }
+  return { athleteId, firstName, lastName, series };
+}
+
+/** True iff at least one selected athlete has ≥1 LR point on any metric. */
+export function anyLRDataAcrossProfiles(profiles: AthleteLRSeries[]): boolean {
+  return profiles.some((p) =>
+    COMPARE_LR_METRICS.some((def) => (p.series[def.id as CompareLRMetricId] ?? []).length > 0)
+  );
+}
+
+/** True iff at least one selected athlete has ≥1 LR point for this metric. */
+export function anyLRDataForMetric(
+  profiles: AthleteLRSeries[],
+  metric: CompareLRMetricId
+): boolean {
+  return profiles.some((p) => (p.series[metric] ?? []).length > 0);
+}
+
+/**
+ * Merge LSI rows across athletes by date for a single LR metric.
+ * Each row: { t, label, [athleteId]: lsi% | null }
+ */
+export function mergeLRLsiRowsForMetric(
+  profiles: AthleteLRSeries[],
+  metric: CompareLRMetricId,
+  athleteKeys: string[]
+): TrendRow[] {
+  const byDay = new Map<
+    string,
+    { t: number; label: string; vals: Record<string, number | null> }
+  >();
+  const nullRow = (): Record<string, number | null> =>
+    Object.fromEntries(athleteKeys.map((k) => [k, null as number | null])) as Record<
+      string,
+      number | null
+    >;
+
+  for (const prof of profiles) {
+    for (const pt of prof.series[metric] ?? []) {
+      const dk = pt.sessionDate.slice(0, 10);
+      const cur = byDay.get(dk) ?? {
+        t: pt.t,
+        label: formatChartAxisDate(pt.sessionDate),
+        vals: nullRow(),
+      };
+      cur.vals[prof.athleteId] = pt.lsi;
+      cur.t = Math.min(cur.t, pt.t);
+      byDay.set(dk, cur);
+    }
+  }
+
+  return [...byDay.entries()]
+    .sort((a, b) => a[1].t - b[1].t)
+    .map(([, row]) => {
+      const o: TrendRow = { t: row.t, label: row.label };
+      for (const k of athleteKeys) o[k] = row.vals[k] ?? null;
+      return o;
+    });
+}
+
+/**
+ * Merge per-leg rows across athletes by date for a single LR metric.
+ * Each row: { t, label, [`${id}__L`]: leftVal, [`${id}__R`]: rightVal }
+ */
+export function mergeLRPerLegRowsForMetric(
+  profiles: AthleteLRSeries[],
+  metric: CompareLRMetricId,
+  athleteKeys: string[]
+): TrendRow[] {
+  const byDay = new Map<
+    string,
+    { t: number; label: string; vals: Record<string, number | null> }
+  >();
+  const sideKeys = athleteKeys.flatMap((k) => [`${k}__L`, `${k}__R`]);
+  const nullRow = (): Record<string, number | null> =>
+    Object.fromEntries(sideKeys.map((k) => [k, null as number | null])) as Record<
+      string,
+      number | null
+    >;
+
+  for (const prof of profiles) {
+    for (const pt of prof.series[metric] ?? []) {
+      const dk = pt.sessionDate.slice(0, 10);
+      const cur = byDay.get(dk) ?? {
+        t: pt.t,
+        label: formatChartAxisDate(pt.sessionDate),
+        vals: nullRow(),
+      };
+      cur.vals[`${prof.athleteId}__L`] = pt.left;
+      cur.vals[`${prof.athleteId}__R`] = pt.right;
+      cur.t = Math.min(cur.t, pt.t);
+      byDay.set(dk, cur);
+    }
+  }
+
+  return [...byDay.entries()]
+    .sort((a, b) => a[1].t - b[1].t)
+    .map(([, row]) => {
+      const o: TrendRow = { t: row.t, label: row.label };
+      for (const k of sideKeys) o[k] = row.vals[k] ?? null;
+      return o;
+    });
+}
+
+export type LRLatest = {
+  athleteId: string;
+  sessionDate: string | null;
+  dateLabel: string;
+  left: number | null;
+  right: number | null;
+  lsi: number | null;
+  pctDiff: number | null;
+  flagged: boolean;
+};
+
+/** Latest LR point per athlete for a metric. */
+export function lrLatestForMetric(
+  profiles: AthleteLRSeries[],
+  metric: CompareLRMetricId,
+  athleteIds: string[]
+): LRLatest[] {
+  const out: LRLatest[] = [];
+  for (const id of athleteIds) {
+    const prof = profiles.find((p) => p.athleteId === id);
+    const points = prof?.series[metric] ?? [];
+    let best: LRPoint | null = null;
+    for (const p of points) {
+      if (!best || p.t >= best.t) best = p;
+    }
+    if (best) {
+      out.push({
+        athleteId: id,
+        sessionDate: best.sessionDate,
+        dateLabel: formatChartAxisDate(best.sessionDate),
+        left: best.left,
+        right: best.right,
+        lsi: best.lsi,
+        pctDiff: best.pctDiff,
+        flagged: best.flagged,
+      });
+    } else {
+      out.push({
+        athleteId: id,
+        sessionDate: null,
+        dateLabel: "—",
+        left: null,
+        right: null,
+        lsi: null,
+        pctDiff: null,
+        flagged: false,
+      });
+    }
+  }
+  return out;
+}
+
+/** Re-exported for component code. */
+export { compareLRMetricById, hasAnyLRData };
+export type { CompareLRMetricDef };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LR-eligible session listing (for the practitioner editor)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type LREligibleSession = {
+  athleteId: string;
+  sessionId: string;
+  sessionDate: string | null;
+  dateLabel: string;
+  testSubType: string | null;
+  lrStartingLeg: "left" | "right" | null;
+};
+
+const LR_METRIC_KEYS = new Set(
+  (COMPARE_LR_METRICS as CompareLRMetricDef[]).map((d) => d.metricKey)
+);
+
+/**
+ * For one athlete's bundle, return every 1080 session that has BOTH side='left' and
+ * side='right' metrics for at least one LR registry metric. These are sessions where
+ * the practitioner should record the anatomical starting leg.
+ */
+export function lrEligibleSessionsForAthlete(
+  athleteId: string,
+  bundle: AthleteRawBundle
+): LREligibleSession[] {
+  const out: LREligibleSession[] = [];
+  for (const s of bundle.sessions) {
+    if ((s.source ?? "").toLowerCase() !== "1080") continue;
+    const rows = bundle.metricsBySession.get(s.id) ?? [];
+    let hasLeft = false;
+    let hasRight = false;
+    for (const r of rows) {
+      if (!LR_METRIC_KEYS.has(r.key)) continue;
+      if (r.value == null || !Number.isFinite(r.value)) continue;
+      if (r.side === "left") hasLeft = true;
+      else if (r.side === "right") hasRight = true;
+      if (hasLeft && hasRight) break;
+    }
+    if (!hasLeft || !hasRight) continue;
+    out.push({
+      athleteId,
+      sessionId: s.id,
+      sessionDate: s.session_date,
+      dateLabel: formatChartAxisDate(s.session_date),
+      testSubType: s.test_sub_type,
+      lrStartingLeg: (s.lr_starting_leg ?? null) as "left" | "right" | null,
+    });
+  }
+  out.sort((a, b) => (b.sessionDate ?? "").localeCompare(a.sessionDate ?? ""));
+  return out;
+}
+

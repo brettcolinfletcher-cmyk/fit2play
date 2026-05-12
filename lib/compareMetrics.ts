@@ -474,3 +474,178 @@ export const COMPARE_METRIC_LABELS: Record<CompareMetricId, string> = Object.fro
 export function compareMetricUnit(id: CompareMetricId): string {
   return BY_ID.get(id)?.unit ?? "";
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase D: Left/Right comparison for 1080 sessions that carry per-leg metrics.
+//
+// Data model: 1080 motionGroups carry `side` (1=Left, 2=Right) → stored as
+// metrics.side ('left' | 'right'). One session typically contains BOTH sides.
+// Splits stay side=null. The practitioner records `sessions.lr_starting_leg`
+// so the side labels can be verified against the athlete's anatomy.
+//
+// We expose LR data for ANY 1080 session that has both side='left' and
+// side='right' rows for a given metric — not just Running (LR) test_sub_type.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type LRPoint = {
+  sessionDate: string;
+  t: number;
+  left: number;
+  right: number;
+  /** Limb Symmetry Index: weaker/stronger × 100. */
+  lsi: number;
+  /** Asymmetry as |L−R| / max(|L|,|R|) × 100. Matches metricsLrDisplay.ts. */
+  pctDiff: number;
+  /** True when pctDiff exceeds the metric's redFlagPctDiff threshold. */
+  flagged: boolean;
+};
+
+export type CompareLRMetricDef = {
+  id: string;
+  /** Underlying DB metric key (in `metrics.key`). */
+  metricKey: string;
+  label: string;
+  unit: string;
+  /** Aggregation across reps of the same side within a session. */
+  aggregate: "max" | "min";
+  /** Whether higher per-leg values mean better performance (display hint). */
+  betterDirection: "higher" | "lower";
+  /** Asymmetry % above which a session is flagged for clinical review. */
+  redFlagPctDiff: number;
+};
+
+export const COMPARE_LR_METRICS: CompareLRMetricDef[] = [
+  {
+    id: "lr_top_speed",
+    metricKey: "top_speed",
+    label: "Top Speed",
+    unit: "m/s",
+    aggregate: "max",
+    betterDirection: "higher",
+    redFlagPctDiff: 10,
+  },
+  {
+    id: "lr_peak_force",
+    metricKey: "peak_force",
+    label: "Peak Force",
+    unit: "N",
+    aggregate: "max",
+    betterDirection: "higher",
+    redFlagPctDiff: 15,
+  },
+  {
+    id: "lr_peak_power",
+    metricKey: "peak_power",
+    label: "Peak Power",
+    unit: "W",
+    aggregate: "max",
+    betterDirection: "higher",
+    redFlagPctDiff: 15,
+  },
+  {
+    id: "lr_accel_max",
+    metricKey: "accel_max",
+    label: "Max Acceleration",
+    unit: "m/s²",
+    aggregate: "max",
+    betterDirection: "higher",
+    redFlagPctDiff: 15,
+  },
+];
+
+const LR_BY_ID = new Map(COMPARE_LR_METRICS.map((m) => [m.id, m]));
+
+export function compareLRMetricById(id: string): CompareLRMetricDef | undefined {
+  return LR_BY_ID.get(id);
+}
+
+export type CompareLRMetricId = (typeof COMPARE_LR_METRICS)[number]["id"];
+
+/** Aggregate metric values for one session filtered by side. */
+function aggregateSessionSide(
+  map: Map<string, ReportMetricRow[]>,
+  sessionId: string,
+  metricKey: string,
+  side: "left" | "right",
+  mode: "max" | "min"
+): number | null {
+  const rows =
+    map.get(sessionId)?.filter(
+      (r) => r.key === metricKey && r.side === side && r.value != null && Number.isFinite(r.value)
+    ) ?? [];
+  if (rows.length === 0) return null;
+  const vals = rows.map((r) => r.value as number);
+  return mode === "max" ? Math.max(...vals) : Math.min(...vals);
+}
+
+function lsiPercent(l: number, r: number): number | null {
+  const hi = Math.max(l, r);
+  if (hi <= 0 || !Number.isFinite(hi)) return null;
+  const lo = Math.min(l, r);
+  return Math.round((lo / hi) * 1000) / 10;
+}
+
+function pctDiffPercent(l: number, r: number): number | null {
+  const m = Math.max(Math.abs(l), Math.abs(r));
+  if (m === 0 || !Number.isFinite(m)) return null;
+  return Math.round((Math.abs(l - r) / m) * 1000) / 10;
+}
+
+/**
+ * For all 1080 sessions in the bundle, produce LRPoints for this metric.
+ * Sessions on the same day are combined (max/min of side values across the day's sessions).
+ * Only days with BOTH sides present are returned.
+ */
+export function extractLRPoints(
+  def: CompareLRMetricDef,
+  bundle: AthleteRawBundle
+): LRPoint[] {
+  const sess1080 = bundle.sessions.filter(
+    (s) => (s.source ?? "").toLowerCase() === "1080" && s.session_date
+  );
+
+  type Acc = { sessionDate: string; left: number | null; right: number | null };
+  const byDay = new Map<string, Acc>();
+
+  for (const s of sess1080) {
+    const left = aggregateSessionSide(bundle.metricsBySession, s.id, def.metricKey, "left", def.aggregate);
+    const right = aggregateSessionSide(bundle.metricsBySession, s.id, def.metricKey, "right", def.aggregate);
+    if (left == null && right == null) continue;
+
+    const dk = s.session_date!.slice(0, 10);
+    const cur = byDay.get(dk) ?? { sessionDate: s.session_date!, left: null, right: null };
+    const combine = (a: number | null, b: number | null): number | null => {
+      if (a == null) return b;
+      if (b == null) return a;
+      return def.aggregate === "max" ? Math.max(a, b) : Math.min(a, b);
+    };
+    cur.left = combine(cur.left, left);
+    cur.right = combine(cur.right, right);
+    byDay.set(dk, cur);
+  }
+
+  const out: LRPoint[] = [];
+  for (const [, v] of byDay) {
+    if (v.left == null || v.right == null) continue;
+    if (!Number.isFinite(v.left) || !Number.isFinite(v.right)) continue;
+    const lsi = lsiPercent(v.left, v.right);
+    const pctDiff = pctDiffPercent(v.left, v.right);
+    if (lsi == null || pctDiff == null) continue;
+    out.push({
+      sessionDate: v.sessionDate,
+      t: new Date(v.sessionDate).getTime(),
+      left: v.left,
+      right: v.right,
+      lsi,
+      pctDiff,
+      flagged: pctDiff > def.redFlagPctDiff,
+    });
+  }
+  out.sort((a, b) => a.t - b.t);
+  return out;
+}
+
+/** True if the bundle has at least one usable LR point on any LR metric. */
+export function hasAnyLRData(bundle: AthleteRawBundle): boolean {
+  return COMPARE_LR_METRICS.some((def) => extractLRPoints(def, bundle).length > 0);
+}

@@ -12,6 +12,8 @@ export type ReportSessionRow = {
   test_type: string | null;
   test_sub_type: string | null;
   source: string | null;
+  /** Phase D: athlete's anatomical leg that started a Left-Right protocol. */
+  lr_starting_leg?: "left" | "right" | null;
 };
 
 export type ReportMetricRow = {

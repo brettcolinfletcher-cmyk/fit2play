@@ -13,6 +13,7 @@ import {
   PolarRadiusAxis,
   Radar,
   RadarChart,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -20,14 +21,25 @@ import {
 } from "recharts";
 import {
   ATHLETE_COMPARE_LINE_COLORS,
+  anyLRDataAcrossProfiles,
+  anyLRDataForMetric,
   athleteDisplayName,
   buildAthleteCompareSeries,
+  buildAthleteLRSeries,
+  COMPARE_LR_METRICS,
   COMPARE_METRIC_LABELS,
   latestValue,
+  lrEligibleSessionsForAthlete,
+  lrLatestForMetric,
+  mergeLRLsiRowsForMetric,
+  mergeLRPerLegRowsForMetric,
   mergeTrendRowsForMetric,
   radarScoresForLatest,
   type AthleteCompareSeries,
+  type AthleteLRSeries,
+  type CompareLRMetricId,
   type CompareMetricId,
+  type LREligibleSession,
 } from "@/lib/athleteCompareCharts";
 import {
   COMPARE_METRICS,
@@ -42,7 +54,8 @@ type AthleteOpt = { id: string; first_name: string | null; last_name: string | n
 export type { AthleteRawBundle } from "@/lib/compareMetrics";
 
 type ChartView = "trends" | "current" | "overview";
-type TopTab = MetricGroup | "overview";
+type TopTab = MetricGroup | "overview" | "lr";
+type LRSubView = "lsi" | "perLeg" | "latest";
 
 const GROUP_PRIORITY: MetricGroup[] = ["sprint", "cod", "jump", "reactive", "hop"];
 
@@ -53,6 +66,8 @@ const GROUP_TAB_LABEL: Record<MetricGroup, string> = {
   reactive: "Reactive",
   hop: "Hop",
 };
+
+const LR_REFERENCE_LSI = 90;
 
 const AXIS_TICK = { fill: "#94a3b8", fontSize: 11 };
 const TOOLTIP_STYLE = {
@@ -176,19 +191,421 @@ function SmallMultLine({
   );
 }
 
+/** LSI% line chart for one LR metric, with a horizontal reference line. */
+function SmallMultLRLsi({
+  title,
+  data,
+  athleteIds,
+  plotAthleteIds,
+  nameById,
+  threshold,
+}: {
+  title: string;
+  data: { t: number; label: string; [k: string]: number | string | null }[];
+  athleteIds: string[];
+  plotAthleteIds: string[];
+  nameById: Map<string, string>;
+  threshold: number;
+}) {
+  const colorIndex = (id: string) => athleteIds.indexOf(id);
+  return (
+    <div className={shellClass}>
+      <h3 className="mb-2 text-xs font-medium text-slate-400">{title}</h3>
+      <div className="h-52 w-full min-w-0">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+            <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
+            <XAxis
+              dataKey="t"
+              type="number"
+              domain={["dataMin", "dataMax"]}
+              tickFormatter={(ts: number) =>
+                formatChartAxisDate(typeof ts === "number" ? new Date(ts).toISOString() : null)
+              }
+              stroke="#64748b"
+              tick={AXIS_TICK}
+            />
+            <YAxis
+              stroke="#64748b"
+              tick={AXIS_TICK}
+              domain={[0, 100]}
+              label={{ value: "LSI %", angle: -90, position: "insideLeft", fill: "#94a3b8", fontSize: 11 }}
+            />
+            <Tooltip contentStyle={TOOLTIP_STYLE} labelStyle={{ color: "#e2e8f0" }} />
+            <Legend formatter={(v) => nameById.get(String(v)) ?? String(v)} wrapperStyle={{ fontSize: 11 }} />
+            <ReferenceLine
+              y={threshold}
+              stroke="#84cc16"
+              strokeDasharray="4 4"
+              label={{
+                value: `${threshold}%`,
+                position: "insideTopRight",
+                fill: "#84cc16",
+                fontSize: 10,
+              }}
+            />
+            {plotAthleteIds.map((id) => {
+              const i = colorIndex(id);
+              const ci = i >= 0 ? i % ATHLETE_COMPARE_LINE_COLORS.length : 0;
+              return (
+                <Line
+                  key={id}
+                  type="monotone"
+                  dataKey={id}
+                  name={nameById.get(id) ?? id}
+                  stroke={ATHLETE_COMPARE_LINE_COLORS[ci]}
+                  strokeWidth={2}
+                  dot={{ r: 3 }}
+                  connectNulls={false}
+                />
+              );
+            })}
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
+/** Per-leg trend for one LR metric: solid line = Right, dashed = Left, colour per athlete. */
+function SmallMultLRPerLeg({
+  title,
+  data,
+  athleteIds,
+  plotAthleteIds,
+  unit,
+  nameById,
+}: {
+  title: string;
+  data: { t: number; label: string; [k: string]: number | string | null }[];
+  athleteIds: string[];
+  plotAthleteIds: string[];
+  unit: string;
+  nameById: Map<string, string>;
+}) {
+  const colorIndex = (id: string) => athleteIds.indexOf(id);
+  return (
+    <div className={shellClass}>
+      <h3 className="mb-2 text-xs font-medium text-slate-400">{title}</h3>
+      <div className="h-52 w-full min-w-0">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+            <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
+            <XAxis
+              dataKey="t"
+              type="number"
+              domain={["dataMin", "dataMax"]}
+              tickFormatter={(ts: number) =>
+                formatChartAxisDate(typeof ts === "number" ? new Date(ts).toISOString() : null)
+              }
+              stroke="#64748b"
+              tick={AXIS_TICK}
+            />
+            <YAxis
+              stroke="#64748b"
+              tick={AXIS_TICK}
+              label={{ value: unit, angle: -90, position: "insideLeft", fill: "#94a3b8", fontSize: 11 }}
+            />
+            <Tooltip contentStyle={TOOLTIP_STYLE} labelStyle={{ color: "#e2e8f0" }} />
+            <Legend
+              wrapperStyle={{ fontSize: 11 }}
+              formatter={(v) => {
+                const s = String(v);
+                const isLeft = s.endsWith("__L");
+                const id = s.replace(/__[LR]$/, "");
+                const base = nameById.get(id) ?? id;
+                return `${base} (${isLeft ? "L" : "R"})`;
+              }}
+            />
+            {plotAthleteIds.flatMap((id) => {
+              const i = colorIndex(id);
+              const ci = i >= 0 ? i % ATHLETE_COMPARE_LINE_COLORS.length : 0;
+              const color = ATHLETE_COMPARE_LINE_COLORS[ci];
+              return [
+                <Line
+                  key={`${id}-R`}
+                  type="monotone"
+                  dataKey={`${id}__R`}
+                  name={`${id}__R`}
+                  stroke={color}
+                  strokeWidth={2}
+                  dot={{ r: 3 }}
+                  connectNulls={false}
+                />,
+                <Line
+                  key={`${id}-L`}
+                  type="monotone"
+                  dataKey={`${id}__L`}
+                  name={`${id}__L`}
+                  stroke={color}
+                  strokeWidth={2}
+                  strokeDasharray="4 4"
+                  dot={{ r: 3 }}
+                  connectNulls={false}
+                />,
+              ];
+            })}
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
+function formatLrValue(v: number | null, unit: string): string {
+  if (v == null || !Number.isFinite(v)) return "—";
+  if (unit === "m/s" || unit === "m/s²") return v.toFixed(2);
+  if (unit === "%") return `${v.toFixed(1)}%`;
+  return Math.round(v).toLocaleString();
+}
+
+/** Per-athlete editor for the anatomical starting leg of each LR-eligible 1080 session. */
+function LRStartingLegEditor({
+  athleteIds,
+  nameById,
+  sessionsByAthlete,
+  onSave,
+  pending,
+}: {
+  athleteIds: string[];
+  nameById: Map<string, string>;
+  sessionsByAthlete: Map<string, LREligibleSession[]>;
+  onSave?: (
+    athleteId: string,
+    sessionId: string,
+    value: "left" | "right" | null
+  ) => void | Promise<void>;
+  pending: Set<string>;
+}) {
+  const athletesWithSessions = athleteIds.filter(
+    (id) => (sessionsByAthlete.get(id) ?? []).length > 0
+  );
+  if (athletesWithSessions.length === 0) return null;
+
+  const totalSessions = athletesWithSessions.reduce(
+    (n, id) => n + (sessionsByAthlete.get(id)?.length ?? 0),
+    0
+  );
+  const unsetCount = athletesWithSessions.reduce((n, id) => {
+    const rows = sessionsByAthlete.get(id) ?? [];
+    return n + rows.filter((r) => r.lrStartingLeg == null).length;
+  }, 0);
+
+  return (
+    <details className="mt-4 rounded-lg border border-slate-800 bg-slate-950/60" open={unsetCount > 0}>
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-xs font-medium text-slate-300">
+        <span>
+          Starting leg per LR session
+          <span className="ml-2 font-normal text-slate-500">
+            {unsetCount > 0
+              ? `${unsetCount} of ${totalSessions} unrecorded`
+              : `${totalSessions} session${totalSessions === 1 ? "" : "s"} recorded`}
+          </span>
+        </span>
+        <span className="text-[10px] uppercase tracking-wide text-slate-500">click to toggle</span>
+      </summary>
+      <div className="space-y-4 border-t border-slate-800 px-4 py-3">
+        {athletesWithSessions.map((athleteId) => {
+          const rows = sessionsByAthlete.get(athleteId) ?? [];
+          if (rows.length === 0) return null;
+          return (
+            <div key={athleteId}>
+              <p className="mb-1.5 text-xs font-medium text-slate-300">
+                {nameById.get(athleteId) ?? athleteId}
+              </p>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[400px] text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-800 text-slate-500">
+                      <th className="py-1.5 pr-3 font-medium">Date</th>
+                      <th className="py-1.5 pr-3 font-medium">Sub-type</th>
+                      <th className="py-1.5 pr-3 font-medium">Starting leg</th>
+                    </tr>
+                  </thead>
+                  <tbody className="text-slate-200">
+                    {rows.map((row) => {
+                      const key = `${athleteId}:${row.sessionId}`;
+                      const isPending = pending.has(key);
+                      return (
+                        <tr key={row.sessionId} className="border-b border-slate-800/60">
+                          <td className="py-1.5 pr-3 text-slate-400">{row.dateLabel}</td>
+                          <td className="py-1.5 pr-3 text-slate-400">
+                            {row.testSubType ?? "—"}
+                          </td>
+                          <td className="py-1.5 pr-3">
+                            <select
+                              value={row.lrStartingLeg ?? ""}
+                              disabled={!onSave || isPending}
+                              onChange={(e) => {
+                                if (!onSave) return;
+                                const v = e.target.value;
+                                const next: "left" | "right" | null =
+                                  v === "left" ? "left" : v === "right" ? "right" : null;
+                                void onSave(athleteId, row.sessionId, next);
+                              }}
+                              className={`rounded-md border bg-slate-950 px-2 py-1 text-xs text-slate-200 disabled:opacity-50 ${
+                                row.lrStartingLeg == null
+                                  ? "border-amber-500/50"
+                                  : "border-slate-700"
+                              }`}
+                            >
+                              <option value="">Not set</option>
+                              <option value="left">Left</option>
+                              <option value="right">Right</option>
+                            </select>
+                            {isPending ? (
+                              <span className="ml-2 text-[10px] text-slate-500">saving…</span>
+                            ) : null}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          );
+        })}
+        <p className="text-[11px] text-slate-500">
+          Record which anatomical leg the athlete started the test with. Used as clinical metadata
+          and (later) to verify or override 1080 Motion's side labels.
+        </p>
+      </div>
+    </details>
+  );
+}
+
+/** Latest L vs R bar chart per athlete for one LR metric, with flag indicators. */
+function LRLatestCard({
+  title,
+  unit,
+  threshold,
+  latest,
+  nameById,
+}: {
+  title: string;
+  unit: string;
+  threshold: number;
+  latest: ReturnType<typeof lrLatestForMetric>;
+  nameById: Map<string, string>;
+}) {
+  const rows = latest.filter((row) => row.left != null && row.right != null);
+  const data = rows.map((row) => ({
+    label: nameById.get(row.athleteId) ?? row.athleteId,
+    Left: row.left,
+    Right: row.right,
+    pctDiff: row.pctDiff,
+    flagged: row.flagged,
+    date: row.dateLabel,
+  }));
+
+  return (
+    <div className={shellClass}>
+      <div className="mb-2 flex items-baseline justify-between">
+        <h3 className="text-xs font-medium text-slate-400">{title}</h3>
+        <span className="text-[10px] text-slate-500">flag &gt; {threshold}% diff</span>
+      </div>
+      {data.length === 0 ? (
+        <p className="py-6 text-center text-xs text-slate-500">
+          No LR session with both sides for this metric.
+        </p>
+      ) : (
+        <>
+          <div className="h-52 w-full min-w-0">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={data} margin={{ top: 8, right: 8, left: 4, bottom: 24 }}>
+                <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
+                <XAxis
+                  dataKey="label"
+                  stroke="#64748b"
+                  tick={AXIS_TICK}
+                  interval={0}
+                  angle={-15}
+                  textAnchor="end"
+                  height={40}
+                />
+                <YAxis
+                  stroke="#64748b"
+                  tick={AXIS_TICK}
+                  label={{ value: unit, angle: -90, position: "insideLeft", fill: "#94a3b8", fontSize: 11 }}
+                />
+                <Tooltip contentStyle={TOOLTIP_STYLE} />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                <Bar dataKey="Left" fill="#38bdf8" radius={[2, 2, 0, 0]} />
+                <Bar dataKey="Right" fill="#84cc16" radius={[2, 2, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="mt-3 space-y-1">
+            {data.map((d) => (
+              <div key={d.label} className="flex items-center justify-between text-xs">
+                <span className="text-slate-400">{d.label}</span>
+                <span className="flex items-center gap-2 font-mono text-slate-300">
+                  <span>L {formatLrValue(d.Left, unit)}</span>
+                  <span>R {formatLrValue(d.Right, unit)}</span>
+                  <span
+                    className={d.flagged ? "text-rose-400 font-semibold" : "text-slate-500"}
+                  >
+                    Δ {d.pctDiff != null ? d.pctDiff.toFixed(1) : "—"}%
+                    {d.flagged ? " ⚠" : ""}
+                  </span>
+                </span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function AthleteCompareChartPanel({
   athletes,
   bundles,
   athleteIdsOrdered,
+  onUpdateLrStartingLeg,
 }: {
   athletes: AthleteOpt[];
   bundles: Map<string, AthleteRawBundle>;
   athleteIdsOrdered: string[];
+  /** Phase D-B: save callback for the LR starting-leg editor. */
+  onUpdateLrStartingLeg?: (
+    athleteId: string,
+    sessionId: string,
+    value: "left" | "right" | null
+  ) => void | Promise<void>;
 }) {
   const [view, setView] = useState<ChartView>("trends");
   const [activeTopTab, setActiveTopTab] = useState<TopTab>("sprint");
+  const [lrSubView, setLrSubView] = useState<LRSubView>("lsi");
+  const [lrPending, setLrPending] = useState<Set<string>>(() => new Set());
   const selectionKey = athleteIdsOrdered.join("|");
   const prevSelectionKey = useRef(selectionKey);
+
+  const handleSaveLrLeg = useMemo(() => {
+    if (!onUpdateLrStartingLeg) return undefined;
+    return async (
+      athleteId: string,
+      sessionId: string,
+      value: "left" | "right" | null
+    ) => {
+      const key = `${athleteId}:${sessionId}`;
+      setLrPending((prev) => {
+        const next = new Set(prev);
+        next.add(key);
+        return next;
+      });
+      try {
+        await onUpdateLrStartingLeg(athleteId, sessionId, value);
+      } finally {
+        setLrPending((prev) => {
+          const next = new Set(prev);
+          next.delete(key);
+          return next;
+        });
+      }
+    };
+  }, [onUpdateLrStartingLeg]);
 
   const profiles: AthleteCompareSeries[] = useMemo(() => {
     const out: AthleteCompareSeries[] = [];
@@ -202,6 +619,32 @@ export default function AthleteCompareChartPanel({
     }
     return out;
   }, [athletes, bundles, athleteIdsOrdered]);
+
+  const lrProfiles: AthleteLRSeries[] = useMemo(() => {
+    const out: AthleteLRSeries[] = [];
+    for (const id of athleteIdsOrdered) {
+      const raw = bundles.get(id);
+      const a = athletes.find((x) => x.id === id);
+      if (!raw || !a) continue;
+      out.push(
+        buildAthleteLRSeries(id, a.first_name, a.last_name, raw.sessions, raw.metricsBySession, raw.hopTests)
+      );
+    }
+    return out;
+  }, [athletes, bundles, athleteIdsOrdered]);
+
+  const lrAvailable = useMemo(() => anyLRDataAcrossProfiles(lrProfiles), [lrProfiles]);
+
+  /** LR-eligible sessions per athlete — used by the inline editor. */
+  const lrSessionsByAthlete = useMemo(() => {
+    const map = new Map<string, LREligibleSession[]>();
+    for (const id of athleteIdsOrdered) {
+      const raw = bundles.get(id);
+      if (!raw) continue;
+      map.set(id, lrEligibleSessionsForAthlete(id, raw));
+    }
+    return map;
+  }, [athleteIdsOrdered, bundles]);
 
   const athleteIds = useMemo(() => profiles.map((p) => p.athleteId), [profiles]);
   const nameById = useMemo(() => {
@@ -227,27 +670,30 @@ export default function AthleteCompareChartPanel({
   }, [visibleGroupTabs]);
 
   useEffect(() => {
-    if (visibleGroupTabs.length === 0) return;
+    if (visibleGroupTabs.length === 0 && !lrAvailable) return;
     const allowed: TopTab[] = [
       ...visibleGroupTabs,
       ...(showOverviewTopTab ? (["overview"] as const) : []),
+      ...(lrAvailable ? (["lr"] as const) : []),
     ];
 
     if (prevSelectionKey.current !== selectionKey) {
       prevSelectionKey.current = selectionKey;
-      setActiveTopTab(visibleGroupTabs[0]!);
+      const firstAllowed = visibleGroupTabs[0] ?? (lrAvailable ? "lr" : null);
+      if (firstAllowed) setActiveTopTab(firstAllowed);
       setView("trends");
+      setLrSubView("lsi");
       return;
     }
 
     setActiveTopTab((cur) => {
       if (allowed.includes(cur)) return cur;
-      return visibleGroupTabs[0]!;
+      return visibleGroupTabs[0] ?? (lrAvailable ? "lr" : cur);
     });
-  }, [selectionKey, visibleGroupTabs, showOverviewTopTab]);
+  }, [selectionKey, visibleGroupTabs, showOverviewTopTab, lrAvailable]);
 
   const metricIdsInActiveGroup = useMemo((): CompareMetricId[] => {
-    if (activeTopTab === "overview") return [];
+    if (activeTopTab === "overview" || activeTopTab === "lr") return [];
     return metricIdsForGroup(activeTopTab);
   }, [activeTopTab]);
 
@@ -347,7 +793,8 @@ export default function AthleteCompareChartPanel({
   );
 
   const topTabButton = (tab: TopTab) => {
-    const label = tab === "overview" ? "Overview" : GROUP_TAB_LABEL[tab];
+    const label =
+      tab === "overview" ? "Overview" : tab === "lr" ? "Left/Right" : GROUP_TAB_LABEL[tab];
     const active = activeTopTab === tab;
     return (
       <button
@@ -355,7 +802,11 @@ export default function AthleteCompareChartPanel({
         type="button"
         onClick={() => {
           setActiveTopTab(tab);
-          if (tab !== "overview") setView("trends");
+          if (tab === "lr") {
+            setLrSubView("lsi");
+          } else if (tab !== "overview") {
+            setView("trends");
+          }
         }}
         className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
           active
@@ -369,7 +820,8 @@ export default function AthleteCompareChartPanel({
   };
 
   const inRange = athleteIds.length >= 2 && athleteIds.length <= 6;
-  const noComparableData = inRange && visibleGroupTabs.length === 0;
+  const noComparableData = inRange && visibleGroupTabs.length === 0 && !lrAvailable;
+  const anyTabVisible = inRange && (visibleGroupTabs.length > 0 || lrAvailable);
 
   return (
     <div className="mt-8 rounded-xl border border-slate-800 bg-slate-900/40 p-4">
@@ -377,17 +829,18 @@ export default function AthleteCompareChartPanel({
         <p className="py-10 text-center text-sm text-slate-500">
           No comparable test data for the selected athletes yet.
         </p>
-      ) : inRange && visibleGroupTabs.length > 0 ? (
+      ) : anyTabVisible ? (
         <>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-400">Comparison charts</h2>
             <div className="flex flex-wrap gap-1 rounded-lg border border-slate-800 bg-slate-950/80 p-1">
               {visibleGroupTabs.map((t) => topTabButton(t))}
               {showOverviewTopTab ? topTabButton("overview") : null}
+              {lrAvailable ? topTabButton("lr") : null}
             </div>
           </div>
 
-          {activeTopTab !== "overview" && (
+          {activeTopTab !== "overview" && activeTopTab !== "lr" && (
             <div className="mt-3 flex flex-wrap justify-end gap-1 rounded-lg border border-slate-800 bg-slate-950/80 p-1">
               {segmented("trends", "Trends")}
               {segmented("current", "Current session")}
@@ -395,7 +848,7 @@ export default function AthleteCompareChartPanel({
             </div>
           )}
 
-          {activeTopTab !== "overview" && view === "trends" && (
+          {activeTopTab !== "overview" && activeTopTab !== "lr" && view === "trends" && (
             <>
               <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
                 {trendMultiples.map((tm) => (
@@ -414,7 +867,7 @@ export default function AthleteCompareChartPanel({
             </>
           )}
 
-          {activeTopTab !== "overview" && view === "current" && (
+          {activeTopTab !== "overview" && activeTopTab !== "lr" && view === "current" && (
             <>
               <div className={`mt-4 ${shellClass}`}>
                 <div className="h-80 w-full min-w-0">
@@ -453,7 +906,7 @@ export default function AthleteCompareChartPanel({
             </>
           )}
 
-          {activeTopTab !== "overview" && view === "overview" && (
+          {activeTopTab !== "overview" && activeTopTab !== "lr" && view === "overview" && (
             <>
               <div className={`mt-4 ${shellClass}`}>
                 {radarDataInGroup.length === 0 ? (
@@ -542,6 +995,149 @@ export default function AthleteCompareChartPanel({
               <p className="mt-3 text-xs text-slate-500">
                 One representative metric per visible group. Latest session, normalised 0–100.
               </p>
+            </>
+          )}
+          {activeTopTab === "lr" && (
+            <>
+              <LRStartingLegEditor
+                athleteIds={athleteIds}
+                nameById={nameById}
+                sessionsByAthlete={lrSessionsByAthlete}
+                onSave={handleSaveLrLeg}
+                pending={lrPending}
+              />
+              <div className="mt-3 flex flex-wrap justify-end gap-1 rounded-lg border border-slate-800 bg-slate-950/80 p-1">
+                <button
+                  type="button"
+                  onClick={() => setLrSubView("lsi")}
+                  className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
+                    lrSubView === "lsi"
+                      ? "bg-lime-500/25 text-lime-200 ring-1 ring-lime-500/50"
+                      : "bg-slate-800/80 text-slate-400 hover:text-slate-200"
+                  }`}
+                >
+                  LSI Trends
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLrSubView("perLeg")}
+                  className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
+                    lrSubView === "perLeg"
+                      ? "bg-lime-500/25 text-lime-200 ring-1 ring-lime-500/50"
+                      : "bg-slate-800/80 text-slate-400 hover:text-slate-200"
+                  }`}
+                >
+                  Per-leg Trends
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLrSubView("latest")}
+                  className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
+                    lrSubView === "latest"
+                      ? "bg-lime-500/25 text-lime-200 ring-1 ring-lime-500/50"
+                      : "bg-slate-800/80 text-slate-400 hover:text-slate-200"
+                  }`}
+                >
+                  Latest Session
+                </button>
+              </div>
+
+              {lrSubView === "lsi" && (
+                <>
+                  <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                    {COMPARE_LR_METRICS.filter((def) =>
+                      anyLRDataForMetric(lrProfiles, def.id as CompareLRMetricId)
+                    ).map((def) => {
+                      const rows = mergeLRLsiRowsForMetric(
+                        lrProfiles,
+                        def.id as CompareLRMetricId,
+                        athleteIds
+                      );
+                      return (
+                        <SmallMultLRLsi
+                          key={def.id}
+                          title={`LSI — ${def.label}`}
+                          data={rows}
+                          athleteIds={athleteIds}
+                          plotAthleteIds={athleteIdsWithTrendLineData(rows, athleteIds)}
+                          nameById={nameById}
+                          threshold={LR_REFERENCE_LSI}
+                        />
+                      );
+                    })}
+                  </div>
+                  <p className="mt-3 text-xs text-slate-500">
+                    Limb Symmetry Index over time. Dashed line at {LR_REFERENCE_LSI}% is the clinical
+                    return-to-sport reference. 1080 Motion side labels are used as-is.
+                  </p>
+                </>
+              )}
+
+              {lrSubView === "perLeg" && (
+                <>
+                  <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                    {COMPARE_LR_METRICS.filter((def) =>
+                      anyLRDataForMetric(lrProfiles, def.id as CompareLRMetricId)
+                    ).map((def) => {
+                      const rows = mergeLRPerLegRowsForMetric(
+                        lrProfiles,
+                        def.id as CompareLRMetricId,
+                        athleteIds
+                      );
+                      return (
+                        <SmallMultLRPerLeg
+                          key={def.id}
+                          title={def.label}
+                          data={rows}
+                          athleteIds={athleteIds}
+                          plotAthleteIds={athleteIds.filter((id) =>
+                            rows.some(
+                              (row) =>
+                                typeof row[`${id}__L`] === "number" ||
+                                typeof row[`${id}__R`] === "number"
+                            )
+                          )}
+                          unit={def.unit}
+                          nameById={nameById}
+                        />
+                      );
+                    })}
+                  </div>
+                  <p className="mt-3 text-xs text-slate-500">
+                    Per-leg values over time. Solid line = Right, dashed = Left. Colour = athlete.
+                  </p>
+                </>
+              )}
+
+              {lrSubView === "latest" && (
+                <>
+                  <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                    {COMPARE_LR_METRICS.filter((def) =>
+                      anyLRDataForMetric(lrProfiles, def.id as CompareLRMetricId)
+                    ).map((def) => {
+                      const latest = lrLatestForMetric(
+                        lrProfiles,
+                        def.id as CompareLRMetricId,
+                        athleteIds
+                      );
+                      return (
+                        <LRLatestCard
+                          key={def.id}
+                          title={def.label}
+                          unit={def.unit}
+                          threshold={def.redFlagPctDiff}
+                          latest={latest}
+                          nameById={nameById}
+                        />
+                      );
+                    })}
+                  </div>
+                  <p className="mt-3 text-xs text-slate-500">
+                    Each athlete's most recent LR session, per metric. ⚠ marks asymmetry above the
+                    per-metric threshold.
+                  </p>
+                </>
+              )}
             </>
           )}
         </>
