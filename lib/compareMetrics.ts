@@ -569,12 +569,18 @@ function aggregateSessionSide(
   side: "left" | "right",
   mode: "max" | "min"
 ): number | null {
-  const rows =
-    map.get(sessionId)?.filter(
-      (r) => r.key === metricKey && r.side === side && r.value != null && Number.isFinite(r.value)
-    ) ?? [];
-  if (rows.length === 0) return null;
-  const vals = rows.map((r) => r.value as number);
+  const rows = map.get(sessionId) ?? [];
+  const vals: number[] = [];
+  for (const r of rows) {
+    if (r.key !== metricKey) continue;
+    if (r.side !== side) continue;
+    if (r.value == null) continue;
+    // Postgres `numeric` arrives as a string via PostgREST — coerce explicitly.
+    const n = Number(r.value);
+    if (!Number.isFinite(n)) continue;
+    vals.push(n);
+  }
+  if (vals.length === 0) return null;
   return mode === "max" ? Math.max(...vals) : Math.min(...vals);
 }
 

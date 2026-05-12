@@ -372,6 +372,13 @@ export type LREligibleSession = {
   dateLabel: string;
   testSubType: string | null;
   lrStartingLeg: "left" | "right" | null;
+  /** Rep counts per side across all LR registry metrics (use max across metrics so we don't double-count). */
+  leftReps: number;
+  rightReps: number;
+  /** 1-based index of this session within sessions sharing the same date. */
+  sessionIndexOnDay: number;
+  /** Total sessions sharing this session's date. */
+  totalSessionsOnDay: number;
 };
 
 const LR_METRIC_KEYS = new Set(
@@ -387,30 +394,73 @@ export function lrEligibleSessionsForAthlete(
   athleteId: string,
   bundle: AthleteRawBundle
 ): LREligibleSession[] {
-  const out: LREligibleSession[] = [];
+  type Pre = Omit<LREligibleSession, "sessionIndexOnDay" | "totalSessionsOnDay">;
+  const pre: Pre[] = [];
   for (const s of bundle.sessions) {
     if ((s.source ?? "").toLowerCase() !== "1080") continue;
     const rows = bundle.metricsBySession.get(s.id) ?? [];
-    let hasLeft = false;
-    let hasRight = false;
+
+    // Rep counts per side per metric — take max across metrics so we don't double-count
+    // (e.g. top_speed + peak_force + peak_power for one rep all share the same rep_index).
+    const leftRepsByMetric = new Map<string, Set<number | null>>();
+    const rightRepsByMetric = new Map<string, Set<number | null>>();
     for (const r of rows) {
       if (!LR_METRIC_KEYS.has(r.key)) continue;
-      if (r.value == null || !Number.isFinite(r.value)) continue;
-      if (r.side === "left") hasLeft = true;
-      else if (r.side === "right") hasRight = true;
-      if (hasLeft && hasRight) break;
+      if (r.value == null) continue;
+      const n = Number(r.value);
+      if (!Number.isFinite(n)) continue;
+      if (r.side === "left") {
+        const set = leftRepsByMetric.get(r.key) ?? new Set<number | null>();
+        set.add(r.rep_index ?? null);
+        leftRepsByMetric.set(r.key, set);
+      } else if (r.side === "right") {
+        const set = rightRepsByMetric.get(r.key) ?? new Set<number | null>();
+        set.add(r.rep_index ?? null);
+        rightRepsByMetric.set(r.key, set);
+      }
     }
-    if (!hasLeft || !hasRight) continue;
-    out.push({
+    const leftReps = leftRepsByMetric.size === 0
+      ? 0
+      : Math.max(...[...leftRepsByMetric.values()].map((s) => s.size));
+    const rightReps = rightRepsByMetric.size === 0
+      ? 0
+      : Math.max(...[...rightRepsByMetric.values()].map((s) => s.size));
+
+    if (leftReps === 0 || rightReps === 0) continue;
+
+    pre.push({
       athleteId,
       sessionId: s.id,
       sessionDate: s.session_date,
       dateLabel: formatChartAxisDate(s.session_date),
       testSubType: s.test_sub_type,
       lrStartingLeg: (s.lr_starting_leg ?? null) as "left" | "right" | null,
+      leftReps,
+      rightReps,
     });
   }
-  out.sort((a, b) => (b.sessionDate ?? "").localeCompare(a.sessionDate ?? ""));
+
+  // Newest-first by date, then by session id for stable order within a date.
+  pre.sort((a, b) => {
+    const d = (b.sessionDate ?? "").localeCompare(a.sessionDate ?? "");
+    if (d !== 0) return d;
+    return a.sessionId.localeCompare(b.sessionId);
+  });
+
+  // Number the sessions within each date.
+  const countsByDay = new Map<string, number>();
+  for (const r of pre) {
+    const k = (r.sessionDate ?? "").slice(0, 10);
+    countsByDay.set(k, (countsByDay.get(k) ?? 0) + 1);
+  }
+  const seenByDay = new Map<string, number>();
+  const out: LREligibleSession[] = pre.map((r) => {
+    const k = (r.sessionDate ?? "").slice(0, 10);
+    const total = countsByDay.get(k) ?? 1;
+    const next = (seenByDay.get(k) ?? 0) + 1;
+    seenByDay.set(k, next);
+    return { ...r, sessionIndexOnDay: next, totalSessionsOnDay: total };
+  });
   return out;
 }
 

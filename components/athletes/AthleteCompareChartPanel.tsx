@@ -426,11 +426,23 @@ function LRStartingLegEditor({
                     {rows.map((row) => {
                       const key = `${athleteId}:${row.sessionId}`;
                       const isPending = pending.has(key);
+                      const dateBadge =
+                        row.totalSessionsOnDay > 1
+                          ? ` (${row.sessionIndexOnDay} of ${row.totalSessionsOnDay})`
+                          : "";
                       return (
                         <tr key={row.sessionId} className="border-b border-slate-800/60">
-                          <td className="py-1.5 pr-3 text-slate-400">{row.dateLabel}</td>
                           <td className="py-1.5 pr-3 text-slate-400">
-                            {row.testSubType ?? "—"}
+                            {row.dateLabel}
+                            {dateBadge ? (
+                              <span className="ml-1 text-slate-500">{dateBadge}</span>
+                            ) : null}
+                          </td>
+                          <td className="py-1.5 pr-3 text-slate-400">
+                            <span>{row.testSubType ?? "—"}</span>
+                            <span className="ml-2 font-mono text-[10px] text-slate-500">
+                              {row.leftReps}L / {row.rightReps}R
+                            </span>
                           </td>
                           <td className="py-1.5 pr-3">
                             <select
