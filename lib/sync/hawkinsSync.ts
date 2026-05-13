@@ -188,11 +188,11 @@ export async function runHawkinsSync(
       ? Math.floor(new Date(lastLog.synced_at as string).getTime() / 1000)
       : Math.floor(Date.now() / 1000) - 86400 * 365;
 
-    const testsUrl = `${apiBase}/tests?from=${fromUnix}`;
+    const testsUrl = `${apiBase}?syncFrom=${fromUnix}`;
     const testsRes = await fetch(testsUrl, { headers: authHeaders });
     if (!testsRes.ok) {
       const t = await testsRes.text();
-      throw new Error(`Hawkins /tests ${testsRes.status}: ${t.slice(0, 200)}`);
+      throw new Error(`Hawkins tests ${testsRes.status}: ${t.slice(0, 200)}`);
     }
     const testsPayload = (await testsRes.json()) as unknown;
     const tests = Array.isArray(testsPayload)
