@@ -490,6 +490,9 @@ export function compareMetricUnit(id: CompareMetricId): string {
 export type LRPoint = {
   sessionDate: string;
   t: number;
+  /** The 1080 session this point came from. Lets us disambiguate same-day sessions. */
+  sessionId: string;
+  testSubType: string | null;
   left: number;
   right: number;
   /** Limb Symmetry Index: weaker/stronger × 100. */
@@ -567,7 +570,7 @@ function aggregateSessionSide(
   sessionId: string,
   metricKey: string,
   side: "left" | "right",
-  mode: "max" | "min"
+  mode: "max" | "min" | "avg"
 ): number | null {
   const rows = map.get(sessionId) ?? [];
   const vals: number[] = [];
@@ -581,7 +584,9 @@ function aggregateSessionSide(
     vals.push(n);
   }
   if (vals.length === 0) return null;
-  return mode === "max" ? Math.max(...vals) : Math.min(...vals);
+  if (mode === "max") return Math.max(...vals);
+  if (mode === "min") return Math.min(...vals);
+  return vals.reduce((a, b) => a + b, 0) / vals.length;
 }
 
 function lsiPercent(l: number, r: number): number | null {
@@ -598,60 +603,48 @@ function pctDiffPercent(l: number, r: number): number | null {
 }
 
 /**
- * For all 1080 sessions in the bundle, produce LRPoints for this metric.
- * Sessions on the same day are combined (max/min of side values across the day's sessions).
- * Only days with BOTH sides present are returned.
+ * For all 1080 sessions in the bundle, produce one LRPoint per session for this metric.
+ * `repAggregate` (default = def.aggregate) controls how reps within a single session
+ * are combined: "max" (best rep), "min" (best for time-like metrics), or "avg".
+ *
+ * Returns only sessions where BOTH sides yield a finite value.
  */
 export function extractLRPoints(
   def: CompareLRMetricDef,
-  bundle: AthleteRawBundle
+  bundle: AthleteRawBundle,
+  repAggregate?: "max" | "min" | "avg"
 ): LRPoint[] {
+  const mode = repAggregate ?? def.aggregate;
   const sess1080 = bundle.sessions.filter(
     (s) => (s.source ?? "").toLowerCase() === "1080" && s.session_date
   );
 
-  type Acc = { sessionDate: string; left: number | null; right: number | null };
-  const byDay = new Map<string, Acc>();
-
-  for (const s of sess1080) {
-    const left = aggregateSessionSide(bundle.metricsBySession, s.id, def.metricKey, "left", def.aggregate);
-    const right = aggregateSessionSide(bundle.metricsBySession, s.id, def.metricKey, "right", def.aggregate);
-    if (left == null && right == null) continue;
-
-    const dk = s.session_date!.slice(0, 10);
-    const cur = byDay.get(dk) ?? { sessionDate: s.session_date!, left: null, right: null };
-    const combine = (a: number | null, b: number | null): number | null => {
-      if (a == null) return b;
-      if (b == null) return a;
-      return def.aggregate === "max" ? Math.max(a, b) : Math.min(a, b);
-    };
-    cur.left = combine(cur.left, left);
-    cur.right = combine(cur.right, right);
-    byDay.set(dk, cur);
-  }
-
   const out: LRPoint[] = [];
-  for (const [, v] of byDay) {
-    if (v.left == null || v.right == null) continue;
-    if (!Number.isFinite(v.left) || !Number.isFinite(v.right)) continue;
-    const lsi = lsiPercent(v.left, v.right);
-    const pctDiff = pctDiffPercent(v.left, v.right);
+  for (const s of sess1080) {
+    const left = aggregateSessionSide(bundle.metricsBySession, s.id, def.metricKey, "left", mode);
+    const right = aggregateSessionSide(bundle.metricsBySession, s.id, def.metricKey, "right", mode);
+    if (left == null || right == null) continue;
+    if (!Number.isFinite(left) || !Number.isFinite(right)) continue;
+    const lsi = lsiPercent(left, right);
+    const pctDiff = pctDiffPercent(left, right);
     if (lsi == null || pctDiff == null) continue;
     out.push({
-      sessionDate: v.sessionDate,
-      t: new Date(v.sessionDate).getTime(),
-      left: v.left,
-      right: v.right,
+      sessionDate: s.session_date!,
+      t: new Date(s.session_date!).getTime(),
+      sessionId: s.id,
+      testSubType: s.test_sub_type ?? null,
+      left,
+      right,
       lsi,
       pctDiff,
       flagged: pctDiff > def.redFlagPctDiff,
     });
   }
-  out.sort((a, b) => a.t - b.t);
+  out.sort((a, b) => a.t - b.t || a.sessionId.localeCompare(b.sessionId));
   return out;
 }
 
-/** True if the bundle has at least one usable LR point on any LR metric. */
+/** True if the bundle has at least one usable LR point on any LR metric (uses each def's default aggregate). */
 export function hasAnyLRData(bundle: AthleteRawBundle): boolean {
   return COMPARE_LR_METRICS.some((def) => extractLRPoints(def, bundle).length > 0);
 }

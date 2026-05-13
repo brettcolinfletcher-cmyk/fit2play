@@ -40,6 +40,7 @@ import {
   type CompareLRMetricId,
   type CompareMetricId,
   type LREligibleSession,
+  type LRRepAggregate,
 } from "@/lib/athleteCompareCharts";
 import {
   COMPARE_METRICS,
@@ -591,6 +592,7 @@ export default function AthleteCompareChartPanel({
   const [activeTopTab, setActiveTopTab] = useState<TopTab>("sprint");
   const [lrSubView, setLrSubView] = useState<LRSubView>("lsi");
   const [lrPending, setLrPending] = useState<Set<string>>(() => new Set());
+  const [lrRepAgg, setLrRepAgg] = useState<LRRepAggregate>("max");
   const selectionKey = athleteIdsOrdered.join("|");
   const prevSelectionKey = useRef(selectionKey);
 
@@ -639,11 +641,11 @@ export default function AthleteCompareChartPanel({
       const a = athletes.find((x) => x.id === id);
       if (!raw || !a) continue;
       out.push(
-        buildAthleteLRSeries(id, a.first_name, a.last_name, raw.sessions, raw.metricsBySession, raw.hopTests)
+        buildAthleteLRSeries(id, a.first_name, a.last_name, raw.sessions, raw.metricsBySession, raw.hopTests, lrRepAgg)
       );
     }
     return out;
-  }, [athletes, bundles, athleteIdsOrdered]);
+  }, [athletes, bundles, athleteIdsOrdered, lrRepAgg]);
 
   const lrAvailable = useMemo(() => anyLRDataAcrossProfiles(lrProfiles), [lrProfiles]);
 
@@ -1018,6 +1020,39 @@ export default function AthleteCompareChartPanel({
                 onSave={handleSaveLrLeg}
                 pending={lrPending}
               />
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                <span className="text-[11px] uppercase tracking-wide text-slate-500">
+                  Use{" "}
+                  <span className="font-mono text-slate-400">
+                    {lrRepAgg === "avg" ? "average" : "best"} rep
+                  </span>{" "}
+                  per session
+                </span>
+                <div className="flex gap-1 rounded-lg border border-slate-800 bg-slate-950/80 p-1">
+                  <button
+                    type="button"
+                    onClick={() => setLrRepAgg("max")}
+                    className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
+                      lrRepAgg === "max"
+                        ? "bg-sky-500/20 text-sky-200 ring-1 ring-sky-500/40"
+                        : "bg-slate-800/80 text-slate-400 hover:text-slate-200"
+                    }`}
+                  >
+                    Best rep
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLrRepAgg("avg")}
+                    className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
+                      lrRepAgg === "avg"
+                        ? "bg-sky-500/20 text-sky-200 ring-1 ring-sky-500/40"
+                        : "bg-slate-800/80 text-slate-400 hover:text-slate-200"
+                    }`}
+                  >
+                    Average
+                  </button>
+                </div>
+              </div>
               <div className="mt-3 flex flex-wrap justify-end gap-1 rounded-lg border border-slate-800 bg-slate-950/80 p-1">
                 <button
                   type="button"
@@ -1063,7 +1098,8 @@ export default function AthleteCompareChartPanel({
                       const rows = mergeLRLsiRowsForMetric(
                         lrProfiles,
                         def.id as CompareLRMetricId,
-                        athleteIds
+                        athleteIds,
+                        lrRepAgg
                       );
                       return (
                         <SmallMultLRLsi
@@ -1094,7 +1130,8 @@ export default function AthleteCompareChartPanel({
                       const rows = mergeLRPerLegRowsForMetric(
                         lrProfiles,
                         def.id as CompareLRMetricId,
-                        athleteIds
+                        athleteIds,
+                        lrRepAgg
                       );
                       return (
                         <SmallMultLRPerLeg

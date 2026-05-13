@@ -180,6 +180,8 @@ export function radarScoresForLatest(
 // Phase D LR helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
+export type LRRepAggregate = "max" | "min" | "avg";
+
 export type AthleteLRSeries = {
   athleteId: string;
   firstName: string | null;
@@ -187,19 +189,24 @@ export type AthleteLRSeries = {
   series: Record<CompareLRMetricId, LRPoint[]>;
 };
 
-/** Per-athlete LR series for every metric in `COMPARE_LR_METRICS`. */
+/**
+ * Per-athlete LR series for every metric in `COMPARE_LR_METRICS`.
+ * `repAggregate` controls within-session rep aggregation ("max" = best rep, "avg" = mean across reps).
+ * When omitted, each metric def's own `aggregate` is used (currently all "max").
+ */
 export function buildAthleteLRSeries(
   athleteId: string,
   firstName: string | null,
   lastName: string | null,
   sessions: AthleteRawBundle["sessions"],
   metricsBySession: AthleteRawBundle["metricsBySession"],
-  hopTests: AthleteRawBundle["hopTests"]
+  hopTests: AthleteRawBundle["hopTests"],
+  repAggregate?: LRRepAggregate
 ): AthleteLRSeries {
   const bundle: AthleteRawBundle = { sessions, metricsBySession, hopTests };
   const series = {} as Record<CompareLRMetricId, LRPoint[]>;
   for (const def of COMPARE_LR_METRICS) {
-    series[def.id as CompareLRMetricId] = extractLRPoints(def, bundle);
+    series[def.id as CompareLRMetricId] = extractLRPoints(def, bundle, repAggregate);
   }
   return { athleteId, firstName, lastName, series };
 }
@@ -219,24 +226,27 @@ export function anyLRDataForMetric(
   return profiles.some((p) => (p.series[metric] ?? []).length > 0);
 }
 
+function aggregateValues(vals: number[], mode: LRRepAggregate): number {
+  if (mode === "max") return Math.max(...vals);
+  if (mode === "min") return Math.min(...vals);
+  return vals.reduce((a, b) => a + b, 0) / vals.length;
+}
+
 /**
  * Merge LSI rows across athletes by date for a single LR metric.
  * Each row: { t, label, [athleteId]: lsi% | null }
+ * When one athlete has multiple sessions on the same date, they are combined using `mode`.
  */
 export function mergeLRLsiRowsForMetric(
   profiles: AthleteLRSeries[],
   metric: CompareLRMetricId,
-  athleteKeys: string[]
+  athleteKeys: string[],
+  mode: LRRepAggregate = "max"
 ): TrendRow[] {
   const byDay = new Map<
     string,
-    { t: number; label: string; vals: Record<string, number | null> }
+    { t: number; label: string; perAthlete: Map<string, number[]> }
   >();
-  const nullRow = (): Record<string, number | null> =>
-    Object.fromEntries(athleteKeys.map((k) => [k, null as number | null])) as Record<
-      string,
-      number | null
-    >;
 
   for (const prof of profiles) {
     for (const pt of prof.series[metric] ?? []) {
@@ -244,9 +254,11 @@ export function mergeLRLsiRowsForMetric(
       const cur = byDay.get(dk) ?? {
         t: pt.t,
         label: formatChartAxisDate(pt.sessionDate),
-        vals: nullRow(),
+        perAthlete: new Map<string, number[]>(),
       };
-      cur.vals[prof.athleteId] = pt.lsi;
+      const list = cur.perAthlete.get(prof.athleteId) ?? [];
+      list.push(pt.lsi);
+      cur.perAthlete.set(prof.athleteId, list);
       cur.t = Math.min(cur.t, pt.t);
       byDay.set(dk, cur);
     }
@@ -256,7 +268,10 @@ export function mergeLRLsiRowsForMetric(
     .sort((a, b) => a[1].t - b[1].t)
     .map(([, row]) => {
       const o: TrendRow = { t: row.t, label: row.label };
-      for (const k of athleteKeys) o[k] = row.vals[k] ?? null;
+      for (const k of athleteKeys) {
+        const vals = row.perAthlete.get(k);
+        o[k] = vals && vals.length > 0 ? aggregateValues(vals, mode) : null;
+      }
       return o;
     });
 }
@@ -264,22 +279,23 @@ export function mergeLRLsiRowsForMetric(
 /**
  * Merge per-leg rows across athletes by date for a single LR metric.
  * Each row: { t, label, [`${id}__L`]: leftVal, [`${id}__R`]: rightVal }
+ * When one athlete has multiple sessions on the same date, L and R are aggregated separately using `mode`.
  */
 export function mergeLRPerLegRowsForMetric(
   profiles: AthleteLRSeries[],
   metric: CompareLRMetricId,
-  athleteKeys: string[]
+  athleteKeys: string[],
+  mode: LRRepAggregate = "max"
 ): TrendRow[] {
   const byDay = new Map<
     string,
-    { t: number; label: string; vals: Record<string, number | null> }
+    {
+      t: number;
+      label: string;
+      perAthleteL: Map<string, number[]>;
+      perAthleteR: Map<string, number[]>;
+    }
   >();
-  const sideKeys = athleteKeys.flatMap((k) => [`${k}__L`, `${k}__R`]);
-  const nullRow = (): Record<string, number | null> =>
-    Object.fromEntries(sideKeys.map((k) => [k, null as number | null])) as Record<
-      string,
-      number | null
-    >;
 
   for (const prof of profiles) {
     for (const pt of prof.series[metric] ?? []) {
@@ -287,10 +303,15 @@ export function mergeLRPerLegRowsForMetric(
       const cur = byDay.get(dk) ?? {
         t: pt.t,
         label: formatChartAxisDate(pt.sessionDate),
-        vals: nullRow(),
+        perAthleteL: new Map<string, number[]>(),
+        perAthleteR: new Map<string, number[]>(),
       };
-      cur.vals[`${prof.athleteId}__L`] = pt.left;
-      cur.vals[`${prof.athleteId}__R`] = pt.right;
+      const lList = cur.perAthleteL.get(prof.athleteId) ?? [];
+      lList.push(pt.left);
+      cur.perAthleteL.set(prof.athleteId, lList);
+      const rList = cur.perAthleteR.get(prof.athleteId) ?? [];
+      rList.push(pt.right);
+      cur.perAthleteR.set(prof.athleteId, rList);
       cur.t = Math.min(cur.t, pt.t);
       byDay.set(dk, cur);
     }
@@ -300,7 +321,12 @@ export function mergeLRPerLegRowsForMetric(
     .sort((a, b) => a[1].t - b[1].t)
     .map(([, row]) => {
       const o: TrendRow = { t: row.t, label: row.label };
-      for (const k of sideKeys) o[k] = row.vals[k] ?? null;
+      for (const k of athleteKeys) {
+        const lVals = row.perAthleteL.get(k);
+        const rVals = row.perAthleteR.get(k);
+        o[`${k}__L`] = lVals && lVals.length > 0 ? aggregateValues(lVals, mode) : null;
+        o[`${k}__R`] = rVals && rVals.length > 0 ? aggregateValues(rVals, mode) : null;
+      }
       return o;
     });
 }
