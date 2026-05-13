@@ -23,19 +23,46 @@ function normalizeFullName(s: string): string {
 }
 
 function combineDateTime(dateStr: string, timeStr: string): string {
-  let d = dateStr.trim();
-  if (/^\d{2}\/\d{2}\/\d{4}$/.test(d)) {
-    const [dd, mm, yyyy] = d.split("/");
-    d = `${yyyy}-${mm}-${dd}`;
+  const d0 = dateStr.trim();
+  let iso: string | null = null;
+
+  // ISO already (YYYY-MM-DD) — accept as-is
+  if (/^\d{4}-\d{2}-\d{2}$/.test(d0)) {
+    iso = d0;
+  } else if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(d0)) {
+    // Ambiguous "a/b/yyyy" — disambiguate via heuristic, default to US MM/DD/YYYY
+    // since Hawkins is a US company and its CSV exports use that ordering.
+    const [a, b, yyyy] = d0.split("/");
+    const aN = Number(a);
+    const bN = Number(b);
+    let dd: string;
+    let mm: string;
+    if (aN > 12 && bN <= 12) {
+      // a must be the day → DD/MM/YYYY
+      dd = a.padStart(2, "0");
+      mm = b.padStart(2, "0");
+    } else if (bN > 12 && aN <= 12) {
+      // b must be the day → MM/DD/YYYY
+      mm = a.padStart(2, "0");
+      dd = b.padStart(2, "0");
+    } else {
+      // Both ≤ 12 (ambiguous). Hawkins default = MM/DD/YYYY.
+      mm = a.padStart(2, "0");
+      dd = b.padStart(2, "0");
+    }
+    iso = `${yyyy}-${mm}-${dd}`;
   }
-  const t = timeStr.trim() || "12:00:00";
-  const isoLocal = `${d}T${t}`;
-  const dt = new Date(isoLocal);
-  if (!Number.isNaN(dt.getTime())) return dt.toISOString();
-  const fallback = new Date(`${d}T12:00:00`);
-  return Number.isNaN(fallback.getTime())
+
+  if (iso) {
+    const t = timeStr.trim() || "12:00:00";
+    const dt = new Date(`${iso}T${t}`);
+    if (!Number.isNaN(dt.getTime())) return dt.toISOString();
+  }
+  // Last-resort: let Date try the raw string
+  const fb = new Date(`${d0}T${timeStr.trim() || "12:00:00"}`);
+  return Number.isNaN(fb.getTime())
     ? new Date().toISOString()
-    : fallback.toISOString();
+    : fb.toISOString();
 }
 
 type HawkinsBody = {
