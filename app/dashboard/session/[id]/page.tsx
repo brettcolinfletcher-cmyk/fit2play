@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import DashboardNav from "@/components/DashboardNav";
+import { formatDisplayDateTime } from "@/lib/dateDisplay";
 import SprintTimeSeriesGraphs from "@/components/graphs/SprintTimeSeriesGraphs";
 import PerformanceBandPill from "@/components/PerformanceBandPill";
 import AsymmetryPanel, {
@@ -370,12 +371,7 @@ export default function SessionPage() {
       "Unnamed athlete"
     : "Unknown athlete";
 
-  const dateLabel = session
-    ? new Date(session.created_at).toLocaleString("en-AU", {
-        dateStyle: "medium",
-        timeStyle: "short",
-      })
-    : "";
+  const dateLabel = session ? formatDisplayDateTime(session.created_at) : "";
 
   const headerTag = isHandheldDynoSession
     ? session?.test_type || "Handheld dynamometer"

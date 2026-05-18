@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import DashboardNav from "@/components/DashboardNav";
+import { formatDisplayDateTime } from "@/lib/dateDisplay";
 import { useRequireDashboardStaff } from "@/lib/useRequireDashboardStaff";
 
 type SourceStatus = {
@@ -16,15 +17,8 @@ type StatusPayload = {
 };
 
 function formatAest(iso: string) {
-  try {
-    return new Date(iso).toLocaleString("en-AU", {
-      timeZone: "Australia/Sydney",
-      dateStyle: "medium",
-      timeStyle: "short",
-    });
-  } catch {
-    return iso;
-  }
+  const s = formatDisplayDateTime(iso);
+  return s === "—" ? iso : s;
 }
 
 export default function SyncDashboardPage() {

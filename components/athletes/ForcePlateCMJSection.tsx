@@ -10,6 +10,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { formatDisplayDate } from "@/lib/dateDisplay";
 import SectionComment from "./SectionComment";
 
 export type CMJDataPoint = {
@@ -305,11 +306,7 @@ export function buildCmjDataPoints(
       }
       const jhAgg = jhM != null ? jhM * 100 : jhCm;
       out.push({
-        date: new Date(s.session_date).toLocaleDateString("en-AU", {
-          day: "numeric",
-          month: "short",
-          timeZone: "Australia/Sydney",
-        }),
+        date: formatDisplayDate(s.session_date),
         t: new Date(s.session_date).getTime(),
         jump_height: jhAgg != null && Number.isFinite(jhAgg) ? jhAgg : null,
         propulsive_impulse: pi,
@@ -327,11 +324,7 @@ export function buildCmjDataPoints(
         : bestRep.fp_jump_height_cm_best ?? null;
 
     out.push({
-      date: new Date(s.session_date).toLocaleDateString("en-AU", {
-        day: "numeric",
-        month: "short",
-        timeZone: "Australia/Sydney",
-      }),
+      date: formatDisplayDate(s.session_date),
       t: new Date(s.session_date).getTime(),
       jump_height: jh != null && Number.isFinite(jh) ? jh : null,
       propulsive_impulse: bestRep.fp_propulsive_impulse ?? null,

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import DashboardNav from "@/components/DashboardNav";
+import { formatDisplayDateTime } from "@/lib/dateDisplay";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -204,10 +205,7 @@ export default function OrganisationDashboardPage() {
                             {name}
                           </p>
                           <p className="text-[0.7rem] text-slate-400">
-                            {new Date(s.created_at).toLocaleString("en-AU", {
-                              dateStyle: "medium",
-                              timeStyle: "short",
-                            })}
+                            {formatDisplayDateTime(s.created_at)}
                           </p>
                         </div>
                         <div className="text-right text-[0.65rem] text-slate-500">

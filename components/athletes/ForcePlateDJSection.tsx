@@ -10,6 +10,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { formatDisplayDate } from "@/lib/dateDisplay";
 import SectionComment from "./SectionComment";
 
 export type DJDataPoint = {
@@ -355,11 +356,7 @@ function djRow(
   peakBraking: number | null
 ): DJDataPoint {
   return {
-    date: new Date(sessionDate).toLocaleDateString("en-AU", {
-      day: "numeric",
-      month: "short",
-      timeZone: "Australia/Sydney",
-    }),
+    date: formatDisplayDate(sessionDate),
     t: new Date(sessionDate).getTime(),
     rsi,
     jump_height_cm: jumpHeightCm,

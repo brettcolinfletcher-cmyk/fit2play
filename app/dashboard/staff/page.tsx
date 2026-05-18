@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import DashboardNav from "@/components/DashboardNav";
+import { formatDisplayDate } from "@/lib/dateDisplay";
 
 function supabase() {
   return createClient(
@@ -103,15 +104,7 @@ export default function StaffDashboardPage() {
   }, [athletes]);
 
   function fmtDate(iso: string) {
-    try {
-      return new Date(iso).toLocaleDateString("en-AU", {
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-      });
-    } catch {
-      return iso;
-    }
+    return formatDisplayDate(iso);
   }
 
   function fmtTestType(raw: string) {

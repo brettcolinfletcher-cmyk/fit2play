@@ -26,8 +26,10 @@ import SectionJumpNav from "@/components/athletes/SectionJumpNav";
 import TimepointSummary from "@/components/athletes/TimepointSummary";
 import {
   buildHopTestBlocks,
+  formatChartAxisDate,
   type ReportHopTestRow,
 } from "@/lib/athleteReportData";
+import { formatDisplayDateTime } from "@/lib/dateDisplay";
 import { normalizeReportMetricRow } from "@/lib/metricKeyNormalise";
 import { useRequireDashboardStaff } from "@/lib/useRequireDashboardStaff";
 import { supabase } from "@/lib/supabaseClient";
@@ -165,23 +167,7 @@ function bucket(source: string | null): "hawkins" | "1080" | "csv" {
 }
 
 function formatWhen(iso: string | null) {
-  if (!iso) return "—";
-  try {
-    return new Date(iso).toLocaleString("en-AU", {
-      timeZone: "Australia/Sydney",
-      dateStyle: "medium",
-      timeStyle: "short",
-    });
-  } catch { return iso; }
-}
-
-function formatChartAxisDate(iso: string | null): string {
-  if (!iso) return "—";
-  try {
-    return new Date(iso).toLocaleDateString("en-AU", {
-      day: "numeric", month: "short", timeZone: "Australia/Sydney",
-    });
-  } catch { return "—"; }
+  return formatDisplayDateTime(iso);
 }
 
 type HopTestDbRow = ReportHopTestRow;

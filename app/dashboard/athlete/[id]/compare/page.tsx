@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import DashboardNav from "@/components/DashboardNav";
+import { formatDisplayDate } from "@/lib/dateDisplay";
 import { normalizeReportMetricRow } from "@/lib/metricKeyNormalise";
 import { createClient } from "@supabase/supabase-js";
 
@@ -134,8 +135,7 @@ export default function ComparePage() {
                   </p>
                   <p className="text-xs text-slate-400">
                     Injured:{" "}
-                    {inj.date_injured &&
-                      new Date(inj.date_injured).toLocaleDateString("en-AU")}
+                    {inj.date_injured && formatDisplayDate(inj.date_injured)}
                   </p>
                 </button>
               ))}
@@ -265,7 +265,7 @@ export default function ComparePage() {
             {injury.diagnosis}
           </span>{" "}
           •{" "}
-          {new Date(injury.date_injured).toLocaleDateString("en-AU")}
+          {formatDisplayDate(injury.date_injured)}
         </p>
 
         {/* Window selector */}
@@ -419,10 +419,7 @@ export default function ComparePage() {
                     const rts = computeRTS(peak, split20, reps);
 
                     return {
-                      date: new Date(s.created_at).toLocaleDateString("en-AU", {
-                        day: "2-digit",
-                        month: "short",
-                      }),
+                      date: formatDisplayDate(s.created_at),
                       rts,
                       phase: "before",
                     };
@@ -435,10 +432,7 @@ export default function ComparePage() {
                     const rts = computeRTS(peak, split20, reps);
 
                     return {
-                      date: new Date(s.created_at).toLocaleDateString("en-AU", {
-                        day: "2-digit",
-                        month: "short",
-                      }),
+                      date: formatDisplayDate(s.created_at),
                       rts,
                       phase: "after",
                     };

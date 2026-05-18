@@ -4,6 +4,7 @@ import { useCallback, useRef, useState } from "react";
 import Link from "next/link";
 import Papa from "papaparse";
 import DashboardNav from "@/components/DashboardNav";
+import { formatDisplayDateTime } from "@/lib/dateDisplay";
 import { useRequireDashboardStaff } from "@/lib/useRequireDashboardStaff";
 import { normalizeForceplateMetrics } from "@/lib/uploadForceplateNormalize";
 
@@ -86,15 +87,8 @@ type MotionPreview = {
 };
 
 function formatPreviewDate(iso: string) {
-  try {
-    return new Date(iso).toLocaleString("en-AU", {
-      timeZone: "Australia/Sydney",
-      dateStyle: "medium",
-      timeStyle: "short",
-    });
-  } catch {
-    return iso;
-  }
+  const s = formatDisplayDateTime(iso);
+  return s === "—" ? iso : s;
 }
 
 export default function UploadPage() {

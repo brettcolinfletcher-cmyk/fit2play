@@ -23,6 +23,7 @@ import {
   ReferenceLine,
 } from "recharts";
 import type { NormalizedSession } from "@/lib/athleteDashboardData";
+import { formatDisplayDate } from "@/lib/dateDisplay";
 import {
   BENCHMARK_JUMP_HEIGHT_CM,
   BENCHMARK_PEAK_SPEED_MS,
@@ -341,10 +342,7 @@ export default function AthleteProfilePage() {
   const sprintChartData = useMemo(
     () =>
       sprintChrono.map((s) => ({
-        label: new Date(s.sessionDate ?? s.createdAt).toLocaleDateString("en-AU", {
-          day: "2-digit",
-          month: "short",
-        }),
+        label: formatDisplayDate(s.sessionDate ?? s.createdAt),
         peakSpeed: s.peakSpeed,
       })),
     [sprintChrono]
@@ -355,10 +353,7 @@ export default function AthleteProfilePage() {
       fpChrono
         .filter((s) => s.jumpHeightCm != null)
         .map((s) => ({
-          label: new Date(s.sessionDate ?? s.createdAt).toLocaleDateString("en-AU", {
-            day: "2-digit",
-            month: "short",
-          }),
+          label: formatDisplayDate(s.sessionDate ?? s.createdAt),
           jumpHeight: s.jumpHeightCm,
         })),
     [fpChrono]
@@ -461,13 +456,7 @@ export default function AthleteProfilePage() {
                       Last test (any)
                     </dt>
                     <dd className="font-medium text-slate-50">
-                      {lastTestDate
-                        ? lastTestDate.toLocaleDateString("en-AU", {
-                            day: "2-digit",
-                            month: "short",
-                            year: "numeric",
-                          })
-                        : "—"}
+                      {lastTestDate ? formatDisplayDate(lastTestDate) : "—"}
                     </dd>
                   </div>
                   <div>
@@ -475,13 +464,7 @@ export default function AthleteProfilePage() {
                       Sprint last
                     </dt>
                     <dd className="font-medium text-slate-50">
-                      {lastSprintDomain
-                        ? lastSprintDomain.toLocaleDateString("en-AU", {
-                            day: "2-digit",
-                            month: "short",
-                            year: "numeric",
-                          })
-                        : "—"}
+                      {lastSprintDomain ? formatDisplayDate(lastSprintDomain) : "—"}
                     </dd>
                   </div>
                   <div>
@@ -489,13 +472,7 @@ export default function AthleteProfilePage() {
                       Force plate last
                     </dt>
                     <dd className="font-medium text-slate-50">
-                      {lastForcePlateDomain
-                        ? lastForcePlateDomain.toLocaleDateString("en-AU", {
-                            day: "2-digit",
-                            month: "short",
-                            year: "numeric",
-                          })
-                        : "—"}
+                      {lastForcePlateDomain ? formatDisplayDate(lastForcePlateDomain) : "—"}
                     </dd>
                   </div>
                   <div>
@@ -503,13 +480,7 @@ export default function AthleteProfilePage() {
                       Dynamometer last
                     </dt>
                     <dd className="font-medium text-slate-50">
-                      {lastDynoDomain
-                        ? lastDynoDomain.toLocaleDateString("en-AU", {
-                            day: "2-digit",
-                            month: "short",
-                            year: "numeric",
-                          })
-                        : "—"}
+                      {lastDynoDomain ? formatDisplayDate(lastDynoDomain) : "—"}
                     </dd>
                   </div>
                   <div>
@@ -769,13 +740,7 @@ export default function AthleteProfilePage() {
               </h2>
               <p className="mt-1 text-xs text-slate-400">
                 Last tested:{" "}
-                {lastDynoDomain
-                  ? lastDynoDomain.toLocaleDateString("en-AU", {
-                      day: "2-digit",
-                      month: "short",
-                      year: "numeric",
-                    })
-                  : "—"}
+                {lastDynoDomain ? formatDisplayDate(lastDynoDomain) : "—"}
               </p>
               {dynoChrono.length === 0 ? (
                 <p className="mt-3 text-sm text-slate-400">
@@ -839,14 +804,7 @@ export default function AthleteProfilePage() {
                           }}
                         >
                           <td className="whitespace-nowrap px-5 py-3 text-xs text-slate-200">
-                            {new Date(s.sessionDate ?? s.createdAt).toLocaleDateString(
-                              "en-AU",
-                              {
-                                day: "2-digit",
-                                month: "short",
-                                year: "numeric",
-                              }
-                            )}
+                            {formatDisplayDate(s.sessionDate ?? s.createdAt)}
                           </td>
                           <td className="px-5 py-3 text-xs text-slate-200">
                             {formatTestTypeLabel(s.testType)}
@@ -891,16 +849,8 @@ export default function AthleteProfilePage() {
                       </p>
                       <p className="mt-2 text-xs text-slate-400">
                         Injured:{" "}
-                        {inj.date_injured
-                          ? new Date(inj.date_injured).toLocaleDateString(
-                              "en-AU"
-                            )
-                          : "—"}
-                        {inj.date_rtp
-                          ? ` · RTP: ${new Date(
-                              inj.date_rtp
-                            ).toLocaleDateString("en-AU")}`
-                          : ""}
+                        {inj.date_injured ? formatDisplayDate(inj.date_injured) : "—"}
+                        {inj.date_rtp ? ` · RTP: ${formatDisplayDate(inj.date_rtp)}` : ""}
                       </p>
                       {inj.status && (
                         <p className="mt-1 text-xs text-emerald-400">

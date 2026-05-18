@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { formatDisplayDate } from "@/lib/dateDisplay";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -26,10 +27,7 @@ export async function loadJumpHeightHistory(athleteId: string) {
   metrics?.forEach((m) => (map[m.session_id] = m.value));
 
   return sessions.map((s) => ({
-    date: new Date(s.created_at).toLocaleDateString("en-AU", {
-      month: "short",
-      day: "numeric",
-    }),
+    date: formatDisplayDate(s.created_at),
     jumpHeight: map[s.id] ?? null,
   }));
 }

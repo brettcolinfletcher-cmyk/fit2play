@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import DashboardNav from "@/components/DashboardNav";
+import { formatDisplayDateTime } from "@/lib/dateDisplay";
 import { useRequireDashboardStaff } from "@/lib/useRequireDashboardStaff";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -25,16 +26,7 @@ function displayName(a: AthleteRow): string {
 }
 
 function formatDate(iso: string | null | undefined) {
-  if (!iso) return "—";
-  try {
-    return new Date(iso).toLocaleString("en-AU", {
-      timeZone: "Australia/Sydney",
-      dateStyle: "medium",
-      timeStyle: "short",
-    });
-  } catch {
-    return iso;
-  }
+  return formatDisplayDateTime(iso);
 }
 
 export default function AthletesListPage() {

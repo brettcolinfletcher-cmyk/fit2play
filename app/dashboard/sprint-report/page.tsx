@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import DashboardNav from "@/components/DashboardNav";
+import { formatDisplayDate } from "@/lib/dateDisplay";
 import { normalizeReportMetricRow } from "@/lib/metricKeyNormalise";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
@@ -25,7 +26,7 @@ type ReportRow = {
 };
 
 function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString("en-AU", { day: "2-digit", month: "short", year: "2-digit" });
+  return formatDisplayDate(iso);
 }
 function athleteName(a: Athlete) {
   return `${a.last_name ?? ""}, ${a.first_name ?? ""}`.trim().replace(/^,\s*/, "");
