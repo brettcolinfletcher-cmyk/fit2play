@@ -220,7 +220,7 @@ async function loadAthleteRawBundle(
 ): Promise<AthleteRawBundle> {
   const sessRes = await supabase
     .from("sessions")
-    .select("id, session_date, test_type, test_sub_type, source, lr_starting_leg")
+    .select("id, session_date, test_type, test_sub_type, source, lr_starting_leg, lr_side_swap")
     .eq("athlete_id", athleteId)
     .order("session_date", { ascending: true });
   if (sessRes.error) throw new Error(sessRes.error.message);
@@ -603,6 +603,45 @@ export default function AthleteComparePage() {
     []
   );
 
+  /** Phase D-C: optimistic save for sessions.lr_side_swap from the LR editor. */
+  const handleUpdateLrSideSwap = useCallback(
+    async (athleteId: string, sessionId: string, value: boolean) => {
+      let previousValue: boolean | undefined;
+      setChartBundles((prev) => {
+        const cur = prev.get(athleteId);
+        if (!cur) return prev;
+        const nextSessions = cur.sessions.map((s) => {
+          if (s.id !== sessionId) return s;
+          previousValue = s.lr_side_swap === true;
+          return { ...s, lr_side_swap: value };
+        });
+        const next = new Map(prev);
+        next.set(athleteId, { ...cur, sessions: nextSessions });
+        return next;
+      });
+      const { error: upErr } = await supabase
+        .from("sessions")
+        .update({ lr_side_swap: value })
+        .eq("id", sessionId);
+      if (upErr) {
+        setChartLoadError(`Could not save side swap: ${upErr.message}`);
+        setChartBundles((prev) => {
+          const cur = prev.get(athleteId);
+          if (!cur) return prev;
+          const nextSessions = cur.sessions.map((s) =>
+            s.id === sessionId ? { ...s, lr_side_swap: previousValue ?? false } : s
+          );
+          const next = new Map(prev);
+          next.set(athleteId, { ...cur, sessions: nextSessions });
+          return next;
+        });
+      } else {
+        setChartLoadError(null);
+      }
+    },
+    []
+  );
+
   const modePill = (mode: CompareMode, label: string) => (
     <button
       type="button"
@@ -879,6 +918,7 @@ export default function AthleteComparePage() {
                     bundles={chartBundles}
                     athleteIdsOrdered={chartAthleteIds}
                     onUpdateLrStartingLeg={handleUpdateLrStartingLeg}
+                    onUpdateLrSideSwap={handleUpdateLrSideSwap}
                   />
                 ) : (
                   <p className="mt-6 text-xs text-slate-500">Loading comparison charts…</p>

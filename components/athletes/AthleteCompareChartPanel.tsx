@@ -42,6 +42,7 @@ import {
   type LREligibleSession,
   type LRRepAggregate,
 } from "@/lib/athleteCompareCharts";
+import LRStartingLegEditor from "@/components/athletes/LRStartingLegEditor";
 import {
   COMPARE_METRICS,
   compareMetricUnit,
@@ -360,134 +361,6 @@ function formatLrValue(v: number | null, unit: string): string {
   return Math.round(v).toLocaleString();
 }
 
-/** Per-athlete editor for the anatomical starting leg of each LR-eligible 1080 session. */
-function LRStartingLegEditor({
-  athleteIds,
-  nameById,
-  sessionsByAthlete,
-  onSave,
-  pending,
-}: {
-  athleteIds: string[];
-  nameById: Map<string, string>;
-  sessionsByAthlete: Map<string, LREligibleSession[]>;
-  onSave?: (
-    athleteId: string,
-    sessionId: string,
-    value: "left" | "right" | null
-  ) => void | Promise<void>;
-  pending: Set<string>;
-}) {
-  const athletesWithSessions = athleteIds.filter(
-    (id) => (sessionsByAthlete.get(id) ?? []).length > 0
-  );
-  if (athletesWithSessions.length === 0) return null;
-
-  const totalSessions = athletesWithSessions.reduce(
-    (n, id) => n + (sessionsByAthlete.get(id)?.length ?? 0),
-    0
-  );
-  const unsetCount = athletesWithSessions.reduce((n, id) => {
-    const rows = sessionsByAthlete.get(id) ?? [];
-    return n + rows.filter((r) => r.lrStartingLeg == null).length;
-  }, 0);
-
-  return (
-    <details className="mt-4 rounded-lg border border-slate-800 bg-slate-950/60" open={unsetCount > 0}>
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-xs font-medium text-slate-300">
-        <span>
-          Starting leg per LR session
-          <span className="ml-2 font-normal text-slate-500">
-            {unsetCount > 0
-              ? `${unsetCount} of ${totalSessions} unrecorded`
-              : `${totalSessions} session${totalSessions === 1 ? "" : "s"} recorded`}
-          </span>
-        </span>
-        <span className="text-[10px] uppercase tracking-wide text-slate-500">click to toggle</span>
-      </summary>
-      <div className="space-y-4 border-t border-slate-800 px-4 py-3">
-        {athletesWithSessions.map((athleteId) => {
-          const rows = sessionsByAthlete.get(athleteId) ?? [];
-          if (rows.length === 0) return null;
-          return (
-            <div key={athleteId}>
-              <p className="mb-1.5 text-xs font-medium text-slate-300">
-                {nameById.get(athleteId) ?? athleteId}
-              </p>
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[400px] text-left text-xs">
-                  <thead>
-                    <tr className="border-b border-slate-800 text-slate-500">
-                      <th className="py-1.5 pr-3 font-medium">Date</th>
-                      <th className="py-1.5 pr-3 font-medium">Sub-type</th>
-                      <th className="py-1.5 pr-3 font-medium">Starting leg</th>
-                    </tr>
-                  </thead>
-                  <tbody className="text-slate-200">
-                    {rows.map((row) => {
-                      const key = `${athleteId}:${row.sessionId}`;
-                      const isPending = pending.has(key);
-                      const dateBadge =
-                        row.totalSessionsOnDay > 1
-                          ? ` (${row.sessionIndexOnDay} of ${row.totalSessionsOnDay})`
-                          : "";
-                      return (
-                        <tr key={row.sessionId} className="border-b border-slate-800/60">
-                          <td className="py-1.5 pr-3 text-slate-400">
-                            {row.dateLabel}
-                            {dateBadge ? (
-                              <span className="ml-1 text-slate-500">{dateBadge}</span>
-                            ) : null}
-                          </td>
-                          <td className="py-1.5 pr-3 text-slate-400">
-                            <span>{row.testSubType ?? "—"}</span>
-                            <span className="ml-2 font-mono text-[10px] text-slate-500">
-                              {row.leftReps}L / {row.rightReps}R
-                            </span>
-                          </td>
-                          <td className="py-1.5 pr-3">
-                            <select
-                              value={row.lrStartingLeg ?? ""}
-                              disabled={!onSave || isPending}
-                              onChange={(e) => {
-                                if (!onSave) return;
-                                const v = e.target.value;
-                                const next: "left" | "right" | null =
-                                  v === "left" ? "left" : v === "right" ? "right" : null;
-                                void onSave(athleteId, row.sessionId, next);
-                              }}
-                              className={`rounded-md border bg-slate-950 px-2 py-1 text-xs text-slate-200 disabled:opacity-50 ${
-                                row.lrStartingLeg == null
-                                  ? "border-amber-500/50"
-                                  : "border-slate-700"
-                              }`}
-                            >
-                              <option value="">Not set</option>
-                              <option value="left">Left</option>
-                              <option value="right">Right</option>
-                            </select>
-                            {isPending ? (
-                              <span className="ml-2 text-[10px] text-slate-500">saving…</span>
-                            ) : null}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          );
-        })}
-        <p className="text-[11px] text-slate-500">
-          Record which anatomical leg the athlete started the test with. Used as clinical metadata
-          and (later) to verify or override 1080 Motion's side labels.
-        </p>
-      </div>
-    </details>
-  );
-}
-
 /** Latest L vs R bar chart per athlete for one LR metric, with flag indicators. */
 function LRLatestCard({
   title,
@@ -504,12 +377,15 @@ function LRLatestCard({
 }) {
   const rows = latest.filter((row) => row.left != null && row.right != null);
   const data = rows.map((row) => ({
+    athleteId: row.athleteId,
     label: nameById.get(row.athleteId) ?? row.athleteId,
     Left: row.left,
     Right: row.right,
     pctDiff: row.pctDiff,
     flagged: row.flagged,
     date: row.dateLabel,
+    startingLeg: row.lrStartingLeg,
+    swapped: row.lrSideSwap,
   }));
 
   return (
@@ -551,8 +427,23 @@ function LRLatestCard({
           </div>
           <div className="mt-3 space-y-1">
             {data.map((d) => (
-              <div key={d.label} className="flex items-center justify-between text-xs">
-                <span className="text-slate-400">{d.label}</span>
+              <div key={d.athleteId} className="flex items-center justify-between text-xs">
+                <span className="flex items-center gap-1.5 text-slate-400">
+                  {d.label}
+                  {d.startingLeg ? (
+                    <span className="rounded border border-slate-700 bg-slate-900 px-1 py-px text-[9px] font-medium uppercase tracking-wide text-slate-400">
+                      Started {d.startingLeg === "left" ? "L" : "R"}
+                    </span>
+                  ) : null}
+                  {d.swapped ? (
+                    <span
+                      className="rounded border border-rose-700 bg-rose-950/50 px-1 py-px text-[9px] font-medium uppercase tracking-wide text-rose-300"
+                      title="L/R labels swapped from 1080's recording"
+                    >
+                      Swap
+                    </span>
+                  ) : null}
+                </span>
                 <span className="flex items-center gap-2 font-mono text-slate-300">
                   <span>L {formatLrValue(d.Left, unit)}</span>
                   <span>R {formatLrValue(d.Right, unit)}</span>
@@ -577,6 +468,7 @@ export default function AthleteCompareChartPanel({
   bundles,
   athleteIdsOrdered,
   onUpdateLrStartingLeg,
+  onUpdateLrSideSwap,
 }: {
   athletes: AthleteOpt[];
   bundles: Map<string, AthleteRawBundle>;
@@ -586,6 +478,12 @@ export default function AthleteCompareChartPanel({
     athleteId: string,
     sessionId: string,
     value: "left" | "right" | null
+  ) => void | Promise<void>;
+  /** Phase D-C: save callback for the LR side-swap toggle. */
+  onUpdateLrSideSwap?: (
+    athleteId: string,
+    sessionId: string,
+    value: boolean
   ) => void | Promise<void>;
 }) {
   const [view, setView] = useState<ChartView>("trends");
@@ -603,7 +501,7 @@ export default function AthleteCompareChartPanel({
       sessionId: string,
       value: "left" | "right" | null
     ) => {
-      const key = `${athleteId}:${sessionId}`;
+      const key = `leg:${athleteId}:${sessionId}`;
       setLrPending((prev) => {
         const next = new Set(prev);
         next.add(key);
@@ -620,6 +518,27 @@ export default function AthleteCompareChartPanel({
       }
     };
   }, [onUpdateLrStartingLeg]);
+
+  const handleSaveLrSwap = useMemo(() => {
+    if (!onUpdateLrSideSwap) return undefined;
+    return async (athleteId: string, sessionId: string, value: boolean) => {
+      const key = `swap:${athleteId}:${sessionId}`;
+      setLrPending((prev) => {
+        const next = new Set(prev);
+        next.add(key);
+        return next;
+      });
+      try {
+        await onUpdateLrSideSwap(athleteId, sessionId, value);
+      } finally {
+        setLrPending((prev) => {
+          const next = new Set(prev);
+          next.delete(key);
+          return next;
+        });
+      }
+    };
+  }, [onUpdateLrSideSwap]);
 
   const profiles: AthleteCompareSeries[] = useMemo(() => {
     const out: AthleteCompareSeries[] = [];
@@ -1017,7 +936,8 @@ export default function AthleteCompareChartPanel({
                 athleteIds={athleteIds}
                 nameById={nameById}
                 sessionsByAthlete={lrSessionsByAthlete}
-                onSave={handleSaveLrLeg}
+                onSaveLeg={handleSaveLrLeg}
+                onSaveSwap={handleSaveLrSwap}
                 pending={lrPending}
               />
               <div className="mt-3 flex flex-wrap items-center justify-between gap-2">

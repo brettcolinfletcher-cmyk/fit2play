@@ -501,6 +501,10 @@ export type LRPoint = {
   pctDiff: number;
   /** True when pctDiff exceeds the metric's redFlagPctDiff threshold. */
   flagged: boolean;
+  /** Anatomical starting leg recorded by the practitioner. */
+  lrStartingLeg: "left" | "right" | null;
+  /** Whether the 1080 side labels were swapped at read time. */
+  lrSideSwap: boolean;
 };
 
 export type CompareLRMetricDef = {
@@ -621,8 +625,14 @@ export function extractLRPoints(
 
   const out: LRPoint[] = [];
   for (const s of sess1080) {
-    const left = aggregateSessionSide(bundle.metricsBySession, s.id, def.metricKey, "left", mode);
-    const right = aggregateSessionSide(bundle.metricsBySession, s.id, def.metricKey, "right", mode);
+    const swap = s.lr_side_swap === true;
+    // When swap is true, the metric rows tagged side='left' represent the anatomical right
+    // leg, and vice versa. We swap at read time so the rest of the UI can treat the values
+    // as anatomical left/right consistently.
+    const leftSide: "left" | "right" = swap ? "right" : "left";
+    const rightSide: "left" | "right" = swap ? "left" : "right";
+    const left = aggregateSessionSide(bundle.metricsBySession, s.id, def.metricKey, leftSide, mode);
+    const right = aggregateSessionSide(bundle.metricsBySession, s.id, def.metricKey, rightSide, mode);
     if (left == null || right == null) continue;
     if (!Number.isFinite(left) || !Number.isFinite(right)) continue;
     const lsi = lsiPercent(left, right);
@@ -638,6 +648,8 @@ export function extractLRPoints(
       lsi,
       pctDiff,
       flagged: pctDiff > def.redFlagPctDiff,
+      lrStartingLeg: (s.lr_starting_leg ?? null) as "left" | "right" | null,
+      lrSideSwap: swap,
     });
   }
   out.sort((a, b) => a.t - b.t || a.sessionId.localeCompare(b.sessionId));

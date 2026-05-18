@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
@@ -20,6 +20,7 @@ import ForcePlateCMJSection, {
 } from "@/components/athletes/ForcePlateCMJSection";
 import ForcePlateDJSection, { buildDjDataPoints } from "@/components/athletes/ForcePlateDJSection";
 import HopTestsSection from "@/components/athletes/HopTestsSection";
+import LRStartingLegEditor from "@/components/athletes/LRStartingLegEditor";
 import PdfExportModal from "@/components/athletes/PdfExportModal";
 import SectionComment from "@/components/athletes/SectionComment";
 import SectionJumpNav from "@/components/athletes/SectionJumpNav";
@@ -28,7 +29,13 @@ import {
   buildHopTestBlocks,
   formatChartAxisDate,
   type ReportHopTestRow,
+  type ReportSessionRow,
+  type ReportMetricRow,
 } from "@/lib/athleteReportData";
+import {
+  lrEligibleSessionsForAthlete,
+  type LREligibleSession,
+} from "@/lib/athleteCompareCharts";
 import { formatDisplayDateTime } from "@/lib/dateDisplay";
 import { normalizeReportMetricRow } from "@/lib/metricKeyNormalise";
 import { useRequireDashboardStaff } from "@/lib/useRequireDashboardStaff";
@@ -147,6 +154,8 @@ type SessionRow = {
   test_sub_type: string | null;
   source: string | null;
   clinician_notes?: string | null;
+  lr_starting_leg?: "left" | "right" | null;
+  lr_side_swap?: boolean;
 };
 
 type MetricRow = {
@@ -271,6 +280,8 @@ export default function AthleteDetailPage() {
   const [rangeStart, setRangeStart] = useState<string | null>(null);
   const [rangeEnd, setRangeEnd] = useState<string | null>(null);
   const [pdfModalOpen, setPdfModalOpen] = useState(false);
+  const [lrPending, setLrPending] = useState<Set<string>>(() => new Set());
+  const [lrSaveError, setLrSaveError] = useState<string | null>(null);
 
   function inRange(dateIso: string | null): boolean {
     if (!dateIso) return true;
@@ -279,6 +290,103 @@ export default function AthleteDetailPage() {
     if (rangeEnd && d > rangeEnd) return false;
     return true;
   }
+
+  // ── Phase D-C: LR session editor wiring ─────────────────────────────────────
+
+  const handleUpdateLrStartingLeg = useCallback(
+    async (
+      _athleteId: string,
+      sessionId: string,
+      value: "left" | "right" | null
+    ) => {
+      const pendKey = `leg:${id}:${sessionId}`;
+      setLrPending((prev) => new Set(prev).add(pendKey));
+      let previousValue: "left" | "right" | null | undefined;
+      setSessions((prev) =>
+        prev.map((s) => {
+          if (s.id !== sessionId) return s;
+          previousValue = (s.lr_starting_leg ?? null) as "left" | "right" | null;
+          return { ...s, lr_starting_leg: value };
+        })
+      );
+      const { error: upErr } = await supabase
+        .from("sessions")
+        .update({ lr_starting_leg: value })
+        .eq("id", sessionId);
+      setLrPending((prev) => {
+        const next = new Set(prev);
+        next.delete(pendKey);
+        return next;
+      });
+      if (upErr) {
+        setLrSaveError(`Could not save starting leg: ${upErr.message}`);
+        setSessions((prev) =>
+          prev.map((s) =>
+            s.id === sessionId ? { ...s, lr_starting_leg: previousValue ?? null } : s
+          )
+        );
+      } else {
+        setLrSaveError(null);
+      }
+    },
+    [id]
+  );
+
+  const handleUpdateLrSideSwap = useCallback(
+    async (_athleteId: string, sessionId: string, value: boolean) => {
+      const pendKey = `swap:${id}:${sessionId}`;
+      setLrPending((prev) => new Set(prev).add(pendKey));
+      let previousValue: boolean | undefined;
+      setSessions((prev) =>
+        prev.map((s) => {
+          if (s.id !== sessionId) return s;
+          previousValue = s.lr_side_swap === true;
+          return { ...s, lr_side_swap: value };
+        })
+      );
+      const { error: upErr } = await supabase
+        .from("sessions")
+        .update({ lr_side_swap: value })
+        .eq("id", sessionId);
+      setLrPending((prev) => {
+        const next = new Set(prev);
+        next.delete(pendKey);
+        return next;
+      });
+      if (upErr) {
+        setLrSaveError(`Could not save side swap: ${upErr.message}`);
+        setSessions((prev) =>
+          prev.map((s) =>
+            s.id === sessionId ? { ...s, lr_side_swap: previousValue ?? false } : s
+          )
+        );
+      } else {
+        setLrSaveError(null);
+      }
+    },
+    [id]
+  );
+
+  /** LR-eligible sessions for THIS athlete, wrapped in the Map shape the editor expects. */
+  const lrSessionsByAthlete = useMemo(() => {
+    if (!id) return new Map<string, LREligibleSession[]>();
+    const bundle = {
+      sessions: sessions as unknown as ReportSessionRow[],
+      metricsBySession: metricsBySession as unknown as Map<string, ReportMetricRow[]>,
+      hopTests: hopTests as unknown as ReportHopTestRow[],
+    };
+    const list = lrEligibleSessionsForAthlete(id, bundle);
+    return new Map<string, LREligibleSession[]>([[id, list]]);
+  }, [id, sessions, metricsBySession, hopTests]);
+
+  const lrNameById = useMemo(() => {
+    const m = new Map<string, string>();
+    if (id && athlete) {
+      const nm = `${athlete.first_name ?? ""} ${athlete.last_name ?? ""}`.trim() || "Athlete";
+      m.set(id, nm);
+    }
+    return m;
+  }, [id, athlete]);
 
   useEffect(() => {
     if (!staffOk || !id) return;
@@ -293,7 +401,7 @@ export default function AthleteDetailPage() {
 
       const { data: s, error: sErr } = await supabase
         .from("sessions")
-        .select("id, session_date, test_type, test_sub_type, source, clinician_notes")
+        .select("id, session_date, test_type, test_sub_type, source, clinician_notes, lr_starting_leg, lr_side_swap")
         .eq("athlete_id", id)
         .order("session_date", { ascending: false });
 
@@ -886,6 +994,31 @@ export default function AthleteDetailPage() {
               athleteId={id}
               sectionComment={sectionNote("dynamometry")}
             />
+
+            {/* ── LR session settings (Phase D-C) ── */}
+            {lrSessionsByAthlete.get(id)?.length ? (
+              <section id="lr_settings" className="scroll-mt-28 mt-10">
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-lime-300">
+                  Left/Right session settings
+                </h2>
+                <p className="mt-1 text-xs text-slate-500">
+                  Record the anatomical starting leg and (if needed) flip the 1080 L/R labels for each
+                  Left-Right protocol session.
+                </p>
+                {lrSaveError ? (
+                  <p className="mt-2 text-xs text-rose-400">{lrSaveError}</p>
+                ) : null}
+                <LRStartingLegEditor
+                  athleteIds={[id]}
+                  nameById={lrNameById}
+                  sessionsByAthlete={lrSessionsByAthlete}
+                  onSaveLeg={handleUpdateLrStartingLeg}
+                  onSaveSwap={handleUpdateLrSideSwap}
+                  pending={lrPending}
+                  title="LR sessions"
+                />
+              </section>
+            ) : null}
 
             {/* ── Sessions ── */}
             <div className="mt-10 flex flex-wrap items-center justify-between gap-2">

@@ -14,6 +14,8 @@ export type ReportSessionRow = {
   source: string | null;
   /** Phase D: athlete's anatomical leg that started a Left-Right protocol. */
   lr_starting_leg?: "left" | "right" | null;
+  /** Phase D-C: when true, swap metrics.side left↔right for this session at read time. */
+  lr_side_swap?: boolean;
 };
 
 export type ReportMetricRow = {

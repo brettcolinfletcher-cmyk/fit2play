@@ -333,6 +333,7 @@ export function mergeLRPerLegRowsForMetric(
 
 export type LRLatest = {
   athleteId: string;
+  sessionId: string | null;
   sessionDate: string | null;
   dateLabel: string;
   left: number | null;
@@ -340,6 +341,8 @@ export type LRLatest = {
   lsi: number | null;
   pctDiff: number | null;
   flagged: boolean;
+  lrStartingLeg: "left" | "right" | null;
+  lrSideSwap: boolean;
 };
 
 /** Latest LR point per athlete for a metric. */
@@ -359,6 +362,7 @@ export function lrLatestForMetric(
     if (best) {
       out.push({
         athleteId: id,
+        sessionId: best.sessionId,
         sessionDate: best.sessionDate,
         dateLabel: formatChartAxisDate(best.sessionDate),
         left: best.left,
@@ -366,10 +370,13 @@ export function lrLatestForMetric(
         lsi: best.lsi,
         pctDiff: best.pctDiff,
         flagged: best.flagged,
+        lrStartingLeg: best.lrStartingLeg,
+        lrSideSwap: best.lrSideSwap,
       });
     } else {
       out.push({
         athleteId: id,
+        sessionId: null,
         sessionDate: null,
         dateLabel: "—",
         left: null,
@@ -377,6 +384,8 @@ export function lrLatestForMetric(
         lsi: null,
         pctDiff: null,
         flagged: false,
+        lrStartingLeg: null,
+        lrSideSwap: false,
       });
     }
   }
@@ -398,6 +407,8 @@ export type LREligibleSession = {
   dateLabel: string;
   testSubType: string | null;
   lrStartingLeg: "left" | "right" | null;
+  /** Phase D-C: practitioner override that swaps 1080 L/R labels at read time. */
+  lrSideSwap: boolean;
   /** Rep counts per side across all LR registry metrics (use max across metrics so we don't double-count). */
   leftReps: number;
   rightReps: number;
@@ -461,6 +472,7 @@ export function lrEligibleSessionsForAthlete(
       dateLabel: formatChartAxisDate(s.session_date),
       testSubType: s.test_sub_type,
       lrStartingLeg: (s.lr_starting_leg ?? null) as "left" | "right" | null,
+      lrSideSwap: s.lr_side_swap === true,
       leftReps,
       rightReps,
     });
