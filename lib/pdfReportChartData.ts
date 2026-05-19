@@ -15,8 +15,6 @@ import {
   type ReportMetricRow,
   type ReportSessionRow,
 } from "@/lib/athleteReportData";
-import { normalizeMetricsBySessionMap } from "@/lib/metricKeyNormalise";
-
 export type MetricRowWithSide = ReportMetricRow & { side?: string | null };
 
 function is1080(s: ReportSessionRow): boolean {
@@ -129,9 +127,7 @@ export function buildPdfReportCharts(
   rangeStart: string | null,
   rangeEnd: string | null
 ): PdfReportCharts {
-  const metricsNorm = normalizeMetricsBySessionMap(
-    metricsBySession as Map<string, ReportMetricRow[]>
-  ) as Map<string, MetricRowWithSide[]>;
+  const metricsNorm = metricsBySession as Map<string, MetricRowWithSide[]>;
 
   const rangeCaption =
     rangeStart || rangeEnd

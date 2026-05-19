@@ -13,6 +13,23 @@ const METRIC_KEYS = [
   "split20m",
 ] as const;
 
+// CSV/form input field names → canonical DB metric keys.
+// The form (app/dashboard/add-test/1080/page.tsx) sends these field names
+// because they match the 1080 device CSV column headers. The DB stores
+// canonical snake_case keys. See docs/metrics.md.
+const CSV_TO_CANONICAL: Record<(typeof METRIC_KEYS)[number], string> = {
+  peakSpeed: "top_speed",
+  peakForce: "peak_force",
+  peakPower: "peak_power",
+  split5m: "split_5m_time",
+  split10m: "split_10m_time",
+  split20m: "split_20m_time",
+};
+
+function canonicalDbKey(key: string): string {
+  return (CSV_TO_CANONICAL as Record<string, string>)[key] ?? key;
+}
+
 type MetricInsert = {
   session_id: string;
   key: string;
@@ -33,7 +50,7 @@ function collectMetricRows(
       if (typeof v === "number" && !Number.isNaN(v) && v !== 0) {
         rows.push({
           session_id: sessionId,
-          key: k,
+          key: CSV_TO_CANONICAL[k],
           value: v,
           rep_index: null,
         });
@@ -57,7 +74,7 @@ function collectMetricRows(
         if (typeof v === "number" && !Number.isNaN(v) && v !== 0) {
           rows.push({
             session_id: sessionId,
-            key: k,
+            key: CSV_TO_CANONICAL[k],
             value: v,
             rep_index: ri,
           });
@@ -234,7 +251,7 @@ export async function POST(req: Request) {
       )
       .map(([key, value]) => ({
         session_id: sessionId,
-        key,
+        key: canonicalDbKey(key),
         value: value as number,
         rep_index: null as number | null,
       }));

@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import DashboardNav from "@/components/DashboardNav";
 import { formatDisplayDate } from "@/lib/dateDisplay";
-import { normalizeReportMetricRow } from "@/lib/metricKeyNormalise";
 import { createClient } from "@supabase/supabase-js";
 
 import {
@@ -101,7 +100,7 @@ export default function ComparePage() {
           .select("*")
           .in("session_id", ids);
 
-        setMetrics((mets || []).map((r) => normalizeReportMetricRow(r)));
+        setMetrics(mets || []);
       }
 
       setLoading(false);

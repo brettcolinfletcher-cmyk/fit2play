@@ -29,6 +29,20 @@ function parseSessionDate(dateStr: string): string {
   return new Date().toISOString();
 }
 
+// CSV/set payload field names → canonical DB metric keys. See docs/metrics.md.
+const CSV_TO_CANONICAL: Record<string, string> = {
+  peakSpeed: "top_speed",
+  peakForce: "peak_force",
+  peakPower: "peak_power",
+  split5m: "split_5m_time",
+  split10m: "split_10m_time",
+  split20m: "split_20m_time",
+};
+
+function canonicalDbKey(key: string): string {
+  return CSV_TO_CANONICAL[key] ?? key;
+}
+
 type Upload1080Body = {
   sessionId: string;
   date: string;
@@ -150,7 +164,7 @@ export async function POST(request: Request) {
           if (typeof value === "number" && !Number.isNaN(value)) {
             metricRows.push({
               session_id: sid,
-              key,
+              key: canonicalDbKey(key),
               value,
               rep_index,
               side: null,
@@ -210,7 +224,7 @@ export async function POST(request: Request) {
         if (typeof value === "number" && !Number.isNaN(value)) {
           metricRows.push({
             session_id: sid,
-            key,
+            key: canonicalDbKey(key),
             value,
             rep_index,
             side: null,

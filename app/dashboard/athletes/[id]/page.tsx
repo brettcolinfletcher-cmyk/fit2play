@@ -37,7 +37,6 @@ import {
   type LREligibleSession,
 } from "@/lib/athleteCompareCharts";
 import { formatDisplayDateTime } from "@/lib/dateDisplay";
-import { normalizeReportMetricRow } from "@/lib/metricKeyNormalise";
 import { useRequireDashboardStaff } from "@/lib/useRequireDashboardStaff";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -428,7 +427,7 @@ export default function AthleteDetailPage() {
         }
         for (const row of (mrows ?? []) as MetricRow[]) {
           const list = map.get(row.session_id) ?? [];
-          list.push(normalizeReportMetricRow(row));
+          list.push(row);
           map.set(row.session_id, list);
         }
       }
