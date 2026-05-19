@@ -46,7 +46,7 @@ export default function LoginPage() {
         <div className="mb-8 flex flex-col items-center gap-2">
           <Link href="/">
             <Image
-              src="/logo_full_original.png"
+              src="/fit2play_logo_transparent.png"
               alt="Fit2Play"
               width={160}
               height={60}
