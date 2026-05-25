@@ -309,7 +309,7 @@ export default function AthletesListPage() {
       : "Archived";
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-50">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_#111827_0,_#020617_55%)] text-slate-50">
       <DashboardNav />
       <section className="mx-auto max-w-7xl px-4 pt-8 pb-20">
         {/* Header */}
@@ -683,7 +683,7 @@ function AthleteCard({
   return (
     <Link
       href={`/dashboard/athletes/${athlete.id}`}
-      className="group block rounded-xl border border-slate-800 bg-slate-900/40 p-4 transition hover:border-slate-700 hover:bg-slate-900/70"
+      className="group block rounded-xl border border-slate-800 bg-slate-900/40 p-4 transition hover:border-lime-400/40 hover:bg-slate-900/70 hover:shadow-lg hover:shadow-lime-400/10"
     >
       <div className="flex items-start gap-3">
         {athlete.profile_image_url ? (

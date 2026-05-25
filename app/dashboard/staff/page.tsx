@@ -238,7 +238,7 @@ export default function StaffDashboardPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-50">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_#111827_0,_#020617_55%)] text-slate-50">
       <DashboardNav />
 
       <section className="mx-auto max-w-7xl px-4 pt-8 pb-20">
@@ -285,6 +285,7 @@ export default function StaffDashboardPage() {
             <SectionCard
               title="Needs attention"
               accent="amber"
+              glow
               subtitle={`Threshold: ${Math.floor(OVERDUE_DAYS / 7)} weeks without a test`}
             >
               {loading ? (
@@ -345,7 +346,7 @@ export default function StaffDashboardPage() {
 
           {/* Recent activity — right */}
           <div className="lg:col-span-2">
-            <SectionCard title="Recent activity" accent="lime">
+            <SectionCard title="Recent activity" accent="lime" glow>
               {loading ? (
                 <p className="px-4 py-6 text-center text-xs text-slate-500">
                   Loading…
@@ -436,16 +437,25 @@ function SectionCard({
   title,
   subtitle,
   accent,
+  glow = false,
   children,
 }: {
   title: string;
   subtitle?: string;
   accent: "amber" | "lime";
+  glow?: boolean;
   children: React.ReactNode;
 }) {
   const dotCls = accent === "amber" ? "bg-amber-400" : "bg-lime-400";
+  const glowCls = glow
+    ? accent === "amber"
+      ? "shadow-xl shadow-amber-400/15"
+      : "shadow-xl shadow-lime-400/15"
+    : "";
   return (
-    <div className="rounded-2xl border border-slate-800 bg-slate-900/40">
+    <div
+      className={`rounded-2xl border border-slate-800 bg-slate-900/40 ${glowCls}`}
+    >
       <div className="flex items-center justify-between border-b border-slate-800 px-4 py-3">
         <div className="flex items-center gap-2">
           <span className={`inline-block h-2 w-2 rounded-full ${dotCls}`} />
