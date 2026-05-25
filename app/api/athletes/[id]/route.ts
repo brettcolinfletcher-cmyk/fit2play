@@ -16,12 +16,21 @@ const ALLOWED_PATCH = [
   "dominant_leg",
   "dominant_hand",
   "notes",
+  "status",
 ] as const;
+
+const VALID_STATUSES = new Set(["active", "monitoring", "archived"]);
 
 function pickAllowedPatch(body: Record<string, unknown>) {
   const out: Record<string, unknown> = {};
   for (const k of ALLOWED_PATCH) {
     if (k in body) out[k] = body[k];
+  }
+  // Validate status enum before it reaches the DB CHECK constraint
+  if ("status" in out && out.status !== null && !VALID_STATUSES.has(String(out.status))) {
+    throw new Error(
+      `Invalid status: must be one of active, monitoring, archived`
+    );
   }
   return out;
 }
@@ -85,7 +94,13 @@ export async function PATCH(
   }
 
   const body = (await req.json()) as Record<string, unknown>;
-  const row = pickAllowedPatch(body);
+  let row: Record<string, unknown>;
+  try {
+    row = pickAllowedPatch(body);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Invalid request body";
+    return NextResponse.json({ error: msg }, { status: 400 });
+  }
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

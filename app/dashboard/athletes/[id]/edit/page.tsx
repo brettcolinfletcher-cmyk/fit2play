@@ -9,12 +9,21 @@ import { supabase } from "@/lib/supabaseClient";
 
 const LR_OPTIONS = ["Left", "Right", "Both"] as const;
 
+type AthleteStatus = "active" | "monitoring" | "archived";
+
+const STATUS_OPTIONS: { value: AthleteStatus; label: string; hint: string }[] = [
+  { value: "active", label: "Active", hint: "Current caseload" },
+  { value: "monitoring", label: "Monitoring", hint: "Watch-list / discharged check-ins" },
+  { value: "archived", label: "Archived", hint: "Hidden from main list" },
+];
+
 type FormState = {
   first_name: string;
   last_name: string;
   email: string;
   team: string;
   primary_sport: string;
+  status: AthleteStatus;
   height_cm: string;
   weight_kg: string;
   dominant_leg: string;
@@ -28,6 +37,7 @@ const emptyForm: FormState = {
   email: "",
   team: "",
   primary_sport: "",
+  status: "active",
   height_cm: "",
   weight_kg: "",
   dominant_leg: "",
@@ -65,12 +75,18 @@ export default function EditAthletePage() {
       }
 
       const a = data as Record<string, unknown>;
+      const loadedStatus = String(a.status ?? "active");
+      const safeStatus: AthleteStatus =
+        loadedStatus === "monitoring" || loadedStatus === "archived"
+          ? loadedStatus
+          : "active";
       setForm({
         first_name: String(a.first_name ?? ""),
         last_name: String(a.last_name ?? ""),
         email: String(a.email ?? ""),
         team: String(a.team ?? ""),
         primary_sport: String(a.primary_sport ?? ""),
+        status: safeStatus,
         height_cm:
           a.height_cm != null && a.height_cm !== ""
             ? String(a.height_cm)
@@ -105,6 +121,7 @@ export default function EditAthletePage() {
       email: form.email.trim() || null,
       team: form.team.trim() || null,
       primary_sport: form.primary_sport.trim() || null,
+      status: form.status,
       notes: form.notes.trim() || null,
       dominant_leg: form.dominant_leg || null,
       dominant_hand: form.dominant_hand || null,
@@ -248,6 +265,29 @@ export default function EditAthletePage() {
                   }
                 />
               </div>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs text-slate-400">Status</label>
+              <select
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-slate-100"
+                value={form.status}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    status: e.target.value as AthleteStatus,
+                  }))
+                }
+              >
+                {STATUS_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-[11px] text-slate-500">
+                {STATUS_OPTIONS.find((o) => o.value === form.status)?.hint}
+              </p>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
