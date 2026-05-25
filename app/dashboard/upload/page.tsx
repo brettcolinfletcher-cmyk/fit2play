@@ -451,7 +451,7 @@ export default function UploadPage() {
 
         <div className="mt-10 grid gap-8 lg:grid-cols-2">
           {/* Hawkins */}
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/30 p-6">
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/30 p-6 shadow-xl shadow-lime-400/10">
             <h2 className="text-sm font-medium text-lime-300">Hawkins</h2>
             <p className="mt-1 text-xs text-slate-500">
               Force plate CSV — one test per file (first data row).
@@ -530,7 +530,7 @@ export default function UploadPage() {
           </div>
 
           {/* 1080 */}
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/30 p-6">
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/30 p-6 shadow-xl shadow-lime-400/10">
             <h2 className="text-sm font-medium text-lime-300">1080 Motion</h2>
             <p className="mt-1 text-xs text-slate-500">
               Session rows — each row is one set; metric columns are numeric.

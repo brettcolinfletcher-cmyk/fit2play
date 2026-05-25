@@ -179,7 +179,7 @@ function SyncCard({
   formatAest: (iso: string) => string;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
+    <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow-xl shadow-lime-400/10">
       <h2 className="text-sm font-semibold uppercase tracking-widest text-lime-300">
         {title}
       </h2>

@@ -138,7 +138,7 @@ export default function OrganisationDashboardPage() {
 
         <div className="grid gap-6 md:grid-cols-[minmax(0,1.1fr)_minmax(0,1.1fr)]">
           {/* Athletes list */}
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 text-xs">
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 text-xs shadow-xl shadow-lime-400/10">
             <h2 className="text-sm font-semibold text-lime-300 mb-3">
               Athletes in your organisation
             </h2>
@@ -177,7 +177,7 @@ export default function OrganisationDashboardPage() {
           </div>
 
           {/* Recent sessions */}
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 text-xs">
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 text-xs shadow-xl shadow-lime-400/10">
             <h2 className="text-sm font-semibold text-lime-300 mb-3">
               Recent sessions
             </h2>

@@ -454,7 +454,7 @@ export default function SessionPage() {
           </p>
         ) : (
           <>
-            <header className="mb-6 rounded-2xl border border-slate-800 bg-slate-900/70 p-5 flex flex-wrap items-start justify-between gap-4">
+            <header className="mb-6 rounded-2xl border border-slate-800 bg-slate-900/70 p-5 flex flex-wrap items-start justify-between gap-4 shadow-xl shadow-lime-400/10">
               <div>
                 <p className="text-[0.7rem] uppercase tracking-wide text-slate-400">
                   {headerTag}

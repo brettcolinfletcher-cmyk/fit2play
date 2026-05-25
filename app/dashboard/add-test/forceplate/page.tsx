@@ -703,7 +703,7 @@ export default function ForcePlateUploadPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-50">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_#111827_0,_#020617_55%)] text-slate-50">
       <DashboardNav />
 
       <section className="mx-auto max-w-3xl px-6 pt-8 pb-20">
@@ -747,7 +747,7 @@ export default function ForcePlateUploadPage() {
           </div>
         )}
 
-        <div className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/70 p-5 text-xs">
+        <div className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/70 p-5 text-xs shadow-xl shadow-lime-400/10">
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <p className="mb-1 text-[0.7rem] text-slate-400">Movement</p>

@@ -247,7 +247,7 @@ export default function HopTestsPage() {
 
             <form
               onSubmit={handleSave}
-              className="mt-8 rounded-2xl border border-slate-800 bg-slate-900/40 p-6"
+              className="mt-8 rounded-2xl border border-slate-800 bg-slate-900/40 p-6 shadow-xl shadow-lime-400/10"
             >
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>

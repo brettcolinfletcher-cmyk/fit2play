@@ -763,7 +763,7 @@ export default function AthleteDetailPage() {
         ) : athlete ? (
           <>
             {/* ── Athlete header ── */}
-            <header className="mt-6 rounded-2xl border border-slate-800 bg-slate-900/40 p-6">
+            <header className="mt-6 rounded-2xl border border-slate-800 bg-slate-900/40 p-6 shadow-xl shadow-lime-400/10">
               <h1 className="text-xl font-semibold text-slate-50">{name}</h1>
               <dl className="mt-4 grid gap-2 text-sm text-slate-400 sm:grid-cols-2">
                 {([

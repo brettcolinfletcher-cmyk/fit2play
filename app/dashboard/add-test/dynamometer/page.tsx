@@ -143,38 +143,43 @@ export default function AddTestDynamometerPage() {
     );
   }
 
-  return (
-    <main className="min-h-screen bg-slate-100 text-slate-900">
-      <DashboardNav />
-      <section className="mx-auto max-w-xl px-6 py-10 pb-20">
-        <div className="mb-6">
-          <Link
-            href="/dashboard/add-test"
-            className="text-sm text-sky-700 hover:underline"
-          >
-            ← All test types
-          </Link>
-        </div>
+  const inputCls =
+    "mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:border-lime-500 focus:outline-none";
+  const labelCls = "text-[11px] font-medium uppercase tracking-wider text-slate-500";
+  const subLabelCls = "text-xs text-slate-400";
 
-        <header className="mb-6 rounded-2xl bg-slate-900 px-6 py-5 text-white">
-          <h1 className="text-xl font-semibold">Handheld dynamometer</h1>
-          <p className="mt-1 text-sm text-slate-400">
+  return (
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_#111827_0,_#020617_55%)] text-slate-50">
+      <DashboardNav />
+      <section className="mx-auto max-w-xl px-4 pt-8 pb-20">
+        <Link
+          href="/dashboard/add-test"
+          className="text-xs text-slate-400 hover:text-lime-300"
+        >
+          ← All test types
+        </Link>
+
+        <header className="mt-6 mb-6">
+          <h1 className="text-xl font-semibold tracking-tight text-slate-50">
+            Handheld dynamometer
+          </h1>
+          <p className="mt-1 text-xs text-slate-400">
             Manual entry or upload a CSV with Movement, Leg, Peak Force (N), and
             optional RFD (N/s).
           </p>
         </header>
 
-        <div className="mb-4 flex rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+        <div className="mb-4 flex gap-1 rounded-xl border border-slate-800 bg-slate-900/40 p-1">
           <button
             type="button"
             onClick={() => {
               setMode("manual");
               setMsg(null);
             }}
-            className={`flex-1 rounded-lg py-2 text-sm font-medium transition ${
+            className={`flex-1 rounded-lg py-2 text-xs font-semibold transition ${
               mode === "manual"
-                ? "bg-slate-900 text-white"
-                : "text-slate-600 hover:bg-slate-50"
+                ? "bg-lime-400 text-slate-950"
+                : "text-slate-300 hover:bg-slate-800/60"
             }`}
           >
             Manual entry
@@ -185,10 +190,10 @@ export default function AddTestDynamometerPage() {
               setMode("csv");
               setMsg(null);
             }}
-            className={`flex-1 rounded-lg py-2 text-sm font-medium transition ${
+            className={`flex-1 rounded-lg py-2 text-xs font-semibold transition ${
               mode === "csv"
-                ? "bg-slate-900 text-white"
-                : "text-slate-600 hover:bg-slate-50"
+                ? "bg-lime-400 text-slate-950"
+                : "text-slate-300 hover:bg-slate-800/60"
             }`}
           >
             Upload CSV
@@ -197,14 +202,12 @@ export default function AddTestDynamometerPage() {
 
         <form
           onSubmit={onSubmit}
-          className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
+          className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/40 p-6 shadow-xl shadow-lime-400/10"
         >
           <div>
-            <label className="text-xs font-medium uppercase text-slate-500">
-              Athlete
-            </label>
+            <label className={labelCls}>Athlete</label>
             <select
-              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              className={inputCls}
               value={athleteId}
               onChange={(e) => setAthleteId(e.target.value)}
               required
@@ -222,11 +225,9 @@ export default function AddTestDynamometerPage() {
           {mode === "manual" ? (
             <>
               <div>
-                <label className="text-xs font-medium uppercase text-slate-500">
-                  Test
-                </label>
+                <label className={labelCls}>Test</label>
                 <select
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                  className={inputCls}
                   value={testSubType}
                   onChange={(e) => setTestSubType(e.target.value)}
                 >
@@ -239,33 +240,33 @@ export default function AddTestDynamometerPage() {
               </div>
 
               <div>
-                <label className="text-xs text-slate-600">Peak force (N)</label>
+                <label className={subLabelCls}>Peak force (N)</label>
                 <input
                   type="number"
                   step="any"
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                  className={inputCls}
                   value={peakForce}
                   onChange={(e) => setPeakForce(e.target.value)}
                 />
               </div>
               <div>
-                <label className="text-xs text-slate-600">
+                <label className={subLabelCls}>
                   Rate of force development (N/s)
                 </label>
                 <input
                   type="number"
                   step="any"
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                  className={inputCls}
                   value={rfd}
                   onChange={(e) => setRfd(e.target.value)}
                 />
               </div>
               <div>
-                <label className="text-xs text-slate-600">Asymmetry (%)</label>
+                <label className={subLabelCls}>Asymmetry (%)</label>
                 <input
                   type="number"
                   step="any"
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                  className={inputCls}
                   value={asymmetryPct}
                   onChange={(e) => setAsymmetryPct(e.target.value)}
                 />
@@ -274,29 +275,25 @@ export default function AddTestDynamometerPage() {
           ) : (
             <>
               <div>
-                <label className="text-xs font-medium uppercase text-slate-500">
-                  CSV file
-                </label>
+                <label className={labelCls}>CSV file</label>
                 <input
                   type="file"
                   accept=".csv,text/csv"
-                  className="mt-1 block w-full text-sm text-slate-600"
+                  className="mt-1 block w-full text-sm text-slate-300 file:mr-3 file:rounded-lg file:border-0 file:bg-lime-400 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-slate-950 hover:file:brightness-110"
                   onChange={onFileChange}
                 />
                 <p className="mt-2 text-xs text-slate-500">
                   Columns:{" "}
-                  <span className="font-mono text-[0.65rem]">
+                  <span className="font-mono text-[0.65rem] text-slate-400">
                     Movement, Leg, Peak Force (N), RFD (N/s)
                   </span>
                   . Leg must be Left or Right per row.
                 </p>
               </div>
               <div>
-                <label className="text-xs text-slate-600">
-                  Or paste CSV text
-                </label>
+                <label className={subLabelCls}>Or paste CSV text</label>
                 <textarea
-                  className="mt-1 min-h-[140px] w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-xs"
+                  className="mt-1 min-h-[140px] w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 font-mono text-xs text-slate-100 focus:border-lime-500 focus:outline-none"
                   value={csvText}
                   onChange={(e) => setCsvText(e.target.value)}
                   placeholder={`Movement,Leg,Peak Force (N),RFD (N/s)\nKnee Extension,Left,120,450\nKnee Extension,Right,118,440`}
@@ -305,12 +302,12 @@ export default function AddTestDynamometerPage() {
             </>
           )}
 
-          {msg && <p className="text-sm text-red-600">{msg}</p>}
+          {msg && <p className="text-sm text-rose-400">{msg}</p>}
 
           <button
             type="submit"
             disabled={saving}
-            className="w-full rounded-full bg-slate-900 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+            className="w-full rounded-full bg-lime-400 py-2.5 text-sm font-semibold text-slate-950 transition hover:brightness-110 disabled:opacity-50"
           >
             {saving ? "Saving…" : "Create session"}
           </button>

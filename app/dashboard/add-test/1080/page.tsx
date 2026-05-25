@@ -130,32 +130,32 @@ export default function AddTest1080Page() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-100 text-slate-900">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_#111827_0,_#020617_55%)] text-slate-50">
       <DashboardNav />
-      <section className="mx-auto max-w-xl px-6 py-10 pb-20">
-        <div className="mb-6">
-          <Link
-            href="/dashboard/add-test"
-            className="text-sm text-sky-700 hover:underline"
-          >
-            ← All test types
-          </Link>
-        </div>
+      <section className="mx-auto max-w-xl px-4 pt-8 pb-20">
+        <Link
+          href="/dashboard/add-test"
+          className="text-xs text-slate-400 hover:text-lime-300"
+        >
+          ← All test types
+        </Link>
 
-        <header className="mb-6 rounded-2xl bg-slate-900 px-6 py-5 text-white">
-          <h1 className="text-xl font-semibold">1080 Sprint</h1>
-          <p className="mt-1 text-sm text-slate-400">
+        <header className="mt-6 mb-6">
+          <h1 className="text-xl font-semibold tracking-tight text-slate-50">
+            1080 Sprint
+          </h1>
+          <p className="mt-1 text-xs text-slate-400">
             Linear or COD — then upload the 1080 samples CSV.
           </p>
         </header>
 
-        <div className="space-y-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="space-y-5 rounded-2xl border border-slate-800 bg-slate-900/40 p-6 shadow-xl shadow-lime-400/10">
           <div>
-            <p className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500">
+            <p className="mb-1 text-[11px] font-medium uppercase tracking-wider text-slate-500">
               Athlete
             </p>
             <select
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:border-lime-500 focus:outline-none"
               value={selectedAthleteId}
               onChange={(e) => setSelectedAthleteId(e.target.value)}
             >
@@ -170,17 +170,17 @@ export default function AddTest1080Page() {
           </div>
 
           <div>
-            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">
+            <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-slate-500">
               Test mode
             </p>
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
                 onClick={() => setSprintMode("linear")}
-                className={`rounded-full px-4 py-1.5 text-xs font-semibold ${
+                className={`rounded-full px-4 py-1.5 text-xs font-semibold transition ${
                   sprintMode === "linear"
-                    ? "bg-slate-900 text-white"
-                    : "bg-slate-100 text-slate-700 ring-1 ring-slate-200"
+                    ? "bg-lime-400 text-slate-950"
+                    : "border border-slate-700 bg-slate-900/60 text-slate-300 hover:border-slate-600"
                 }`}
               >
                 Linear
@@ -188,10 +188,10 @@ export default function AddTest1080Page() {
               <button
                 type="button"
                 onClick={() => setSprintMode("cod")}
-                className={`rounded-full px-4 py-1.5 text-xs font-semibold ${
+                className={`rounded-full px-4 py-1.5 text-xs font-semibold transition ${
                   sprintMode === "cod"
-                    ? "bg-slate-900 text-white"
-                    : "bg-slate-100 text-slate-700 ring-1 ring-slate-200"
+                    ? "bg-lime-400 text-slate-950"
+                    : "border border-slate-700 bg-slate-900/60 text-slate-300 hover:border-slate-600"
                 }`}
               >
                 COD 5-10-5
@@ -201,11 +201,11 @@ export default function AddTest1080Page() {
 
           {sprintMode === "linear" && (
             <div>
-              <p className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500">
+              <p className="mb-1 text-[11px] font-medium uppercase tracking-wider text-slate-500">
                 Distance focus
               </p>
               <select
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:border-lime-500 focus:outline-none"
                 value={linearDistance}
                 onChange={(e) =>
                   setLinearDistance(e.target.value as "10m" | "20m" | "40m")
@@ -219,7 +219,7 @@ export default function AddTest1080Page() {
           )}
 
           <div>
-            <p className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500">
+            <p className="mb-1 text-[11px] font-medium uppercase tracking-wider text-slate-500">
               CSV file
             </p>
             <input
@@ -228,12 +228,12 @@ export default function AddTest1080Page() {
               onChange={(e: ChangeEvent<HTMLInputElement>) =>
                 setFile(e.target.files?.[0] ?? null)
               }
-              className="w-full text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-slate-900 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white"
+              className="w-full text-sm text-slate-300 file:mr-3 file:rounded-lg file:border-0 file:bg-lime-400 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-slate-950 hover:file:brightness-110"
             />
           </div>
 
           {status && (
-            <p className="text-sm text-slate-600" role="status">
+            <p className="text-sm text-slate-300" role="status">
               {status}
             </p>
           )}
@@ -242,7 +242,7 @@ export default function AddTest1080Page() {
             type="button"
             onClick={handleUpload}
             disabled={uploading}
-            className="w-full rounded-full bg-slate-900 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+            className="w-full rounded-full bg-lime-400 py-2.5 text-sm font-semibold text-slate-950 transition hover:brightness-110 disabled:opacity-50"
           >
             {uploading ? "Uploading…" : "Create session"}
           </button>

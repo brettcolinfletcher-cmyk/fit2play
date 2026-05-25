@@ -96,7 +96,7 @@ export default function NewAthletePage() {
           New athlete
         </h1>
 
-        <form onSubmit={handleSubmit} className="mt-8 space-y-4 text-sm">
+        <form onSubmit={handleSubmit} className="mt-8 space-y-4 rounded-2xl border border-slate-800 bg-slate-900/40 p-6 text-sm shadow-xl shadow-lime-400/10">
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className="block text-xs text-slate-400 mb-1">
