@@ -654,8 +654,8 @@ export default function AthleteComparePage() {
       }}
       className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
         compareMode === mode
-          ? "bg-lime-500/25 text-lime-200 ring-1 ring-lime-500/50"
-          : "bg-slate-800/80 text-slate-400 hover:text-slate-200"
+          ? "bg-lime-400/10 text-lime-200 ring-1 ring-lime-400/30"
+          : "bg-slate-900/40 text-slate-400 ring-1 ring-slate-800 hover:text-slate-200"
       }`}
     >
       {label}
@@ -670,16 +670,21 @@ export default function AthleteComparePage() {
     );
   }
 
-  const tableWrap = "mt-3 overflow-x-auto rounded-lg border border-slate-800 bg-slate-900/50";
+  const tableWrap = "mt-3 overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/40";
   const controlsDisabled = compareLoading || loadingAthletes || loadingTeams;
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_#111827_0,_#020617_55%)] text-slate-50">
       <DashboardNav />
       <section className="mx-auto max-w-5xl px-4 pt-8 pb-20">
-        <h1 className="text-xl font-semibold uppercase tracking-wide text-lime-300">
-          Athlete comparison
-        </h1>
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight text-slate-50">
+            Compare athletes
+          </h1>
+          <p className="mt-1 text-sm text-slate-400">
+            Side-by-side best-in-range metrics across athletes or teams.
+          </p>
+        </div>
 
         <div className="mt-6 flex flex-wrap gap-2">
           {modePill("aa", "Athlete vs Athlete")}
@@ -841,7 +846,7 @@ export default function AthleteComparePage() {
           type="button"
           onClick={() => void runCompare()}
           disabled={controlsDisabled}
-          className="mt-6 rounded-full border border-lime-500/50 bg-lime-500/15 px-6 py-2 text-sm font-medium text-lime-200 hover:bg-lime-500/25 disabled:opacity-50"
+          className="mt-6 rounded-full bg-lime-400 px-5 py-2 text-xs font-semibold text-slate-950 hover:brightness-110 disabled:opacity-50"
         >
           {compareLoading ? "Comparing…" : "Compare"}
         </button>
@@ -855,7 +860,7 @@ export default function AthleteComparePage() {
             ) : (
               sections.map((sec) => (
                 <div key={sec.id}>
-                  <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  <h2 className="text-xs uppercase tracking-wide text-slate-500">
                     {sec.title}
                   </h2>
                   <div className={tableWrap}>

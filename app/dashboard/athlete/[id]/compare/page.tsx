@@ -114,11 +114,18 @@ export default function ComparePage() {
     return (
       <main className="min-h-screen bg-[radial-gradient(circle_at_top,_#111827_0,_#020617_55%)] text-slate-50">
         <DashboardNav />
-        <section className="mx-auto max-w-4xl px-6 pt-6">
-          <h1 className="text-xl font-semibold mb-4">Compare pre/post injury</h1>
+        <section className="mx-auto max-w-4xl px-4 pt-8 pb-20">
+          <div className="mb-6">
+            <h1 className="text-xl font-semibold tracking-tight text-slate-50">
+              Compare pre / post injury
+            </h1>
+            <p className="mt-1 text-sm text-slate-400">
+              Pick an injury to compare testing in a window either side of it.
+            </p>
+          </div>
 
           {loading ? (
-            <p className="text-slate-400 text-sm">Loading…</p>
+            <p className="text-sm text-slate-400">Loading…</p>
           ) : injuries.length === 0 ? (
             <p className="text-sm text-slate-500">No injuries recorded.</p>
           ) : (
@@ -127,12 +134,12 @@ export default function ComparePage() {
                 <button
                   key={inj.id}
                   onClick={() => setSelectedInjury(inj.id)}
-                  className="w-full text-left rounded-xl border border-slate-800 bg-slate-900/60 p-4 hover:bg-slate-800"
+                  className="w-full rounded-xl border border-slate-800 bg-slate-900/40 p-4 text-left transition hover:border-lime-400/40 hover:bg-slate-900/70 hover:shadow-lg hover:shadow-lime-400/10"
                 >
-                  <p className="text-sm font-semibold text-lime-300">
+                  <p className="text-sm font-medium text-slate-100">
                     {inj.diagnosis}
                   </p>
-                  <p className="text-xs text-slate-400">
+                  <p className="mt-1 text-xs text-slate-400">
                     Injured:{" "}
                     {inj.date_injured && formatDisplayDate(inj.date_injured)}
                   </p>
@@ -246,7 +253,7 @@ export default function ComparePage() {
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_#111827_0,_#020617_55%)] text-slate-50">
       <DashboardNav />
 
-      <section className="mx-auto max-w-6xl px-6 pt-6 pb-10">
+      <section className="mx-auto max-w-6xl px-4 pt-8 pb-20">
         <button
           onClick={() => setSelectedInjury(null)}
           className="mb-6 text-xs text-slate-400 hover:text-lime-300"
@@ -254,72 +261,71 @@ export default function ComparePage() {
           ← Back to injury list
         </button>
 
-        <h1 className="text-xl font-semibold mb-2">
-          Pre vs Post Injury Comparison
+        <h1 className="mb-2 text-xl font-semibold tracking-tight text-slate-50">
+          Pre vs post injury comparison
         </h1>
 
-        <p className="text-xs text-slate-400 mb-6">
+        <p className="mb-6 text-xs text-slate-400">
           Injury:{" "}
-          <span className="text-lime-300 font-semibold">
+          <span className="font-medium text-slate-200">
             {injury.diagnosis}
           </span>{" "}
-          •{" "}
-          {formatDisplayDate(injury.date_injured)}
+          · {formatDisplayDate(injury.date_injured)}
         </p>
 
         {/* Window selector */}
-        <div className="mb-8">
+        <div className="mb-8 flex items-center gap-2">
           <label className="text-xs text-slate-400">
             Comparison window (days either side)
           </label>
           <input
             type="number"
-            className="ml-2 w-20 rounded bg-slate-900 border border-slate-700 px-2 py-1 text-xs"
+            className="w-20 rounded-md border border-slate-800 bg-slate-950 px-2 py-1 text-xs text-slate-100 focus:border-lime-500 focus:outline-none"
             value={windowSize}
             onChange={(e) => setWindowSize(Number(e.target.value))}
           />
         </div>
 
         {/* SUMMARY GRID */}
-        <div className="grid md:grid-cols-2 gap-6 mb-10">
+        <div className="mb-10 grid gap-4 md:grid-cols-2">
           {/* Before */}
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 text-xs">
-            <h2 className="mb-2 text-sm font-semibold text-slate-300">
+          <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 text-xs">
+            <h2 className="mb-3 text-xs uppercase tracking-wide text-slate-500">
               Before injury
             </h2>
 
             {beforeSessions.length === 0 ? (
               <p className="text-xs text-slate-500">No testing data.</p>
             ) : (
-              <div className="space-y-1">
+              <div className="space-y-1 text-slate-300">
                 <p>
                   Peak speed:{" "}
-                  <span className="text-lime-300">
-                    {beforeAvg.peakSpeed?.toFixed(2) ?? "--"} m/s
+                  <span className="font-medium tabular-nums text-slate-100">
+                    {beforeAvg.peakSpeed?.toFixed(2) ?? "—"} m/s
                   </span>
                 </p>
                 <p>
                   Peak force:{" "}
-                  <span className="text-lime-300">
-                    {beforeAvg.peakForce?.toFixed(0) ?? "--"} N
+                  <span className="font-medium tabular-nums text-slate-100">
+                    {beforeAvg.peakForce?.toFixed(0) ?? "—"} N
                   </span>
                 </p>
                 <p>
                   Peak power:{" "}
-                  <span className="text-lime-300">
-                    {beforeAvg.peakPower?.toFixed(0) ?? "--"} W
+                  <span className="font-medium tabular-nums text-slate-100">
+                    {beforeAvg.peakPower?.toFixed(0) ?? "—"} W
                   </span>
                 </p>
                 <p>
                   20m split:{" "}
-                  <span className="text-lime-300">
-                    {beforeAvg.split20?.toFixed(2) ?? "--"} s
+                  <span className="font-medium tabular-nums text-slate-100">
+                    {beforeAvg.split20?.toFixed(2) ?? "—"} s
                   </span>
                 </p>
                 <p>
                   RTS:{" "}
-                  <span className="text-lime-300">
-                    {beforeAvg.rts?.toFixed(0) ?? "--"}
+                  <span className="font-medium tabular-nums text-lime-300">
+                    {beforeAvg.rts?.toFixed(0) ?? "—"}
                   </span>
                 </p>
               </div>
@@ -327,43 +333,43 @@ export default function ComparePage() {
           </div>
 
           {/* After */}
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 text-xs">
-            <h2 className="mb-2 text-sm font-semibold text-slate-300">
+          <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 text-xs">
+            <h2 className="mb-3 text-xs uppercase tracking-wide text-slate-500">
               After injury
             </h2>
 
             {afterSessions.length === 0 ? (
               <p className="text-xs text-slate-500">No testing data.</p>
             ) : (
-              <div className="space-y-1">
+              <div className="space-y-1 text-slate-300">
                 <p>
                   Peak speed:{" "}
-                  <span className="text-lime-300">
-                    {afterAvg.peakSpeed?.toFixed(2) ?? "--"} m/s
+                  <span className="font-medium tabular-nums text-slate-100">
+                    {afterAvg.peakSpeed?.toFixed(2) ?? "—"} m/s
                   </span>
                 </p>
                 <p>
                   Peak force:{" "}
-                  <span className="text-lime-300">
-                    {afterAvg.peakForce?.toFixed(0) ?? "--"} N
+                  <span className="font-medium tabular-nums text-slate-100">
+                    {afterAvg.peakForce?.toFixed(0) ?? "—"} N
                   </span>
                 </p>
                 <p>
                   Peak power:{" "}
-                  <span className="text-lime-300">
-                    {afterAvg.peakPower?.toFixed(0) ?? "--"} W
+                  <span className="font-medium tabular-nums text-slate-100">
+                    {afterAvg.peakPower?.toFixed(0) ?? "—"} W
                   </span>
                 </p>
                 <p>
                   20m split:{" "}
-                  <span className="text-lime-300">
-                    {afterAvg.split20?.toFixed(2) ?? "--"} s
+                  <span className="font-medium tabular-nums text-slate-100">
+                    {afterAvg.split20?.toFixed(2) ?? "—"} s
                   </span>
                 </p>
                 <p>
                   RTS:{" "}
-                  <span className="text-lime-300">
-                    {afterAvg.rts?.toFixed(0) ?? "--"}
+                  <span className="font-medium tabular-nums text-lime-300">
+                    {afterAvg.rts?.toFixed(0) ?? "—"}
                   </span>
                 </p>
               </div>
@@ -372,26 +378,26 @@ export default function ComparePage() {
         </div>
 
         {/* DELTAS */}
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 text-xs mb-10">
-          <h2 className="mb-3 text-sm font-semibold text-lime-300">
+        <div className="mb-10 rounded-xl border border-slate-800 bg-slate-900/40 p-4 text-xs">
+          <h2 className="mb-3 text-xs uppercase tracking-wide text-slate-500">
             Changes after injury
           </h2>
 
-          <div className="grid md:grid-cols-2 gap-4">
+          <div className="grid gap-4 md:grid-cols-2">
             {Object.entries(deltas).map(([key, value]) => (
               <div key={key} className="flex items-center justify-between">
-                <p className="capitalize text-slate-300">{key}</p>
+                <p className="capitalize text-slate-400">{key}</p>
                 <p
-                  className={
+                  className={`tabular-nums ${
                     value == null
                       ? "text-slate-500"
                       : value > 0
                       ? "text-emerald-300"
                       : "text-rose-300"
-                  }
+                  }`}
                 >
                   {value == null
-                    ? "--"
+                    ? "—"
                     : `${value > 0 ? "+" : ""}${value.toFixed(1)}%`}
                 </p>
               </div>
@@ -401,8 +407,8 @@ export default function ComparePage() {
 
         {/* CHARTS */}
         {/* RTS trend */}
-        <div className="mb-10 rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
-          <h2 className="mb-3 text-sm font-semibold text-lime-300">
+        <div className="mb-10 rounded-xl border border-slate-800 bg-slate-900/40 p-4">
+          <h2 className="mb-3 text-xs uppercase tracking-wide text-slate-500">
             RTS trend across comparison window
           </h2>
 

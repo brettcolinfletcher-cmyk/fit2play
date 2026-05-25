@@ -422,7 +422,7 @@ export default function AthleteProfilePage() {
           </button>
           <Link
             href={`/dashboard/athlete/${athleteId}/compare`}
-            className="rounded-full border border-slate-700 bg-slate-900/70 px-4 py-1.5 text-xs font-medium text-slate-200 hover:border-lime-400/50 hover:text-lime-300"
+            className="rounded-full border border-slate-800 bg-slate-900/40 px-4 py-1.5 text-xs font-medium text-slate-200 transition hover:border-lime-400/40 hover:text-lime-300"
           >
             Compare pre / post
           </Link>
@@ -437,7 +437,7 @@ export default function AthleteProfilePage() {
         ) : (
           <>
             {/* Header */}
-            <header className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
+            <header className="rounded-xl border border-slate-800 bg-slate-900/40 p-5 shadow-xl shadow-lime-400/10">
               <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                 <div>
                   <h1 className="text-xl font-semibold tracking-tight text-slate-50">
@@ -496,8 +496,8 @@ export default function AthleteProfilePage() {
             </header>
 
             {/* Readiness */}
-            <div className="mt-6 rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
-              <h2 className="text-sm font-semibold uppercase tracking-widest text-lime-300">
+            <div className="mt-6 rounded-xl border border-slate-800 bg-slate-900/40 p-5">
+              <h2 className="text-xs uppercase tracking-wide text-slate-500">
                 Readiness score
               </h2>
               <div className="mt-4 flex flex-col items-center gap-8 lg:flex-row lg:items-center">
@@ -635,8 +635,8 @@ export default function AthleteProfilePage() {
 
             {/* Charts */}
             <div className="mt-6 grid gap-6 lg:grid-cols-2">
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
-                <h2 className="text-sm font-semibold uppercase tracking-widest text-lime-300">
+              <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5">
+                <h2 className="text-xs uppercase tracking-wide text-slate-500">
                   Sprint — peak speed
                 </h2>
                 <p className="mt-1 text-xs text-slate-400">
@@ -684,8 +684,8 @@ export default function AthleteProfilePage() {
                 )}
               </div>
 
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
-                <h2 className="text-sm font-semibold uppercase tracking-widest text-lime-300">
+              <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5">
+                <h2 className="text-xs uppercase tracking-wide text-slate-500">
                   Force plate — jump height
                 </h2>
                 <p className="mt-1 text-xs text-slate-400">
@@ -734,8 +734,8 @@ export default function AthleteProfilePage() {
               </div>
             </div>
 
-            <div className="mt-6 rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
-              <h2 className="text-sm font-semibold uppercase tracking-widest text-lime-300">
+            <div className="mt-6 rounded-xl border border-slate-800 bg-slate-900/40 p-5">
+              <h2 className="text-xs uppercase tracking-wide text-slate-500">
                 Dynamometer
               </h2>
               <p className="mt-1 text-xs text-slate-400">
@@ -759,9 +759,9 @@ export default function AthleteProfilePage() {
             </div>
 
             {/* Session history */}
-            <div className="mt-6 overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/70">
+            <div className="mt-6 overflow-hidden rounded-xl border border-slate-800 bg-slate-900/40">
               <div className="border-b border-slate-800 px-5 py-4">
-                <h2 className="text-sm font-semibold uppercase tracking-widest text-lime-300">
+                <h2 className="text-xs uppercase tracking-wide text-slate-500">
                   Session history
                 </h2>
               </div>
@@ -824,8 +824,8 @@ export default function AthleteProfilePage() {
             </div>
 
             {/* Injury / rehab */}
-            <div className="mt-8 rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
-              <h2 className="text-sm font-semibold uppercase tracking-widest text-lime-300">
+            <div className="mt-8 rounded-xl border border-slate-800 bg-slate-900/40 p-5">
+              <h2 className="text-xs uppercase tracking-wide text-slate-500">
                 Injury &amp; rehab
               </h2>
 
@@ -838,7 +838,7 @@ export default function AthleteProfilePage() {
                   injuries.map((inj) => (
                     <div
                       key={inj.id}
-                      className="rounded-2xl border border-slate-800 bg-slate-950/40 p-4 text-sm"
+                      className="rounded-xl border border-slate-800 bg-slate-950/40 p-4 text-sm"
                     >
                       <p className="font-semibold text-slate-50">
                         {inj.diagnosis}
@@ -873,7 +873,7 @@ export default function AthleteProfilePage() {
                   Add injury record
                 </p>
                 <input
-                  className="w-full rounded-lg border border-slate-700 bg-slate-950/50 px-3 py-2 text-sm text-slate-200 placeholder:text-slate-500"
+                  className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-200 placeholder:text-slate-500 focus:border-lime-500 focus:outline-none"
                   placeholder="Diagnosis"
                   value={injuryForm.diagnosis}
                   onChange={(e: ChangeEvent<HTMLInputElement>) =>
@@ -886,7 +886,7 @@ export default function AthleteProfilePage() {
                 />
                 <div className="grid grid-cols-2 gap-3">
                   <input
-                    className="w-full rounded-lg border border-slate-700 bg-slate-950/50 px-3 py-2 text-sm text-slate-200 placeholder:text-slate-500"
+                    className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-200 placeholder:text-slate-500 focus:border-lime-500 focus:outline-none"
                     placeholder="Body region"
                     value={injuryForm.body_region}
                     onChange={(e) =>
@@ -897,7 +897,7 @@ export default function AthleteProfilePage() {
                     }
                   />
                   <input
-                    className="w-full rounded-lg border border-slate-700 bg-slate-950/50 px-3 py-2 text-sm text-slate-200 placeholder:text-slate-500"
+                    className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-200 placeholder:text-slate-500 focus:border-lime-500 focus:outline-none"
                     placeholder="Side"
                     value={injuryForm.side}
                     onChange={(e) =>
@@ -910,7 +910,7 @@ export default function AthleteProfilePage() {
                     <p className="mb-1 text-xs text-slate-400">Date injured</p>
                     <input
                       type="date"
-                      className="w-full rounded-lg border border-slate-700 bg-slate-950/50 px-3 py-2 text-sm text-slate-200"
+                      className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-200 focus:border-lime-500 focus:outline-none"
                       value={injuryForm.date_injured}
                       onChange={(e) =>
                         setInjuryForm((f) => ({
@@ -925,7 +925,7 @@ export default function AthleteProfilePage() {
                     <p className="mb-1 text-xs text-slate-400">RTP date</p>
                     <input
                       type="date"
-                      className="w-full rounded-lg border border-slate-700 bg-slate-950/50 px-3 py-2 text-sm text-slate-200"
+                      className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-200 focus:border-lime-500 focus:outline-none"
                       value={injuryForm.date_rtp}
                       onChange={(e) =>
                         setInjuryForm((f) => ({
@@ -937,7 +937,7 @@ export default function AthleteProfilePage() {
                   </div>
                 </div>
                 <input
-                  className="w-full rounded-lg border border-slate-700 bg-slate-950/50 px-3 py-2 text-sm text-slate-200 placeholder:text-slate-500"
+                  className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-200 placeholder:text-slate-500 focus:border-lime-500 focus:outline-none"
                   placeholder="Status"
                   value={injuryForm.status}
                   onChange={(e) =>
@@ -945,7 +945,7 @@ export default function AthleteProfilePage() {
                   }
                 />
                 <textarea
-                  className="min-h-[72px] w-full rounded-lg border border-slate-700 bg-slate-950/50 px-3 py-2 text-sm text-slate-200 placeholder:text-slate-500"
+                  className="min-h-[72px] w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-200 placeholder:text-slate-500 focus:border-lime-500 focus:outline-none"
                   placeholder="Notes"
                   value={injuryForm.notes}
                   onChange={(e) =>
@@ -958,7 +958,7 @@ export default function AthleteProfilePage() {
                 <button
                   type="submit"
                   disabled={injurySaving}
-                  className="rounded-full bg-lime-400 px-5 py-2 text-sm font-semibold text-slate-950 hover:bg-lime-300 disabled:opacity-60"
+                  className="rounded-full bg-lime-400 px-5 py-2 text-xs font-semibold text-slate-950 hover:brightness-110 disabled:opacity-50"
                 >
                   {injurySaving ? "Saving…" : "Add injury"}
                 </button>
@@ -1032,8 +1032,8 @@ function MetricCard({
       : delta;
 
   return (
-    <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
-      <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">
+    <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5">
+      <p className="text-xs uppercase tracking-wide text-slate-500">
         {title}
       </p>
       <div className="mt-2 flex flex-wrap items-end gap-2">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import DashboardNav from "@/components/DashboardNav";
@@ -77,6 +77,28 @@ function formatLastTested(iso: string | null | undefined): string {
   return formatDisplayDateTime(iso);
 }
 
+/** Status transitions available from the kebab menu for a given current status. */
+function statusTransitions(
+  current: AthleteStatus
+): { label: string; next: AthleteStatus; tone: "default" | "warning" | "danger" }[] {
+  if (current === "active") {
+    return [
+      { label: "Move to monitoring", next: "monitoring", tone: "warning" },
+      { label: "Archive", next: "archived", tone: "danger" },
+    ];
+  }
+  if (current === "monitoring") {
+    return [
+      { label: "Mark active", next: "active", tone: "default" },
+      { label: "Archive", next: "archived", tone: "danger" },
+    ];
+  }
+  return [
+    { label: "Restore to active", next: "active", tone: "default" },
+    { label: "Mark monitoring", next: "monitoring", tone: "warning" },
+  ];
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // Page
 // ────────────────────────────────────────────────────────────────────────────
@@ -99,6 +121,11 @@ export default function AthletesListPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("active_and_monitoring");
   const [viewMode, setViewMode] = useState<ViewMode>("cards");
   const [sortMode, setSortMode] = useState<SortMode>("last_tested_desc");
+
+  // Kebab menu state — which athlete card has its menu open (null = none)
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [statusUpdatingId, setStatusUpdatingId] = useState<string | null>(null);
+  const [statusError, setStatusError] = useState<string | null>(null);
 
   // ──────────────────────────────────────────────────────────────────────────
   // Data fetch
@@ -148,6 +175,73 @@ export default function AthletesListPage() {
       cancelled = true;
     };
   }, [staffOk]);
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Close kebab menu on outside click or Escape
+  // ──────────────────────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!openMenuId) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpenMenuId(null);
+    }
+    function onMouseDown(e: MouseEvent) {
+      const t = e.target as HTMLElement | null;
+      if (t && t.closest('[data-athlete-menu="true"]')) return;
+      setOpenMenuId(null);
+    }
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("mousedown", onMouseDown);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("mousedown", onMouseDown);
+    };
+  }, [openMenuId]);
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Status update — optimistic PATCH /api/athletes/[id]
+  // ──────────────────────────────────────────────────────────────────────────
+
+  const handleStatusChange = useCallback(
+    async (athleteId: string, nextStatus: AthleteStatus) => {
+      setOpenMenuId(null);
+      setStatusError(null);
+
+      const prev = athletes.find((a) => a.id === athleteId)?.status;
+      if (!prev || prev === nextStatus) return;
+
+      // Optimistic
+      setStatusUpdatingId(athleteId);
+      setAthletes((arr) =>
+        arr.map((a) => (a.id === athleteId ? { ...a, status: nextStatus } : a))
+      );
+
+      try {
+        const res = await fetch(`/api/athletes/${athleteId}`, {
+          method: "PATCH",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            "x-sync-secret": process.env.NEXT_PUBLIC_SYNC_SECRET ?? "",
+          },
+          body: JSON.stringify({ status: nextStatus }),
+        });
+        if (!res.ok) {
+          const json = (await res.json().catch(() => ({}))) as { error?: string };
+          throw new Error(json.error ?? `Update failed (${res.status})`);
+        }
+      } catch (e) {
+        // Revert
+        setAthletes((arr) =>
+          arr.map((a) => (a.id === athleteId ? { ...a, status: prev } : a))
+        );
+        setStatusError(e instanceof Error ? e.message : "Status update failed");
+      } finally {
+        setStatusUpdatingId(null);
+      }
+    },
+    [athletes]
+  );
 
   // ──────────────────────────────────────────────────────────────────────────
   // Derived: stats per athlete, team memberships, sport options
@@ -355,6 +449,12 @@ export default function AthletesListPage() {
           </div>
         ) : null}
 
+        {statusError ? (
+          <div className="mt-3 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-100">
+            {statusError}
+          </div>
+        ) : null}
+
         {/* Layout: sidebar + main */}
         <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-[200px_1fr]">
           {/* Sidebar */}
@@ -474,6 +574,12 @@ export default function AthletesListPage() {
                       teamNames={teamNames}
                       sessionCount={st?.count ?? 0}
                       lastSession={st?.lastSession ?? null}
+                      menuOpen={openMenuId === a.id}
+                      updating={statusUpdatingId === a.id}
+                      onMenuToggle={() =>
+                        setOpenMenuId((cur) => (cur === a.id ? null : a.id))
+                      }
+                      onStatusChange={handleStatusChange}
                     />
                   );
                 })}
@@ -666,11 +772,19 @@ function AthleteCard({
   teamNames,
   sessionCount,
   lastSession,
+  menuOpen,
+  updating,
+  onMenuToggle,
+  onStatusChange,
 }: {
   athlete: AthleteRow;
   teamNames: string[];
   sessionCount: number;
   lastSession: string | null;
+  menuOpen: boolean;
+  updating: boolean;
+  onMenuToggle: () => void;
+  onStatusChange: (athleteId: string, next: AthleteStatus) => void | Promise<void>;
 }) {
   const d = daysSince(lastSession);
   const stale = athlete.status !== "archived" && (d === null || d > 30);
@@ -680,12 +794,82 @@ function AthleteCard({
       : teamNames.length === 1
       ? teamNames[0]
       : `${teamNames[0]} +${teamNames.length - 1}`;
+  const transitions = statusTransitions(athlete.status);
   return (
     <Link
       href={`/dashboard/athletes/${athlete.id}`}
-      className="group block rounded-xl border border-slate-800 bg-slate-900/40 p-4 transition hover:border-lime-400/40 hover:bg-slate-900/70 hover:shadow-lg hover:shadow-lime-400/10"
+      className="group relative block rounded-xl border border-slate-800 bg-slate-900/40 p-4 transition hover:border-lime-400/40 hover:bg-slate-900/70 hover:shadow-lg hover:shadow-lime-400/10"
     >
-      <div className="flex items-start gap-3">
+      {/* Kebab + dropdown — wrapped in a span so the outside-click detector can see it. */}
+      <span
+        data-athlete-menu="true"
+        className="absolute right-2 top-2"
+        onClick={(e) => {
+          // Prevent the Link navigation when interacting with the menu.
+          e.preventDefault();
+          e.stopPropagation();
+        }}
+      >
+        <button
+          type="button"
+          aria-label="More actions"
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
+          disabled={updating}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onMenuToggle();
+          }}
+          className={`flex h-7 w-7 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-800 hover:text-slate-100 disabled:opacity-50 ${
+            menuOpen ? "bg-slate-800 text-slate-100" : ""
+          }`}
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" aria-hidden>
+            <circle cx="7" cy="2.5" r="1.3" />
+            <circle cx="7" cy="7" r="1.3" />
+            <circle cx="7" cy="11.5" r="1.3" />
+          </svg>
+        </button>
+        {menuOpen ? (
+          <div
+            role="menu"
+            className="absolute right-0 top-9 z-20 w-48 overflow-hidden rounded-lg border border-slate-700 bg-slate-900 shadow-xl shadow-black/40"
+          >
+            {transitions.map((t) => (
+              <button
+                key={t.next}
+                type="button"
+                role="menuitem"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  void onStatusChange(athlete.id, t.next);
+                }}
+                className={`block w-full px-3 py-2 text-left text-xs transition hover:bg-slate-800 ${
+                  t.tone === "danger"
+                    ? "text-rose-300 hover:text-rose-200"
+                    : t.tone === "warning"
+                    ? "text-amber-200"
+                    : "text-slate-200"
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+            <Link
+              href={`/dashboard/athletes/${athlete.id}/edit`}
+              role="menuitem"
+              onClick={(e) => e.stopPropagation()}
+              className="block border-t border-slate-800 px-3 py-2 text-left text-xs text-slate-400 transition hover:bg-slate-800 hover:text-slate-200"
+            >
+              Edit profile…
+            </Link>
+          </div>
+        ) : null}
+      </span>
+
+      <div className="flex items-start gap-3 pr-8">
         {athlete.profile_image_url ? (
           <Image
             src={athlete.profile_image_url}

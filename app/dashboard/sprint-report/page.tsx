@@ -124,21 +124,21 @@ export default function SprintReportPage() {
       <DashboardNav />
       <div className="mx-auto max-w-7xl px-4 pt-8 pb-16">
         <div className="mb-6">
-          <h1 className="text-xl font-semibold tracking-tight text-slate-50">1080 Sprint — Longitudinal Report</h1>
-          <p className="mt-1 text-xs text-slate-400">Select an athlete to view their sprint metrics across all testing sessions.</p>
+          <h1 className="text-xl font-semibold tracking-tight text-slate-50">1080 Sprint — longitudinal report</h1>
+          <p className="mt-1 text-sm text-slate-400">Select an athlete to view their sprint metrics across all testing sessions.</p>
         </div>
         <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
           <aside className="w-full shrink-0 lg:w-52">
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
-              <h2 className="mb-3 text-sm font-semibold uppercase tracking-widest text-lime-300">Athlete</h2>
+            <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-4">
+              <h2 className="mb-3 text-xs uppercase tracking-wide text-slate-500">Athlete</h2>
               <ul className="space-y-1">
                 {athletes.map((a) => (
                   <li key={a.id}>
                     <button onClick={() => setSelectedId(a.id)}
                       className={`w-full rounded-lg px-3 py-2 text-left text-[0.82rem] font-medium transition-colors ${
                         selectedId === a.id
-                          ? "bg-lime-400/15 text-lime-300 ring-1 ring-lime-400/40"
-                          : "text-slate-300 hover:bg-slate-800"}`}>
+                          ? "bg-lime-400/10 text-lime-200 ring-1 ring-lime-400/30"
+                          : "text-slate-300 hover:bg-slate-800/60"}`}>
                       {athleteName(a)}
                     </button>
                   </li>
@@ -151,10 +151,10 @@ export default function SprintReportPage() {
             {selectedAthlete && (
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-[0.7rem] uppercase tracking-widest text-slate-400">Viewing</p>
-                  <p className="text-lg font-semibold">{selectedAthlete.first_name} {selectedAthlete.last_name}</p>
+                  <p className="text-[0.7rem] uppercase tracking-widest text-slate-500">Viewing</p>
+                  <p className="text-lg font-semibold text-slate-50">{selectedAthlete.first_name} {selectedAthlete.last_name}</p>
                 </div>
-                <span className="rounded-full bg-slate-800 px-3 py-1 text-[0.72rem] text-slate-300">
+                <span className="rounded-full border border-slate-800 bg-slate-900/40 px-3 py-1 text-[0.72rem] text-slate-300">
                   {reportRows.length} session{reportRows.length !== 1 ? "s" : ""}
                 </span>
               </div>
@@ -165,7 +165,7 @@ export default function SprintReportPage() {
                 <p className="text-sm text-slate-400">Loading…</p>
               </div>
             ) : reportRows.length === 0 ? (
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/40 px-6 py-10 text-center">
+              <div className="rounded-xl border border-slate-800 bg-slate-900/40 px-6 py-10 text-center">
                 <p className="text-sm text-slate-400">No sprint sessions found for this athlete.</p>
               </div>
             ) : (<>
@@ -173,15 +173,15 @@ export default function SprintReportPage() {
                 {METRIC_CONFIG.map((m) => (
                   <button key={m.key} onClick={() => toggleMetric(m.key)}
                     className={`rounded-full border px-3 py-1 text-[0.72rem] font-medium transition-all ${
-                      activeMetrics.has(m.key) ? "border-transparent text-slate-950" : "border-slate-700 text-slate-400 hover:border-slate-500"}`}
+                      activeMetrics.has(m.key) ? "border-transparent text-slate-950" : "border-slate-800 text-slate-400 hover:border-slate-600"}`}
                     style={activeMetrics.has(m.key) ? { backgroundColor: m.color } : {}}>
                     {m.label}
                   </button>
                 ))}
               </div>
 
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
-                <h2 className="mb-4 text-sm font-semibold uppercase tracking-widest text-lime-300">Trend over time</h2>
+              <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5">
+                <h2 className="mb-4 text-xs uppercase tracking-wide text-slate-500">Trend over time</h2>
                 <ResponsiveContainer width="100%" height={300}>
                   <LineChart data={reportRows} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
@@ -200,10 +200,10 @@ export default function SprintReportPage() {
                 </ResponsiveContainer>
               </div>
 
-              <div className="overflow-x-auto rounded-2xl border border-slate-800 bg-slate-900/70">
+              <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/40">
                 <table className="min-w-full text-left">
                   <thead>
-                    <tr className="border-b border-slate-800 text-[0.7rem] font-medium uppercase tracking-widest text-slate-400">
+                    <tr className="border-b border-slate-800 text-[0.7rem] font-medium uppercase tracking-widest text-slate-500">
                       <th className="py-3 pl-5 pr-4 font-medium">Date</th>
                       <th className="py-3 px-4 font-medium">Top Speed (m/s)</th>
                       <th className="py-3 px-4 font-medium">Total Time (s)</th>
@@ -227,7 +227,7 @@ export default function SprintReportPage() {
                     ))}
                   </tbody>
                   <tfoot>
-                    <tr className="border-t-2 border-slate-700 bg-slate-900/80 text-[0.72rem] font-semibold text-slate-300">
+                    <tr className="border-t-2 border-slate-700 bg-slate-900/60 text-[0.72rem] font-semibold text-slate-300">
                       <td className="py-3 pl-5 pr-4 text-slate-400">Average</td>
                       <td className="py-3 px-4 text-lime-300">{fmt(avg.topSpeed)}</td>
                       <td className="py-3 px-4">{fmt(avg.totalTime)}</td>
