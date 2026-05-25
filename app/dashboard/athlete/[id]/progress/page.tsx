@@ -4,7 +4,7 @@ import JumpHeightGraph from "@/components/graphs/JumpHeightGraph";
 
 export default function AthleteProgressPage() {
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-50 p-6">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_#111827_0,_#020617_55%)] text-slate-50 p-6">
       <h1 className="text-xl font-semibold mb-6">Athlete Progress Dashboard</h1>
 
       <section className="mb-6">

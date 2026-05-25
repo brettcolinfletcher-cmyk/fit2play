@@ -112,7 +112,7 @@ export default function ComparePage() {
   // ----------------- If no injury selected yet -----------------
   if (!selectedInjury) {
     return (
-      <main className="min-h-screen bg-slate-950 text-slate-50">
+      <main className="min-h-screen bg-[radial-gradient(circle_at_top,_#111827_0,_#020617_55%)] text-slate-50">
         <DashboardNav />
         <section className="mx-auto max-w-4xl px-6 pt-6">
           <h1 className="text-xl font-semibold mb-4">Compare pre/post injury</h1>
@@ -243,7 +243,7 @@ export default function ComparePage() {
 
   // ----------------- UI -----------------
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-50">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_#111827_0,_#020617_55%)] text-slate-50">
       <DashboardNav />
 
       <section className="mx-auto max-w-6xl px-6 pt-6 pb-10">

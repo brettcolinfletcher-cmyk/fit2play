@@ -674,7 +674,7 @@ export default function AthleteComparePage() {
   const controlsDisabled = compareLoading || loadingAthletes || loadingTeams;
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-50">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_#111827_0,_#020617_55%)] text-slate-50">
       <DashboardNav />
       <section className="mx-auto max-w-5xl px-4 pt-8 pb-20">
         <h1 className="text-xl font-semibold uppercase tracking-wide text-lime-300">

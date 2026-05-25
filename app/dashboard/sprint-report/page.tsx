@@ -120,7 +120,7 @@ export default function SprintReportPage() {
   const selectedAthlete = athletes.find((a) => a.id === selectedId);
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-50">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_#111827_0,_#020617_55%)] text-slate-50">
       <DashboardNav />
       <div className="mx-auto max-w-7xl px-4 pt-8 pb-16">
         <div className="mb-6">

@@ -33,7 +33,7 @@ export default function AthleteMePage() {
   }, [router]);
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-50 flex items-center justify-center">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_#111827_0,_#020617_55%)] text-slate-50 flex items-center justify-center">
       <p className="text-xs text-slate-400">Loading your athlete dashboard…</p>
     </main>
   );
