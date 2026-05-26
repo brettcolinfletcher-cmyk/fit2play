@@ -91,12 +91,12 @@ const styles = StyleSheet.create({
     color: "#111827",
     marginTop: 6,
     marginBottom: 6,
-    paddingLeft: 8,
-    borderLeftWidth: 4,
+    paddingLeft: 9,
+    borderLeftWidth: 5,
     borderLeftColor: "#84cc16",
   },
   modalitySection: {
-    marginTop: 14,
+    marginTop: 18,
   },
   h2: {
     fontSize: 9,
@@ -593,7 +593,7 @@ export default function AthletePdfDocument({
         </View>
         <Image
           src="https://www.fit2perform.com.au/fit2play_logo_transparent.png"
-          style={{ width: 48, marginBottom: 4 }}
+          style={{ width: 72, marginBottom: 6 }}
         />
         <Text style={styles.headerName}>{athleteName}</Text>
         <Text style={styles.headerReportType}>Athlete Performance Report</Text>

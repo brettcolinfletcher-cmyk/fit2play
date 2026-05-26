@@ -407,7 +407,7 @@ export default function PdfExportModal({
               onChange={(e) => setIncludeNotes(e.target.checked)}
               className="rounded border-slate-600 bg-slate-950 text-lime-500 focus:ring-lime-500/40"
             />
-            Include section notes
+            Include clinical notes
           </label>
 
           <div>

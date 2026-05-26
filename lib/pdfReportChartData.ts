@@ -591,7 +591,7 @@ export function buildPdfReportContext(
     "Top speed",
     "m/s",
     "top_speed",
-    null,
+    "linear_sprint_unresisted",
     false,
     sessions,
     isLinearSprintSession,
@@ -613,7 +613,7 @@ export function buildPdfReportContext(
     "5 m split",
     "s",
     "split_5m_time",
-    null,
+    "linear_sprint_unresisted",
     true,
     sessions,
     isLinearSprintSession,
@@ -684,7 +684,7 @@ export function buildPdfReportContext(
         value: formatValueWithUnit(latestCmj.jump_height, "cm"),
         dateLabel: latestCmj.date,
         band: bandTagForMetric(
-          "fp_jump_height",
+          "fp_jump_height_cm_best",
           latestCmj.jump_height,
           bands,
           "force_plate_cmj"
@@ -717,7 +717,7 @@ export function buildPdfReportContext(
         value: formatValueWithUnit(latestDj.rsi, "RSI"),
         dateLabel: latestDj.date,
         band: bandTagForMetric(
-          "fp_rsi",
+          "fp_rsi_best",
           latestDj.rsi,
           bands,
           "force_plate_dj"
