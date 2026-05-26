@@ -269,6 +269,105 @@ function SmallMultLRLsi({
   );
 }
 
+/**
+ * Phase D-C polish: custom recharts tooltip for the per-leg trend chart.
+ * Groups by athlete (rather than the default key-by-key list) and surfaces the
+ * starting-leg badge + swap indicator alongside the L/R values for the session.
+ */
+function LRPerLegTooltip({
+  active,
+  payload,
+  unit,
+  athleteIds,
+  nameById,
+}: {
+  active?: boolean;
+  payload?: Array<{ payload: Record<string, unknown> }>;
+  unit: string;
+  athleteIds: string[];
+  nameById: Map<string, string>;
+}) {
+  if (!active || !payload || payload.length === 0) return null;
+  const row = payload[0].payload as Record<string, unknown>;
+  const tRaw = row.t;
+  const dateLabel =
+    typeof tRaw === "number"
+      ? formatChartAxisDate(new Date(tRaw).toISOString())
+      : ((row.label as string) ?? "");
+
+  const rows = athleteIds
+    .map((id) => {
+      const L = row[`${id}__L`];
+      const R = row[`${id}__R`];
+      const starting = row[`${id}__starting`];
+      const swap = row[`${id}__swap`];
+      const hasData = typeof L === "number" || typeof R === "number";
+      if (!hasData) return null;
+      const colorIdx = athleteIds.indexOf(id);
+      return {
+        id,
+        name: nameById.get(id) ?? id,
+        L: typeof L === "number" ? L : null,
+        R: typeof R === "number" ? R : null,
+        starting:
+          starting === "left" || starting === "right"
+            ? (starting as "left" | "right")
+            : null,
+        swap: swap === 1,
+        color:
+          ATHLETE_COMPARE_LINE_COLORS[
+            (colorIdx >= 0 ? colorIdx : 0) % ATHLETE_COMPARE_LINE_COLORS.length
+          ],
+      };
+    })
+    .filter((x): x is NonNullable<typeof x> => x !== null);
+
+  if (rows.length === 0) return null;
+
+  return (
+    <div
+      style={TOOLTIP_STYLE}
+      className="px-2.5 py-2 text-xs text-slate-200"
+    >
+      <div className="mb-1.5 text-slate-400">{dateLabel}</div>
+      <div className="space-y-1.5">
+        {rows.map((r) => (
+          <div key={r.id} className="flex flex-col gap-0.5">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span
+                className="inline-block h-2 w-2 rounded-full"
+                style={{ backgroundColor: r.color }}
+              />
+              <span className="font-medium text-slate-100">{r.name}</span>
+              {r.starting ? (
+                <span className="rounded border border-slate-700 bg-slate-900 px-1 py-px text-[9px] font-medium uppercase tracking-wide text-slate-400">
+                  Started {r.starting === "left" ? "L" : "R"}
+                </span>
+              ) : (
+                <span className="rounded border border-amber-700/60 bg-amber-950/40 px-1 py-px text-[9px] font-medium uppercase tracking-wide text-amber-300/80">
+                  Start ?
+                </span>
+              )}
+              {r.swap ? (
+                <span
+                  className="rounded border border-rose-700 bg-rose-950/50 px-1 py-px text-[9px] font-medium uppercase tracking-wide text-rose-300"
+                  title="L/R labels swapped from 1080's recording"
+                >
+                  Swap
+                </span>
+              ) : null}
+            </div>
+            <div className="ml-3.5 font-mono text-[11px] text-slate-300">
+              <span>L {formatLrValue(r.L, unit)}</span>
+              <span className="ml-2">R {formatLrValue(r.R, unit)}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /** Per-leg trend for one LR metric: solid line = Right, dashed = Left, colour per athlete. */
 function SmallMultLRPerLeg({
   title,
@@ -308,7 +407,15 @@ function SmallMultLRPerLeg({
               tick={AXIS_TICK}
               label={{ value: unit, angle: -90, position: "insideLeft", fill: "#94a3b8", fontSize: 11 }}
             />
-            <Tooltip contentStyle={TOOLTIP_STYLE} labelStyle={{ color: "#e2e8f0" }} />
+            <Tooltip
+              content={
+                <LRPerLegTooltip
+                  unit={unit}
+                  athleteIds={athleteIds}
+                  nameById={nameById}
+                />
+              }
+            />
             <Legend
               wrapperStyle={{ fontSize: 11 }}
               formatter={(v) => {

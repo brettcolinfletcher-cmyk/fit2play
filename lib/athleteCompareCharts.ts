@@ -278,8 +278,12 @@ export function mergeLRLsiRowsForMetric(
 
 /**
  * Merge per-leg rows across athletes by date for a single LR metric.
- * Each row: { t, label, [`${id}__L`]: leftVal, [`${id}__R`]: rightVal }
- * When one athlete has multiple sessions on the same date, L and R are aggregated separately using `mode`.
+ * Each row: { t, label, [`${id}__L`]: leftVal, [`${id}__R`]: rightVal,
+ *            [`${id}__starting`]: "left" | "right" | null,
+ *            [`${id}__swap`]: 1 | null }
+ * When one athlete has multiple sessions on the same date, L and R values are aggregated
+ * using `mode`. The starting-leg + swap metadata are taken from the FIRST session
+ * encountered on that day (extraction order is chronological per metric).
  */
 export function mergeLRPerLegRowsForMetric(
   profiles: AthleteLRSeries[],
@@ -294,6 +298,8 @@ export function mergeLRPerLegRowsForMetric(
       label: string;
       perAthleteL: Map<string, number[]>;
       perAthleteR: Map<string, number[]>;
+      perAthleteStarting: Map<string, "left" | "right" | null>;
+      perAthleteSwap: Map<string, boolean>;
     }
   >();
 
@@ -305,6 +311,8 @@ export function mergeLRPerLegRowsForMetric(
         label: formatChartAxisDate(pt.sessionDate),
         perAthleteL: new Map<string, number[]>(),
         perAthleteR: new Map<string, number[]>(),
+        perAthleteStarting: new Map<string, "left" | "right" | null>(),
+        perAthleteSwap: new Map<string, boolean>(),
       };
       const lList = cur.perAthleteL.get(prof.athleteId) ?? [];
       lList.push(pt.left);
@@ -312,6 +320,10 @@ export function mergeLRPerLegRowsForMetric(
       const rList = cur.perAthleteR.get(prof.athleteId) ?? [];
       rList.push(pt.right);
       cur.perAthleteR.set(prof.athleteId, rList);
+      if (!cur.perAthleteStarting.has(prof.athleteId)) {
+        cur.perAthleteStarting.set(prof.athleteId, pt.lrStartingLeg);
+        cur.perAthleteSwap.set(prof.athleteId, pt.lrSideSwap);
+      }
       cur.t = Math.min(cur.t, pt.t);
       byDay.set(dk, cur);
     }
@@ -326,6 +338,8 @@ export function mergeLRPerLegRowsForMetric(
         const rVals = row.perAthleteR.get(k);
         o[`${k}__L`] = lVals && lVals.length > 0 ? aggregateValues(lVals, mode) : null;
         o[`${k}__R`] = rVals && rVals.length > 0 ? aggregateValues(rVals, mode) : null;
+        o[`${k}__starting`] = row.perAthleteStarting.get(k) ?? null;
+        o[`${k}__swap`] = row.perAthleteSwap.get(k) ? 1 : null;
       }
       return o;
     });
