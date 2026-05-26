@@ -28,56 +28,78 @@ const styles = StyleSheet.create({
   },
   limeTopBarWrap: {
     marginHorizontal: -40,
-    marginBottom: 14,
+    marginBottom: 0,
   },
   limeTopBar: {
     height: 4,
     width: "100%",
     backgroundColor: "#84cc16",
   },
+  // ─── Branded dark header band ───
+  // Full-bleed slate band sitting flush under the lime accent. Hosts the logo
+  // (whose wordmark is white-on-transparent and only renders correctly on dark)
+  // and the athlete's identifying info, mirroring the visual stamp clinicians
+  // expect on a formal report.
+  headerBand: {
+    marginHorizontal: -40,
+    marginBottom: 18,
+    paddingTop: 20,
+    paddingBottom: 18,
+    paddingHorizontal: 40,
+    backgroundColor: "#111827",
+    flexDirection: "row",
+    alignItems: "flex-start",
+  },
+  headerLogoCol: {
+    width: 96,
+    marginRight: 20,
+  },
+  headerTextCol: {
+    flex: 1,
+  },
   headerName: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: 700,
-    color: "#111827",
-    marginBottom: 4,
+    color: "#ffffff",
+    marginBottom: 3,
+    letterSpacing: -0.2,
   },
   headerReportType: {
     fontSize: 9,
-    color: "#6b7280",
+    color: "#cbd5e1",
     marginBottom: 2,
   },
   headerMeta: {
     fontSize: 8,
-    color: "#9ca3af",
+    color: "#94a3b8",
     marginBottom: 4,
   },
-  // ─── Athlete meta pill row ───
+  // ─── Athlete meta pill row (dark band variant) ───
   metaRow: {
     flexDirection: "row",
     flexWrap: "wrap",
-    marginTop: 4,
-    marginBottom: 8,
+    marginTop: 6,
   },
   metaPill: {
     flexDirection: "row",
     paddingVertical: 2,
-    paddingHorizontal: 6,
-    backgroundColor: "#f3f4f6",
+    paddingHorizontal: 7,
+    backgroundColor: "#1e293b",
     borderRadius: 9999,
     marginRight: 4,
     marginBottom: 3,
   },
   metaPillLabel: {
     fontSize: 6.5,
-    color: "#9ca3af",
+    color: "#64748b",
     textTransform: "uppercase",
     letterSpacing: 0.3,
-    marginRight: 4,
+    marginRight: 5,
     fontWeight: 700,
   },
   metaPillValue: {
     fontSize: 8,
-    color: "#374151",
+    color: "#e2e8f0",
     fontWeight: 500,
   },
   rule: {
@@ -258,8 +280,8 @@ const styles = StyleSheet.create({
     left: 40,
     right: 40,
     paddingTop: 8,
-    borderTopWidth: 0.5,
-    borderTopColor: "#f3f4f6",
+    borderTopWidth: 1,
+    borderTopColor: "#84cc16",
     flexDirection: "row",
     justifyContent: "space-between",
     fontSize: 7,
@@ -587,31 +609,36 @@ export default function AthletePdfDocument({
   return (
     <Document>
       <Page size="A4" style={styles.page} wrap>
-        {/* Brand bar + header */}
+        {/* Brand bar + dark header letterhead */}
         <View style={styles.limeTopBarWrap}>
           <View style={styles.limeTopBar} />
         </View>
-        <Image
-          src="https://www.fit2perform.com.au/fit2play_logo_transparent.png"
-          style={{ width: 72, marginBottom: 6 }}
-        />
-        <Text style={styles.headerName}>{athleteName}</Text>
-        <Text style={styles.headerReportType}>Athlete Performance Report</Text>
-        <Text style={styles.headerMeta}>Date range: {rangeLine}</Text>
-
-        {hasMeta ? (
-          <View style={styles.metaRow}>
-            {athleteSport ? (
-              <MetaPill label="Sport" value={athleteSport} />
-            ) : null}
-            {athleteTeam ? (
-              <MetaPill label="Team" value={athleteTeam} />
-            ) : null}
-            {dobLine ? <MetaPill label="DOB" value={dobLine} /> : null}
+        <View style={styles.headerBand}>
+          <View style={styles.headerLogoCol}>
+            <Image
+              src="https://www.fit2perform.com.au/fit2play_logo_transparent.png"
+              style={{ width: 96 }}
+            />
           </View>
-        ) : null}
-
-        <View style={styles.rule} />
+          <View style={styles.headerTextCol}>
+            <Text style={styles.headerName}>{athleteName}</Text>
+            <Text style={styles.headerReportType}>
+              Athlete Performance Report
+            </Text>
+            <Text style={styles.headerMeta}>Date range: {rangeLine}</Text>
+            {hasMeta ? (
+              <View style={styles.metaRow}>
+                {athleteSport ? (
+                  <MetaPill label="Sport" value={athleteSport} />
+                ) : null}
+                {athleteTeam ? (
+                  <MetaPill label="Team" value={athleteTeam} />
+                ) : null}
+                {dobLine ? <MetaPill label="DOB" value={dobLine} /> : null}
+              </View>
+            ) : null}
+          </View>
+        </View>
 
         {/* Manual clinical summary, when provided in the export modal. */}
         {summaryComment?.trim() ? (
