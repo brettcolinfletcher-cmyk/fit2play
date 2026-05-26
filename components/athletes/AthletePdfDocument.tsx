@@ -6,7 +6,10 @@ import type {
   BestInRangeData,
   DateComparisonData,
 } from "@/lib/athleteReportData";
-import type { PdfReportCharts } from "@/lib/pdfReportChartData";
+import type {
+  PdfReportCharts,
+  PdfReportContext,
+} from "@/lib/pdfReportChartData";
 
 const styles = StyleSheet.create({
   page: {
@@ -147,6 +150,10 @@ function generatedStamp(): string {
 
 export type PdfProps = {
   athleteName: string;
+  /** Optional extended athlete fields shown on the new snapshot page. */
+  athleteSport?: string | null;
+  athleteTeam?: string | null;
+  athleteDob?: string | null;
   rangeStart: string | null;
   rangeEnd: string | null;
   mode: "best" | "date_comparison";
@@ -159,6 +166,8 @@ export type PdfProps = {
   dateComparisonData?: DateComparisonData;
   /** Native SVG charts for "best" mode only */
   pdfCharts?: PdfReportCharts | null;
+  /** Snapshot context (tests-included + key findings); "best" mode only. */
+  pdfContext?: PdfReportContext | null;
 };
 
 const SECTION_NOTE_LABELS: Record<string, string> = {

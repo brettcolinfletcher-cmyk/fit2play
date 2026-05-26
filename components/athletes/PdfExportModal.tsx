@@ -15,14 +15,30 @@ import {
 } from "@/lib/athleteReportData";
 import {
   buildPdfReportCharts,
+  buildPdfReportContext,
   type MetricRowWithSide,
+  type PdfReportContext,
 } from "@/lib/pdfReportChartData";
+import {
+  normalizePerformanceBandRow,
+  type NormalizedPerformanceBand,
+} from "@/lib/performanceBands";
 import { supabase } from "@/lib/supabaseClient";
+
+type AthleteForPdf = {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  /** Optional extended fields used by the new snapshot page. */
+  primary_sport?: string | null;
+  team?: string | null;
+  date_of_birth?: string | null;
+};
 
 type Props = {
   open: boolean;
   onClose: () => void;
-  athlete: { id: string; first_name: string | null; last_name: string | null };
+  athlete: AthleteForPdf;
   sessions: ReportSessionRow[];
   metricsBySession: Map<string, ReportMetricRow[]>;
   hopTests: ReportHopTestRow[];
@@ -70,6 +86,34 @@ export default function PdfExportModal({
   const [summaryComment, setSummaryComment] = useState("");
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [bands, setBands] = useState<NormalizedPerformanceBand[]>([]);
+
+  // Fetch performance bands once the modal opens; cached in state for the
+  // lifetime of the modal. Empty array on error — the resolver falls back to
+  // its built-in defaults (currently only peakSpeed has one).
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from("performance_bands")
+        .select("*");
+      if (cancelled) return;
+      if (error || !data) {
+        setBands([]);
+        return;
+      }
+      const norm: NormalizedPerformanceBand[] = [];
+      for (const row of data) {
+        const r = normalizePerformanceBandRow(row as Record<string, unknown>);
+        if (r) norm.push(r);
+      }
+      setBands(norm);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -161,6 +205,15 @@ export default function PdfExportModal({
               exportTo
             )
           : null;
+      const pdfContext: PdfReportContext | null =
+        mode === "best"
+          ? buildPdfReportContext(
+              scopeSessions,
+              metricsBySession as Map<string, MetricRowWithSide[]>,
+              scopeHopTests,
+              bands
+            )
+          : null;
       const dateComparisonData =
         mode === "date_comparison"
           ? computeDateComparisonData(
@@ -192,6 +245,9 @@ export default function PdfExportModal({
       const blob = await pdf(
         <AthletePdfDocument
           athleteName={athleteName}
+          athleteSport={athlete.primary_sport ?? null}
+          athleteTeam={athlete.team ?? null}
+          athleteDob={athlete.date_of_birth ?? null}
           rangeStart={exportFrom}
           rangeEnd={exportTo}
           mode={mode}
@@ -203,6 +259,7 @@ export default function PdfExportModal({
           bestInRange={bestInRange}
           dateComparisonData={dateComparisonData}
           pdfCharts={pdfCharts}
+          pdfContext={pdfContext}
         />
       ).toBlob();
 
@@ -222,7 +279,11 @@ export default function PdfExportModal({
     }
   }, [
     athlete.id,
+    athlete.primary_sport,
+    athlete.team,
+    athlete.date_of_birth,
     athleteName,
+    bands,
     compareDateALabel,
     compareDateBLabel,
     dateAId,

@@ -15,6 +15,10 @@ import {
   type ReportMetricRow,
   type ReportSessionRow,
 } from "@/lib/athleteReportData";
+import {
+  resolveBandForMetric,
+  type NormalizedPerformanceBand,
+} from "@/lib/performanceBands";
 export type MetricRowWithSide = ReportMetricRow & { side?: string | null };
 
 function is1080(s: ReportSessionRow): boolean {
@@ -220,7 +224,7 @@ export function buildPdfReportCharts(
 
   let jump: PdfJumpChart | null = null;
   const withAny = merged.filter((p) => p.jumpCm != null || p.rsi != null);
-  if (withAny.length >= 1) {
+  if (withAny.length >= 3) {
     jump = {
       variant: "line",
       title: "Jump performance over time",
@@ -231,6 +235,17 @@ export function buildPdfReportCharts(
         jumpCm: p.jumpCm,
         rsi: p.rsi,
       })),
+    };
+  } else if (withAny.length >= 1) {
+    // <3 sessions: a "trend" chart is meaningless. Surface the LATEST values
+    // as a single-session bar, with the actual session date in the caption.
+    const latest = withAny[withAny.length - 1]!;
+    jump = {
+      variant: "bar",
+      title: "Jump performance \u2014 latest session",
+      dateCaption: latest.xLabel,
+      jumpCm: latest.jumpCm,
+      rsi: latest.rsi,
     };
   }
 
@@ -311,4 +326,454 @@ export function buildPdfReportCharts(
     strength,
     hop,
   };
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// PDF REPORT CONTEXT — snapshot page data
+//
+// `buildPdfReportContext` augments the chart data with high-level snapshot info
+// the new layout (cover page) needs: tests-included summary, key findings
+// (latest values per modality with band classification), and session-over-session
+// deltas for headline metrics.
+// ────────────────────────────────────────────────────────────────────────
+
+/** Band tone family — matches `bandLabelToClasses` palette in `lib/performanceBands.ts`. */
+export type PdfBandTone = "elite" | "good" | "fair" | "poor" | "neutral";
+
+export type PdfBandTag = {
+  label: string;
+  tone: PdfBandTone;
+};
+
+export type PdfDelta = {
+  /** The previous session's value for the same metric (numeric). */
+  previousValue: number;
+  /** Display date for the previous session, e.g. "12 Feb 2026". */
+  previousDateLabel: string;
+  /** Absolute change vs previous (current - previous). */
+  absoluteChange: number;
+  /** Percentage change vs previous (signed). */
+  pctChange: number;
+  /**
+   * True when a *lower* numeric value is the better outcome for this metric
+   * (e.g. sprint split time). Consumers use this to colour the arrow correctly.
+   */
+  lowerIsBetter: boolean;
+};
+
+export type PdfKeyFinding = {
+  /** Stable id used as React key + section anchor (e.g. "sprint_top_speed"). */
+  id: string;
+  /** Which modality section this finding belongs to. */
+  modality: "sprint" | "cod" | "jump" | "strength" | "hop";
+  /** Human-readable metric name (e.g. "Top speed"). */
+  label: string;
+  /** Pre-formatted value with unit (e.g. "3.21 m/s"). */
+  value: string;
+  /** Date label of the session this came from. */
+  dateLabel: string;
+  /** Band classification when available. */
+  band: PdfBandTag | null;
+  /** Delta vs previous session if there is one. */
+  delta: PdfDelta | null;
+};
+
+export type PdfTestIncluded = {
+  id: string;
+  modality: string;
+  sessions: number;
+  latestDateLabel: string;
+};
+
+export type PdfReportContext = {
+  tests: PdfTestIncluded[];
+  findings: PdfKeyFinding[];
+};
+
+function bandTone(label: string | null | undefined): PdfBandTone {
+  const l = (label ?? "").trim().toLowerCase();
+  if (l.includes("elite")) return "elite";
+  if (l.includes("good")) return "good";
+  if (l.includes("fair")) return "fair";
+  if (l.includes("poor")) return "poor";
+  return "neutral";
+}
+
+function bandTagForMetric(
+  metricKey: string,
+  value: number | null,
+  bands: NormalizedPerformanceBand[],
+  sessionTestType: string | null
+): PdfBandTag | null {
+  if (value == null || !Number.isFinite(value)) return null;
+  const resolved = resolveBandForMetric(metricKey, value, bands, sessionTestType);
+  if (!resolved) return null;
+  return { label: resolved.label, tone: bandTone(resolved.label) };
+}
+
+function formatValueWithUnit(value: number | null, unit: string): string {
+  if (value == null || !Number.isFinite(value)) return "\u2014";
+  let formatted: string;
+  switch (unit) {
+    case "s":
+      formatted = value.toFixed(2);
+      break;
+    case "m/s":
+      formatted = value.toFixed(2);
+      break;
+    case "m/s\u00b2":
+      formatted = value.toFixed(2);
+      break;
+    case "cm":
+      formatted = value.toFixed(1);
+      break;
+    case "RSI":
+    case "":
+      formatted = value.toFixed(3);
+      break;
+    default:
+      formatted = Math.round(value).toLocaleString();
+  }
+  return unit && unit !== "RSI" ? `${formatted} ${unit}` : formatted;
+}
+
+function deltaFromPair(
+  current: number,
+  previous: number,
+  previousDateLabel: string,
+  lowerIsBetter: boolean
+): PdfDelta {
+  const abs = current - previous;
+  const pct = previous === 0 ? 0 : (abs / Math.abs(previous)) * 100;
+  return {
+    previousValue: previous,
+    previousDateLabel,
+    absoluteChange: abs,
+    pctChange: pct,
+    lowerIsBetter,
+  };
+}
+
+/**
+ * Walk the chronologically sorted sessions and return [latest, previous]
+ * pairs of (value, sessionDate) for a given numeric extractor. Sessions
+ * where extractor returns null are skipped entirely — we want the previous
+ * session that ACTUALLY had a comparable number, not just the prior session.
+ */
+function findLatestAndPrev(
+  sessions: ReportSessionRow[],
+  pred: (s: ReportSessionRow) => boolean,
+  extractor: (s: ReportSessionRow) => number | null
+): { latest: { value: number; date: string } | null; prev: { value: number; date: string } | null } {
+  const sorted = sessionsChronological(sessions.filter(pred)).filter(
+    (s) => s.session_date
+  );
+  const valued: { value: number; date: string }[] = [];
+  for (const s of sorted) {
+    const v = extractor(s);
+    if (v == null || !Number.isFinite(v)) continue;
+    valued.push({ value: v, date: s.session_date! });
+  }
+  const latest = valued.length > 0 ? valued[valued.length - 1]! : null;
+  const prev = valued.length > 1 ? valued[valued.length - 2]! : null;
+  return { latest, prev };
+}
+
+function findingFromSeries(
+  id: PdfKeyFinding["id"],
+  modality: PdfKeyFinding["modality"],
+  label: string,
+  unit: string,
+  metricKeyForBand: string,
+  sessionTestType: string | null,
+  lowerIsBetter: boolean,
+  sessions: ReportSessionRow[],
+  pred: (s: ReportSessionRow) => boolean,
+  extractor: (s: ReportSessionRow) => number | null,
+  bands: NormalizedPerformanceBand[]
+): PdfKeyFinding | null {
+  const { latest, prev } = findLatestAndPrev(sessions, pred, extractor);
+  if (!latest) return null;
+  const delta = prev
+    ? deltaFromPair(latest.value, prev.value, formatChartAxisDate(prev.date), lowerIsBetter)
+    : null;
+  return {
+    id,
+    modality,
+    label,
+    value: formatValueWithUnit(latest.value, unit),
+    dateLabel: formatChartAxisDate(latest.date),
+    band: bandTagForMetric(metricKeyForBand, latest.value, bands, sessionTestType),
+    delta,
+  };
+}
+
+/**
+ * Build the snapshot context that the new PDF cover page consumes.
+ * `bands` may be an empty array — in that case any band tag falls back to the
+ * built-in default in `resolveBandForMetric` (currently only peakSpeed has one).
+ */
+export function buildPdfReportContext(
+  sessions: ReportSessionRow[],
+  metricsBySession: Map<string, MetricRowWithSide[]>,
+  hopTests: ReportHopTestRow[],
+  bands: NormalizedPerformanceBand[]
+): PdfReportContext {
+  const metricsNorm = metricsBySession;
+
+  // ───────────────────────────────────────────────────────────────────────
+  // TESTS INCLUDED
+  // ───────────────────────────────────────────────────────────────────────
+
+  const tests: PdfTestIncluded[] = [];
+  const pushTest = (
+    id: string,
+    modality: string,
+    sess: ReportSessionRow[]
+  ) => {
+    if (sess.length === 0) return;
+    const sorted = sessionsChronological(sess.filter((s) => s.session_date));
+    const latest = sorted[sorted.length - 1];
+    tests.push({
+      id,
+      modality,
+      sessions: sess.length,
+      latestDateLabel: latest?.session_date
+        ? formatChartAxisDate(latest.session_date)
+        : "\u2014",
+    });
+  };
+
+  const linearSessions = sessions.filter(isLinearSprintSession);
+  const codSessions = sessions.filter(is505Session);
+  const cmjSessions = sessions.filter((s) => {
+    const tt = (s.test_type ?? "").toLowerCase();
+    if (tt === "force_plate_dj" || tt.includes("drop")) return false;
+    return tt === "force_plate_cmj" || tt.includes("cmj");
+  });
+  const djSessions = sessions.filter((s) => {
+    const tt = (s.test_type ?? "").toLowerCase();
+    return tt === "force_plate_dj" || tt.includes("drop");
+  });
+  const dynoSessions = sessions.filter((s) =>
+    (metricsNorm.get(s.id) ?? []).some((r) => r.key.startsWith("dyno_"))
+  );
+  const hopByDate = new Set(
+    hopTests.map((h) => h.session_date.slice(0, 10))
+  );
+
+  pushTest("sprint", "Linear sprint (1080)", linearSessions);
+  pushTest("cod", "5-10-5 (1080)", codSessions);
+  pushTest("cmj", "Force plate \u2014 CMJ", cmjSessions);
+  pushTest("dj", "Force plate \u2014 drop jump", djSessions);
+  pushTest("strength", "Dynamometry", dynoSessions);
+
+  if (hopByDate.size > 0) {
+    const sortedDates = [...hopByDate].sort();
+    tests.push({
+      id: "hop",
+      modality: "Hop tests",
+      sessions: hopByDate.size,
+      latestDateLabel: formatChartAxisDate(sortedDates[sortedDates.length - 1]!),
+    });
+  }
+
+  // ───────────────────────────────────────────────────────────────────────
+  // KEY FINDINGS — one headline metric per modality, with band + delta
+  // ───────────────────────────────────────────────────────────────────────
+
+  const findings: PdfKeyFinding[] = [];
+
+  // Sprint: top speed (max within session)
+  const topSpeedF = findingFromSeries(
+    "sprint_top_speed",
+    "sprint",
+    "Top speed",
+    "m/s",
+    "top_speed",
+    null,
+    false,
+    sessions,
+    isLinearSprintSession,
+    (s) =>
+      metricAggregate(
+        metricsNorm as Map<string, ReportMetricRow[]>,
+        s.id,
+        "top_speed",
+        "max"
+      ),
+    bands
+  );
+  if (topSpeedF) findings.push(topSpeedF);
+
+  // Sprint: 5m split time (lower is better)
+  const split5mF = findingFromSeries(
+    "sprint_split_5m",
+    "sprint",
+    "5 m split",
+    "s",
+    "split_5m_time",
+    null,
+    true,
+    sessions,
+    isLinearSprintSession,
+    (s) =>
+      metricAggregate(
+        metricsNorm as Map<string, ReportMetricRow[]>,
+        s.id,
+        "split_5m_time",
+        "min"
+      ),
+    bands
+  );
+  if (split5mF) findings.push(split5mF);
+
+  // COD: total time for the slower side at latest 5-10-5 (lower is better)
+  const codF = findingFromSeries(
+    "cod_total_time",
+    "cod",
+    "5-10-5 total time",
+    "s",
+    "total_time",
+    "5-10-5",
+    true,
+    sessions,
+    is505Session,
+    (s) => {
+      const rows = metricsNorm.get(s.id) ?? [];
+      const left = minTotalTimeForSide(rows, "left");
+      const right = minTotalTimeForSide(rows, "right");
+      if (left == null && right == null) return null;
+      if (left == null) return right;
+      if (right == null) return left;
+      return Math.max(left, right); // weaker side = the time we want to track
+    },
+    bands
+  );
+  if (codF) findings.push(codF);
+
+  // Force plate CMJ: jump height
+  const hawkinsCsv = sessionsChronological(
+    sessions.filter((s) => (s.source ?? "").toLowerCase() === "hawkins_csv")
+  );
+  const cmjPts = buildCmjDataPoints(
+    hawkinsCsv,
+    metricsNorm as Map<string, { key: string; value: number | null; rep_index: number | null }[]>
+  );
+  if (cmjPts.length > 0) {
+    const latestCmj = cmjPts[cmjPts.length - 1]!;
+    if (latestCmj.jump_height != null && Number.isFinite(latestCmj.jump_height)) {
+      const prevCmj =
+        cmjPts.length > 1 &&
+        cmjPts[cmjPts.length - 2]!.jump_height != null
+          ? cmjPts[cmjPts.length - 2]!
+          : null;
+      const delta =
+        prevCmj && prevCmj.jump_height != null
+          ? deltaFromPair(
+              latestCmj.jump_height,
+              prevCmj.jump_height,
+              prevCmj.date,
+              false
+            )
+          : null;
+      findings.push({
+        id: "cmj_jump_height",
+        modality: "jump",
+        label: "CMJ jump height",
+        value: formatValueWithUnit(latestCmj.jump_height, "cm"),
+        dateLabel: latestCmj.date,
+        band: bandTagForMetric(
+          "fp_jump_height",
+          latestCmj.jump_height,
+          bands,
+          "force_plate_cmj"
+        ),
+        delta,
+      });
+    }
+  }
+
+  // Drop jump: RSI
+  const djPts = buildDjDataPoints(
+    hawkinsCsv,
+    metricsNorm as Map<string, { key: string; value: number | null; rep_index: number | null }[]>
+  );
+  if (djPts.length > 0) {
+    const latestDj = djPts[djPts.length - 1]!;
+    if (latestDj.rsi != null && Number.isFinite(latestDj.rsi)) {
+      const prevDj =
+        djPts.length > 1 && djPts[djPts.length - 2]!.rsi != null
+          ? djPts[djPts.length - 2]!
+          : null;
+      const delta =
+        prevDj && prevDj.rsi != null
+          ? deltaFromPair(latestDj.rsi, prevDj.rsi, prevDj.date, false)
+          : null;
+      findings.push({
+        id: "dj_rsi",
+        modality: "jump",
+        label: "Drop jump RSI",
+        value: formatValueWithUnit(latestDj.rsi, "RSI"),
+        dateLabel: latestDj.date,
+        band: bandTagForMetric(
+          "fp_rsi",
+          latestDj.rsi,
+          bands,
+          "force_plate_dj"
+        ),
+        delta,
+      });
+    }
+  }
+
+  // Hop tests: lowest LSI across the latest day of hop battery
+  if (hopTests.length > 0) {
+    const byType = new Map<string, ReportHopTestRow[]>();
+    for (const h of hopTests) {
+      const list = byType.get(h.test_type) ?? [];
+      list.push(h);
+      byType.set(h.test_type, list);
+    }
+    let worstLsi: { label: string; lsi: number; date: string } | null = null;
+    for (const [tt, rows] of byType) {
+      const dates = [...new Set(rows.map((r) => r.session_date.slice(0, 10)))].sort(
+        (a, b) => b.localeCompare(a)
+      );
+      const latestD = dates[0];
+      if (!latestD) continue;
+      const day = rows.filter((r) => r.session_date.slice(0, 10) === latestD);
+      let left: number | null = null;
+      let right: number | null = null;
+      for (const r of day) {
+        const sd = (r.side ?? "").toLowerCase();
+        if (sd === "left") left = r.best_cm;
+        if (sd === "right") right = r.best_cm;
+      }
+      if (left == null || right == null) continue;
+      const lsi = lsiPct(left, right);
+      if (lsi == null) continue;
+      if (!worstLsi || lsi < worstLsi.lsi) {
+        worstLsi = { label: hopTestDisplayName(tt), lsi, date: latestD };
+      }
+    }
+    if (worstLsi) {
+      findings.push({
+        id: "hop_min_lsi",
+        modality: "hop",
+        label: `Lowest hop LSI \u2014 ${worstLsi.label}`,
+        value: `${worstLsi.lsi.toFixed(1)} %`,
+        dateLabel: formatChartAxisDate(worstLsi.date),
+        band:
+          worstLsi.lsi >= 90
+            ? { label: "Good", tone: "good" }
+            : worstLsi.lsi >= 80
+            ? { label: "Fair", tone: "fair" }
+            : { label: "Poor", tone: "poor" },
+        delta: null,
+      });
+    }
+  }
+
+  return { tests, findings };
 }
