@@ -7,14 +7,19 @@ import type {
   DateComparisonData,
 } from "@/lib/athleteReportData";
 import type {
+  PdfBandTag,
+  PdfBandTone,
+  PdfDelta,
+  PdfKeyFinding,
   PdfReportCharts,
   PdfReportContext,
+  PdfTestIncluded,
 } from "@/lib/pdfReportChartData";
 
 const styles = StyleSheet.create({
   page: {
     paddingTop: 0,
-    paddingBottom: 48,
+    paddingBottom: 56,
     paddingHorizontal: 40,
     fontSize: 8,
     fontFamily: "Helvetica",
@@ -23,7 +28,7 @@ const styles = StyleSheet.create({
   },
   limeTopBarWrap: {
     marginHorizontal: -40,
-    marginBottom: 16,
+    marginBottom: 14,
   },
   limeTopBar: {
     height: 4,
@@ -44,7 +49,36 @@ const styles = StyleSheet.create({
   headerMeta: {
     fontSize: 8,
     color: "#9ca3af",
-    marginBottom: 12,
+    marginBottom: 4,
+  },
+  // ─── Athlete meta pill row ───
+  metaRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  metaPill: {
+    flexDirection: "row",
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+    backgroundColor: "#f3f4f6",
+    borderRadius: 9999,
+    marginRight: 4,
+    marginBottom: 3,
+  },
+  metaPillLabel: {
+    fontSize: 6.5,
+    color: "#9ca3af",
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+    marginRight: 4,
+    fontWeight: 700,
+  },
+  metaPillValue: {
+    fontSize: 8,
+    color: "#374151",
+    fontWeight: 500,
   },
   rule: {
     borderBottomWidth: 1,
@@ -55,26 +89,51 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: 700,
     color: "#111827",
-    marginTop: 4,
-    marginBottom: 8,
+    marginTop: 6,
+    marginBottom: 6,
     paddingLeft: 8,
     borderLeftWidth: 4,
     borderLeftColor: "#84cc16",
+  },
+  modalitySection: {
+    marginTop: 14,
   },
   h2: {
     fontSize: 9,
     fontWeight: 700,
     color: "#111827",
-    marginTop: 14,
+    marginTop: 12,
     marginBottom: 6,
     paddingBottom: 3,
     borderBottomWidth: 0.5,
     borderBottomColor: "#e5e7eb",
   },
   body: {
-    fontSize: 8,
-    lineHeight: 1.35,
+    fontSize: 8.5,
+    lineHeight: 1.4,
     color: "#374151",
+  },
+  // ─── Inline section comment block ───
+  commentBlock: {
+    marginTop: 6,
+    paddingLeft: 8,
+    borderLeftWidth: 2,
+    borderLeftColor: "#d1d5db",
+    paddingVertical: 2,
+  },
+  commentLabel: {
+    fontSize: 6.5,
+    fontWeight: 700,
+    color: "#9ca3af",
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+    marginBottom: 2,
+  },
+  commentText: {
+    fontSize: 8.5,
+    color: "#374151",
+    lineHeight: 1.4,
+    fontStyle: "italic",
   },
   tableHeader: {
     flexDirection: "row",
@@ -105,6 +164,10 @@ const styles = StyleSheet.create({
   colA: { width: "28%" },
   colB: { width: "28%" },
   colD: { width: "16%" },
+  // tests-included columns
+  colTiModality: { width: "60%" },
+  colTiSessions: { width: "20%", textAlign: "right" },
+  colTiLatest: { width: "20%", textAlign: "right" },
   th: {
     fontSize: 7.5,
     fontWeight: 700,
@@ -112,12 +175,95 @@ const styles = StyleSheet.create({
   },
   td: { fontSize: 8, color: "#374151" },
   tdMono: { fontSize: 8.5, color: "#111827" },
-  footer: {
-    marginTop: 14,
-    paddingTop: 10,
+  // ─── Key finding tile ───
+  findingsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    marginTop: 2,
+    marginHorizontal: -4,
+  },
+  findingTile: {
+    width: "50%",
+    paddingHorizontal: 4,
+    marginBottom: 6,
+  },
+  findingTileInner: {
+    borderWidth: 0.75,
+    borderColor: "#e5e7eb",
+    borderRadius: 4,
+    padding: 8,
+    backgroundColor: "#fafafa",
+  },
+  findingLabel: {
+    fontSize: 7,
+    color: "#6b7280",
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+    fontWeight: 700,
+    marginBottom: 2,
+  },
+  findingValue: {
+    fontSize: 16,
+    color: "#111827",
+    fontWeight: 700,
+    marginBottom: 2,
+  },
+  findingDate: {
     fontSize: 7,
     color: "#9ca3af",
-    textAlign: "center",
+  },
+  findingMeta: {
+    flexDirection: "row",
+    marginTop: 5,
+    alignItems: "center",
+  },
+  // ─── Band pill ───
+  pill: {
+    flexDirection: "row",
+    paddingVertical: 1,
+    paddingHorizontal: 5,
+    borderRadius: 9999,
+    borderWidth: 0.75,
+    marginRight: 4,
+  },
+  pillLabel: {
+    fontSize: 7,
+    fontWeight: 700,
+    letterSpacing: 0.2,
+    textTransform: "uppercase",
+  },
+  // ─── Delta indicator ───
+  delta: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  deltaSymbol: {
+    fontSize: 7,
+    fontWeight: 700,
+    marginRight: 2,
+  },
+  deltaPct: {
+    fontSize: 7,
+    fontWeight: 700,
+    marginRight: 3,
+  },
+  deltaPrev: {
+    fontSize: 6.5,
+    color: "#9ca3af",
+  },
+  // ─── Footer ───
+  footer: {
+    position: "absolute",
+    bottom: 24,
+    left: 40,
+    right: 40,
+    paddingTop: 8,
+    borderTopWidth: 0.5,
+    borderTopColor: "#f3f4f6",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    fontSize: 7,
+    color: "#9ca3af",
   },
 });
 
@@ -148,6 +294,150 @@ function generatedStamp(): string {
   }
 }
 
+/** Format a YYYY-MM-DD birthdate as e.g. "3 May 1996". Returns null on invalid input. */
+function formatBirthdate(ymd: string | null | undefined): string | null {
+  if (!ymd) return null;
+  try {
+    const d = new Date(`${ymd}T00:00:00`);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.toLocaleDateString("en-AU", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      timeZone: "Australia/Sydney",
+    });
+  } catch {
+    return null;
+  }
+}
+
+/** Compute age in completed years from a YYYY-MM-DD birthdate. */
+function computeAge(ymd: string | null | undefined): number | null {
+  if (!ymd) return null;
+  try {
+    const dob = new Date(`${ymd}T00:00:00`);
+    if (Number.isNaN(dob.getTime())) return null;
+    const now = new Date();
+    let age = now.getFullYear() - dob.getFullYear();
+    const m = now.getMonth() - dob.getMonth();
+    if (m < 0 || (m === 0 && now.getDate() < dob.getDate())) age -= 1;
+    return age >= 0 && age < 120 ? age : null;
+  } catch {
+    return null;
+  }
+}
+
+// ─── Band pill colours ───
+// Mirrors `bandLabelToClasses` in lib/performanceBands.ts but as hex colours
+// for the PDF (Tailwind classes don't compile into @react-pdf).
+const BAND_COLORS: Record<
+  PdfBandTone,
+  { bg: string; text: string; border: string }
+> = {
+  elite: { bg: "#d1fae5", text: "#047857", border: "#a7f3d0" },
+  good: { bg: "#fef9c3", text: "#a16207", border: "#fef08a" },
+  fair: { bg: "#ffedd5", text: "#9a3412", border: "#fed7aa" },
+  poor: { bg: "#fee2e2", text: "#b91c1c", border: "#fecaca" },
+  neutral: { bg: "#f3f4f6", text: "#374151", border: "#e5e7eb" },
+};
+
+function BandPill({ band }: { band: PdfBandTag }) {
+  const c = BAND_COLORS[band.tone] ?? BAND_COLORS.neutral;
+  return (
+    <View
+      style={[
+        styles.pill,
+        { backgroundColor: c.bg, borderColor: c.border },
+      ]}
+    >
+      <Text style={[styles.pillLabel, { color: c.text }]}>{band.label}</Text>
+    </View>
+  );
+}
+
+function DeltaArrow({ delta }: { delta: PdfDelta }) {
+  const isFlat = delta.absoluteChange === 0;
+  const isImprovement = delta.lowerIsBetter
+    ? delta.absoluteChange < 0
+    : delta.absoluteChange > 0;
+  const symbol = isFlat ? "\u2014" : isImprovement ? "\u25B2" : "\u25BC";
+  const color = isFlat ? "#9ca3af" : isImprovement ? "#059669" : "#dc2626";
+  const pct = Math.abs(delta.pctChange);
+  return (
+    <View style={styles.delta}>
+      <Text style={[styles.deltaSymbol, { color }]}>{symbol}</Text>
+      <Text style={[styles.deltaPct, { color }]}>{pct.toFixed(1)}%</Text>
+      <Text style={styles.deltaPrev}>vs {delta.previousDateLabel}</Text>
+    </View>
+  );
+}
+
+function FindingTile({ finding }: { finding: PdfKeyFinding }) {
+  return (
+    <View style={styles.findingTile} wrap={false}>
+      <View style={styles.findingTileInner}>
+        <Text style={styles.findingLabel}>{finding.label}</Text>
+        <Text style={styles.findingValue}>{finding.value}</Text>
+        <Text style={styles.findingDate}>{finding.dateLabel}</Text>
+        {(finding.band || finding.delta) && (
+          <View style={styles.findingMeta}>
+            {finding.band ? <BandPill band={finding.band} /> : null}
+            {finding.delta ? <DeltaArrow delta={finding.delta} /> : null}
+          </View>
+        )}
+      </View>
+    </View>
+  );
+}
+
+function TestsIncludedTable({ tests }: { tests: PdfTestIncluded[] }) {
+  if (tests.length === 0) return null;
+  return (
+    <View style={{ marginBottom: 4 }}>
+      <View style={styles.tableHeader}>
+        <Text style={[styles.colTiModality, styles.th]}>Modality</Text>
+        <Text style={[styles.colTiSessions, styles.th]}>Sessions</Text>
+        <Text style={[styles.colTiLatest, styles.th]}>Latest</Text>
+      </View>
+      {tests.map((t, i) => (
+        <View key={t.id} style={i % 2 === 0 ? styles.row : styles.rowAlt}>
+          <Text style={[styles.colTiModality, styles.td]}>{t.modality}</Text>
+          <Text style={[styles.colTiSessions, styles.tdMono]}>
+            {t.sessions}
+          </Text>
+          <Text style={[styles.colTiLatest, styles.td]}>
+            {t.latestDateLabel}
+          </Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function MetaPill({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.metaPill}>
+      <Text style={styles.metaPillLabel}>{label}</Text>
+      <Text style={styles.metaPillValue}>{value}</Text>
+    </View>
+  );
+}
+
+function SectionCommentBlock({
+  comment,
+}: {
+  comment: string | null | undefined;
+}) {
+  const trimmed = (comment ?? "").trim();
+  if (!trimmed) return null;
+  return (
+    <View style={styles.commentBlock} wrap={false}>
+      <Text style={styles.commentLabel}>Clinical note</Text>
+      <Text style={styles.commentText}>{trimmed}</Text>
+    </View>
+  );
+}
+
 export type PdfProps = {
   athleteName: string;
   /** Optional extended athlete fields shown on the new snapshot page. */
@@ -168,16 +458,6 @@ export type PdfProps = {
   pdfCharts?: PdfReportCharts | null;
   /** Snapshot context (tests-included + key findings); "best" mode only. */
   pdfContext?: PdfReportContext | null;
-};
-
-const SECTION_NOTE_LABELS: Record<string, string> = {
-  summary: "Summary",
-  linear: "Linear sprint",
-  cod: "COD",
-  cmj: "Force plate — CMJ",
-  drop_jump: "Force plate — Drop jump",
-  hop_tests: "Hop tests",
-  dynamometry: "Dynamometry",
 };
 
 function BestTable({
@@ -248,6 +528,9 @@ function CompareTable({
 
 export default function AthletePdfDocument({
   athleteName,
+  athleteSport,
+  athleteTeam,
+  athleteDob,
   rangeStart,
   rangeEnd,
   mode,
@@ -259,6 +542,7 @@ export default function AthletePdfDocument({
   bestInRange,
   dateComparisonData,
   pdfCharts = null,
+  pdfContext = null,
 }: PdfProps) {
   const rangeLine =
     rangeStart || rangeEnd
@@ -288,16 +572,22 @@ export default function AthletePdfDocument({
   }));
 
   const dc = dateComparisonData;
+  const ctx = pdfContext ?? null;
+  const isBest = mode === "best";
 
-  const noteEntries = Object.entries(sectionComments).filter(
-    ([, v]) => v != null && String(v).trim() !== ""
-  );
-
-  const footerText = `Fit2Play Performance Testing · fit2perform.com.au · Generated ${gen}`;
+  // Athlete meta strip: only render when at least one value exists.
+  const dobLine = (() => {
+    const formatted = formatBirthdate(athleteDob);
+    if (!formatted) return null;
+    const age = computeAge(athleteDob);
+    return age != null ? `${formatted} (${age})` : formatted;
+  })();
+  const hasMeta = Boolean(athleteSport || athleteTeam || dobLine);
 
   return (
     <Document>
       <Page size="A4" style={styles.page} wrap>
+        {/* Brand bar + header */}
         <View style={styles.limeTopBarWrap}>
           <View style={styles.limeTopBar} />
         </View>
@@ -309,27 +599,92 @@ export default function AthletePdfDocument({
         <Text style={styles.headerReportType}>Athlete Performance Report</Text>
         <Text style={styles.headerMeta}>Date range: {rangeLine}</Text>
 
+        {hasMeta ? (
+          <View style={styles.metaRow}>
+            {athleteSport ? (
+              <MetaPill label="Sport" value={athleteSport} />
+            ) : null}
+            {athleteTeam ? (
+              <MetaPill label="Team" value={athleteTeam} />
+            ) : null}
+            {dobLine ? <MetaPill label="DOB" value={dobLine} /> : null}
+          </View>
+        ) : null}
+
         <View style={styles.rule} />
 
+        {/* Manual clinical summary, when provided in the export modal. */}
         {summaryComment?.trim() ? (
-          <>
+          <View>
             <Text style={styles.sectionBanner}>SUMMARY</Text>
             <Text style={styles.body}>{summaryComment.trim()}</Text>
+          </View>
+        ) : null}
+
+        {/* SNAPSHOT — only in "best" mode and only when context is provided. */}
+        {isBest && ctx ? (
+          <>
+            {ctx.tests.length > 0 ? (
+              <View>
+                <Text style={styles.sectionBanner}>TESTS INCLUDED</Text>
+                <TestsIncludedTable tests={ctx.tests} />
+              </View>
+            ) : null}
+
+            {ctx.findings.length > 0 ? (
+              <View>
+                <Text style={styles.sectionBanner}>KEY FINDINGS</Text>
+                <View style={styles.findingsGrid}>
+                  {ctx.findings.map((f) => (
+                    <FindingTile key={f.id} finding={f} />
+                  ))}
+                </View>
+              </View>
+            ) : null}
           </>
         ) : null}
 
-        {mode === "best" ? (
-          <Text style={styles.sectionBanner}>Best Performance</Text>
-        ) : (
-          <Text style={styles.sectionBanner}>
-            {`Session Comparison — ${compareDateALabel} vs ${compareDateBLabel}`}
-          </Text>
-        )}
-
-        {mode === "best" ? (
+        {/* DATE COMPARISON mode keeps its existing table-only layout. */}
+        {mode === "date_comparison" && dc ? (
           <>
-            {(pdfCharts?.sprint != null || linearBestRows.length > 0) && (
-              <View style={{ marginBottom: 6 }}>
+            <Text style={styles.sectionBanner}>
+              {`Session Comparison \u2014 ${compareDateALabel} vs ${compareDateBLabel}`}
+            </Text>
+            <CompareTable
+              title="LINEAR SPRINT"
+              labelA={compareDateALabel}
+              labelB={compareDateBLabel}
+              rows={dc.linear}
+            />
+            <CompareTable
+              title={"FORCE PLATE \u2014 CMJ"}
+              labelA={compareDateALabel}
+              labelB={compareDateBLabel}
+              rows={dc.cmj}
+            />
+            <CompareTable
+              title={"FORCE PLATE \u2014 DROP JUMP"}
+              labelA={compareDateALabel}
+              labelB={compareDateBLabel}
+              rows={dc.dj}
+            />
+            {dc.hop.map((block) => (
+              <CompareTable
+                key={block.testType}
+                title={`HOP \u2014 ${block.title.toUpperCase()}`}
+                labelA={compareDateALabel}
+                labelB={compareDateBLabel}
+                rows={block.rows}
+              />
+            ))}
+          </>
+        ) : null}
+
+        {/* MODALITY DETAIL — only in "best" mode. */}
+        {isBest ? (
+          <>
+            {pdfCharts?.sprint != null || linearBestRows.length > 0 ? (
+              <View style={styles.modalitySection}>
                 <Text style={styles.sectionBanner}>LINEAR SPRINT</Text>
                 {pdfCharts?.sprint ? (
                   <PdfBarChart
@@ -342,12 +697,17 @@ export default function AthletePdfDocument({
                 {linearBestRows.length > 0 ? (
                   <BestTable title="" rows={linearBestRows} />
                 ) : null}
+                {includeNotes ? (
+                  <SectionCommentBlock comment={sectionComments.linear} />
+                ) : null}
               </View>
-            )}
+            ) : null}
 
-            {pdfCharts?.cod != null && (
-              <View style={{ marginBottom: 6 }}>
-                <Text style={styles.sectionBanner}>CHANGE OF DIRECTION (5-10-5)</Text>
+            {pdfCharts?.cod != null ? (
+              <View style={styles.modalitySection}>
+                <Text style={styles.sectionBanner}>
+                  CHANGE OF DIRECTION (5-10-5)
+                </Text>
                 <PdfGroupedBarChart
                   title={pdfCharts.cod.title}
                   dateCaption={pdfCharts.cod.dateCaption}
@@ -364,12 +724,17 @@ export default function AthletePdfDocument({
                     },
                   ]}
                 />
+                {includeNotes ? (
+                  <SectionCommentBlock comment={sectionComments.cod} />
+                ) : null}
               </View>
-            )}
+            ) : null}
 
-            {(pdfCharts?.jump != null || cmjBestRows.length > 0 || djBestRows.length > 0) && (
-              <View style={{ marginBottom: 6 }}>
-                <Text style={styles.sectionBanner}>FORCE PLATE — JUMP</Text>
+            {pdfCharts?.jump != null ||
+            cmjBestRows.length > 0 ||
+            djBestRows.length > 0 ? (
+              <View style={styles.modalitySection}>
+                <Text style={styles.sectionBanner}>FORCE PLATE</Text>
                 {pdfCharts?.jump?.variant === "line" ? (
                   <PdfLineChart
                     title={pdfCharts.jump.title}
@@ -384,37 +749,38 @@ export default function AthletePdfDocument({
                     }))}
                   />
                 ) : null}
-                {pdfCharts?.jump?.variant === "bar" ? (
-                  <View>
-                    {pdfCharts.jump.jumpCm != null ? (
-                      <PdfBarChart
-                        title="Jump height — latest session"
-                        dateCaption={pdfCharts.jump.dateCaption}
-                        unit="cm"
-                        items={[{ label: "Jump height", value: pdfCharts.jump.jumpCm }]}
-                      />
-                    ) : null}
-                    {pdfCharts.jump.rsi != null ? (
-                      <PdfBarChart
-                        title="RSI — latest session"
-                        dateCaption={pdfCharts.jump.dateCaption}
-                        unit="RSI"
-                        items={[{ label: "RSI", value: pdfCharts.jump.rsi }]}
-                      />
-                    ) : null}
-                  </View>
-                ) : null}
+                {/* With the new ≥3 rule, single-session jump data goes into the
+                    KEY FINDINGS tiles on the snapshot page rather than being
+                    a lonely standalone bar here. */}
                 {cmjBestRows.length > 0 ? (
-                  <BestTable title="FORCE PLATE — CMJ" rows={cmjBestRows} />
+                  <>
+                    <BestTable
+                      title={"CMJ \u2014 best values"}
+                      rows={cmjBestRows}
+                    />
+                    {includeNotes ? (
+                      <SectionCommentBlock comment={sectionComments.cmj} />
+                    ) : null}
+                  </>
                 ) : null}
                 {djBestRows.length > 0 ? (
-                  <BestTable title="FORCE PLATE — DROP JUMP" rows={djBestRows} />
+                  <>
+                    <BestTable
+                      title={"Drop jump \u2014 best values"}
+                      rows={djBestRows}
+                    />
+                    {includeNotes ? (
+                      <SectionCommentBlock
+                        comment={sectionComments.drop_jump}
+                      />
+                    ) : null}
+                  </>
                 ) : null}
               </View>
-            )}
+            ) : null}
 
-            {pdfCharts?.strength != null && (
-              <View style={{ marginBottom: 6 }}>
+            {pdfCharts?.strength != null ? (
+              <View style={styles.modalitySection}>
                 <Text style={styles.sectionBanner}>STRENGTH (DYNAMOMETRY)</Text>
                 <PdfGroupedBarChart
                   title={pdfCharts.strength.title}
@@ -424,14 +790,20 @@ export default function AthletePdfDocument({
                     label: p.label,
                     left: p.left,
                     right: p.right,
-                    annotation: p.lsiPct != null ? `LSI ${p.lsiPct.toFixed(1)}%` : null,
+                    annotation:
+                      p.lsiPct != null ? `LSI ${p.lsiPct.toFixed(1)}%` : null,
                   }))}
                 />
+                {includeNotes ? (
+                  <SectionCommentBlock
+                    comment={sectionComments.dynamometry}
+                  />
+                ) : null}
               </View>
-            )}
+            ) : null}
 
-            {(pdfCharts?.hop != null || hopBestRows.length > 0) && (
-              <View style={{ marginBottom: 6 }}>
+            {pdfCharts?.hop != null || hopBestRows.length > 0 ? (
+              <View style={styles.modalitySection}>
                 <Text style={styles.sectionBanner}>HOP TESTS</Text>
                 {pdfCharts?.hop ? (
                   <PdfGroupedBarChart
@@ -442,7 +814,10 @@ export default function AthletePdfDocument({
                       label: p.label,
                       left: p.left,
                       right: p.right,
-                      annotation: p.lsiPct != null ? `LSI ${p.lsiPct.toFixed(1)}%` : null,
+                      annotation:
+                        p.lsiPct != null
+                          ? `LSI ${p.lsiPct.toFixed(1)}%`
+                          : null,
                     }))}
                   />
                 ) : null}
@@ -454,57 +829,23 @@ export default function AthletePdfDocument({
                     col2Header="Best LSI%"
                   />
                 ) : null}
+                {includeNotes ? (
+                  <SectionCommentBlock comment={sectionComments.hop_tests} />
+                ) : null}
               </View>
-            )}
-          </>
-        ) : (
-          dc && (
-            <>
-              <CompareTable
-                title="LINEAR SPRINT"
-                labelA={compareDateALabel}
-                labelB={compareDateBLabel}
-                rows={dc.linear}
-              />
-              <CompareTable
-                title="FORCE PLATE — CMJ"
-                labelA={compareDateALabel}
-                labelB={compareDateBLabel}
-                rows={dc.cmj}
-              />
-              <CompareTable
-                title="FORCE PLATE — DROP JUMP"
-                labelA={compareDateALabel}
-                labelB={compareDateBLabel}
-                rows={dc.dj}
-              />
-              {dc.hop.map((block) => (
-                <CompareTable
-                  key={block.testType}
-                  title={`HOP — ${block.title.toUpperCase()}`}
-                  labelA={compareDateALabel}
-                  labelB={compareDateBLabel}
-                  rows={block.rows}
-                />
-              ))}
-            </>
-          )
-        )}
-
-        {includeNotes && noteEntries.length > 0 ? (
-          <>
-            <View style={styles.rule} />
-            <Text style={styles.sectionBanner}>SECTION NOTES</Text>
-            {noteEntries.map(([key, val]) => (
-              <Text key={key} style={[styles.body, { marginBottom: 4 }]}>
-                {SECTION_NOTE_LABELS[key] ?? key}: {String(val).trim()}
-              </Text>
-            ))}
+            ) : null}
           </>
         ) : null}
 
-        <View style={styles.rule} />
-        <Text style={styles.footer}>{footerText}</Text>
+        {/* Footer — fixed at the bottom of every page with page numbers. */}
+        <View style={styles.footer} fixed>
+          <Text>{"Fit2Play Performance Testing \u00b7 fit2perform.com.au"}</Text>
+          <Text
+            render={({ pageNumber, totalPages }) =>
+              `Generated ${gen} \u00b7 Page ${pageNumber} of ${totalPages}`
+            }
+          />
+        </View>
       </Page>
     </Document>
   );
