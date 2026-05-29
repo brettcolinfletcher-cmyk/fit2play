@@ -23,7 +23,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Fit2Play — Return-to-Sport Intelligence",
     description: "Objective return-to-sport testing for high-performance athletes. 1080 Motion and Hawkins force plate data in one performance dashboard.",
-    url: "https://fit2play.io",
+    url: "https://www.fit2perform.com.au",
     siteName: "Fit2Play",
     images: [{ url: "/logo_full_original.png", width: 1200, height: 630 }],
     type: "website",

@@ -5,11 +5,11 @@ import Image from "next/image";
 import { useState } from "react";
 
 const MAIL_REFER =
-  "mailto:info@fit2play.com?subject=Patient%20referral";
+  "mailto:info@fit2play.com.au?subject=Patient%20referral";
 const MAIL_BOOK =
-  "mailto:info@fit2play.com?subject=Testing%20session%20booking";
+  "mailto:info@fit2play.com.au?subject=Testing%20session%20booking";
 const MAIL_TOUCH =
-  "mailto:info@fit2play.com?subject=Fit2Play%20enquiry";
+  "mailto:info@fit2play.com.au?subject=Fit2Play%20enquiry";
 
 export default function HomePage() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -300,8 +300,8 @@ export default function HomePage() {
             </div>
             <p className="text-xs text-slate-200/80">
               Questions?{" "}
-              <a href="mailto:info@fit2play.com" className="font-semibold text-lime-200 hover:text-lime-100">
-                info@fit2play.com
+              <a href="mailto:info@fit2play.com.au" className="font-semibold text-lime-200 hover:text-lime-100">
+                info@fit2play.com.au
               </a>
             </p>
           </div>
@@ -320,8 +320,8 @@ export default function HomePage() {
             />
           </Link>
           <p>© {new Date().getFullYear()} Fit2Play</p>
-          <a href="mailto:info@fit2play.com" className="hover:text-lime-400">
-            info@fit2play.com
+          <a href="mailto:info@fit2play.com.au" className="hover:text-lime-400">
+            info@fit2play.com.au
           </a>
         </div>
       </footer>
