@@ -23,6 +23,9 @@ import {
   ForcePlateIsoPanel,
   ForcePlateJumpPanel,
   fpPanelKind,
+  HhdIsometricPanel,
+  parseHhdSubTypeLabel,
+  sessionTypeLabel,
   SessionSummaryLrTable,
 } from "@/components/session/SessionTestSummaryPanels";
 
@@ -373,13 +376,10 @@ export default function SessionPage() {
 
   const dateLabel = session ? formatDisplayDateTime(session.created_at) : "";
 
-  const headerTag = isHandheldDynoSession
-    ? session?.test_type || "Handheld dynamometer"
-    : isForcePlate
-      ? session?.test_type || "Force plate test"
-      : isSprintLike
-        ? "1080 Sprint session"
-        : session?.test_type || "Test session";
+  const headerTag = sessionTypeLabel(session?.test_type);
+  const subTypeLabel = session?.test_sub_type
+    ? parseHhdSubTypeLabel(session.test_sub_type)
+    : "";
 
   const summaryOnly = useMemo(
     () => metrics.filter((m) => m.rep_index == null),
@@ -463,11 +463,11 @@ export default function SessionPage() {
                   {athleteName}
                 </h1>
                 <p className="mt-1 text-xs text-slate-400">{dateLabel}</p>
-                {session.test_sub_type && (
+                {subTypeLabel ? (
                   <p className="mt-1 text-[0.7rem] text-lime-300/90">
-                    Sub-type: {session.test_sub_type}
+                    Sub-type: {subTypeLabel}
                   </p>
-                )}
+                ) : null}
                 {athlete && (
                   <p className="mt-1 text-[0.7rem] text-slate-500">
                     {athlete.organisation && `${athlete.organisation} • `}
@@ -663,6 +663,10 @@ export default function SessionPage() {
                   <SprintTimeSeriesGraphs series={sprintSeries} />
                 )}
               </section>
+            )}
+
+            {isForcePlate && fpKind === "hhd_isometric" && (
+              <HhdIsometricPanel metrics={metrics} />
             )}
 
             {isForcePlate && fpKind === "jump" && (

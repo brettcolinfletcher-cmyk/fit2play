@@ -230,11 +230,42 @@ export function SessionSummaryLrTable({
   );
 }
 
+export const SESSION_TYPE_LABELS: Record<string, string> = {
+  force_plate_cmj: "Force Plate — CMJ",
+  force_plate_dj: "Force Plate — Drop Jump",
+  force_plate_imtp: "Force Plate — IMTP",
+  force_plate_isometric: "Handheld Dynamometry",
+  force_plate_calf: "Force Plate — Calf",
+  force_plate: "Force Plate",
+  "1080_sprint": "1080 Motion — Sprint",
+};
+
+export function sessionTypeLabel(testType: string | null | undefined): string {
+  if (!testType) return "Test session";
+  const key = testType.toLowerCase();
+  if (SESSION_TYPE_LABELS[key]) return SESSION_TYPE_LABELS[key];
+  return testType.replace(/_/g, " ");
+}
+
+export function parseHhdSubTypeLabel(segment: string | null | undefined): string {
+  if (!segment) return "";
+  const cleaned = segment
+    .replace(/^TS\s+/i, "")
+    .replace(/^Isometric\s+Test[-\s]*/i, "");
+  const colonIdx = cleaned.lastIndexOf(":");
+  const name = colonIdx >= 0 ? cleaned.slice(0, colonIdx) : cleaned;
+  const repStr = colonIdx >= 0 ? cleaned.slice(colonIdx + 1).trim() : "";
+  const parts = name.split("-").map((p) => p.trim()).filter(Boolean);
+  const label = parts.join(" – ");
+  return repStr ? `${label} (rep ${repStr})` : label;
+}
+
 export function fpPanelKind(
   testType: string | null
-): "jump" | "iso" | null {
+): "jump" | "iso" | "hhd_isometric" | null {
   if (!testType) return null;
   const t = testType.toLowerCase();
+  if (t === "force_plate_isometric") return "hhd_isometric";
   if (t === "force_plate_imtp" || t === "force_plate_calf") return "iso";
   if (
     t === "force_plate_cmj" ||
@@ -244,6 +275,144 @@ export function fpPanelKind(
     return "jump";
   if (t.includes("force_plate")) return "jump";
   return null;
+}
+
+const HHD_METRICS = [
+  { key: "peak_force", label: "Peak Force", unit: "N" },
+  { key: "peak_net_force", label: "Peak Net Force", unit: "N" },
+  { key: "net_impulse", label: "Net Impulse", unit: "N·s" },
+  { key: "total_impulse", label: "Total Impulse", unit: "N·s" },
+  { key: "peak_rfd", label: "Peak RFD", unit: "N/s" },
+  { key: "time_to_peak_force", label: "Time to Peak Force", unit: "s" },
+  { key: "explosive_strength_index", label: "Explosive Strength Index", unit: "" },
+  { key: "avg_force", label: "Avg Force", unit: "N" },
+  { key: "avg_net_force", label: "Avg Net Force", unit: "N" },
+  { key: "net_force_at_50_ms", label: "Net Force @ 50ms", unit: "N" },
+  { key: "net_force_at_100_ms", label: "Net Force @ 100ms", unit: "N" },
+  { key: "net_force_at_150_ms", label: "Net Force @ 150ms", unit: "N" },
+  { key: "net_force_at_200_ms", label: "Net Force @ 200ms", unit: "N" },
+  { key: "net_force_at_250_ms", label: "Net Force @ 250ms", unit: "N" },
+  { key: "duration", label: "Duration", unit: "s" },
+  { key: "pretension", label: "Pretension", unit: "N" },
+] as const;
+
+function normalizeSide(side: string | null | undefined): "left" | "right" | "both" {
+  const s = (side ?? "").toLowerCase().trim();
+  if (s === "left" || s === "l") return "left";
+  if (s === "right" || s === "r") return "right";
+  return "both";
+}
+
+function hhdMetricValue(
+  metrics: Metric[],
+  key: string,
+  column: "left" | "right" | "both"
+): number | null {
+  const matches = metrics.filter((m) => {
+    if (m.key !== key || m.value == null || !Number.isFinite(m.value)) return false;
+    const side = normalizeSide(m.side);
+    if (column === "left") return side === "left";
+    if (column === "right") return side === "right";
+    return side === "both";
+  });
+  if (matches.length === 0) return null;
+  return Math.max(...matches.map((m) => m.value as number));
+}
+
+function hhdLsi(left: number, right: number): number {
+  const stronger = Math.max(left, right);
+  const weaker = Math.min(left, right);
+  return stronger === 0 ? 100 : (weaker / stronger) * 100;
+}
+
+function hhdLsiColorClass(value: number): string {
+  if (value >= 90) return "text-lime-400";
+  if (value >= 80) return "text-amber-400";
+  return "text-rose-400";
+}
+
+export function HhdIsometricPanel({ metrics }: { metrics: Metric[] }) {
+  const hasAny = HHD_METRICS.some(
+    (def) =>
+      hhdMetricValue(metrics, def.key, "left") != null ||
+      hhdMetricValue(metrics, def.key, "right") != null ||
+      hhdMetricValue(metrics, def.key, "both") != null
+  );
+
+  const peakLeft = hhdMetricValue(metrics, "peak_force", "left");
+  const peakRight = hhdMetricValue(metrics, "peak_force", "right");
+  const peakLsi =
+    peakLeft != null && peakRight != null ? hhdLsi(peakLeft, peakRight) : null;
+
+  return (
+    <section className="mb-6 rounded-2xl border border-slate-800 bg-slate-900/70 p-5 text-xs">
+      <h2 className="mb-3 text-sm font-semibold uppercase tracking-widest text-lime-300">
+        Handheld Dynamometry
+      </h2>
+      {!hasAny ? (
+        <p className="text-slate-500">No handheld dynamometry metrics for this session.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-slate-800/60 text-left">
+            <thead>
+              <tr>
+                <th className="py-2 pr-4 text-left text-[0.7rem] font-medium uppercase tracking-widest text-slate-400">
+                  Metric
+                </th>
+                <th className="py-2 px-2 text-left text-[0.7rem] font-medium uppercase tracking-widest text-blue-400">
+                  Left
+                </th>
+                <th className="py-2 px-2 text-left text-[0.7rem] font-medium uppercase tracking-widest text-lime-400">
+                  Right
+                </th>
+                <th className="py-2 px-2 text-left text-[0.7rem] font-medium uppercase tracking-widest text-slate-400">
+                  Both
+                </th>
+                <th className="py-2 px-2 text-left text-[0.7rem] font-medium uppercase tracking-widest text-slate-400">
+                  LSI%
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800/60">
+              {HHD_METRICS.map((def) => {
+                const left = hhdMetricValue(metrics, def.key, "left");
+                const right = hhdMetricValue(metrics, def.key, "right");
+                const both = hhdMetricValue(metrics, def.key, "both");
+                const rowLsi =
+                  def.key === "peak_force" && peakLsi != null ? peakLsi : null;
+                return (
+                  <tr key={def.key}>
+                    <td className="py-2 pr-4 text-xs text-slate-200">
+                      {def.label}
+                      {def.unit ? (
+                        <span className="ml-1 text-slate-500">({def.unit})</span>
+                      ) : null}
+                    </td>
+                    <td className="py-2 px-2 font-mono text-xs tabular-nums text-slate-200">
+                      {left != null ? left.toFixed(2) : "—"}
+                    </td>
+                    <td className="py-2 px-2 font-mono text-xs tabular-nums text-slate-200">
+                      {right != null ? right.toFixed(2) : "—"}
+                    </td>
+                    <td className="py-2 px-2 font-mono text-xs tabular-nums text-slate-200">
+                      {both != null ? both.toFixed(2) : "—"}
+                    </td>
+                    <td
+                      className={`py-2 px-2 font-mono text-xs font-semibold tabular-nums ${
+                        rowLsi != null ? hhdLsiColorClass(rowLsi) : "text-slate-500"
+                      }`}
+                    >
+                      {rowLsi != null ? `${rowLsi.toFixed(1)}%` : "—"}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
 }
 
 type JumpRowDef = {
