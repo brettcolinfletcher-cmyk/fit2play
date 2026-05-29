@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   CartesianGrid,
+  Legend,
   Line,
   LineChart,
   ResponsiveContainer,
@@ -65,6 +66,155 @@ const TOOLTIP_STYLE = {
 
 function groupKey(s: Session): string {
   return (s.test_sub_type ?? "Unknown").replace(/:\d+$/, "").trim();
+}
+
+function movementKey(gKey: string): string {
+  return gKey
+    .replace(/-Left/i, "")
+    .replace(/-Right/i, "")
+    .trim()
+    .replace(/--/, "-");
+}
+
+function sideFromGroupKey(gKey: string): "left" | "right" | null {
+  const parts = gKey.split("-").map((p) => p.trim());
+  if (parts.some((p) => /^left$/i.test(p))) return "left";
+  if (parts.some((p) => /^right$/i.test(p))) return "right";
+  return null;
+}
+
+function lsi(left: number, right: number): number {
+  const stronger = Math.max(left, right);
+  const weaker = Math.min(left, right);
+  return stronger === 0 ? 100 : (weaker / stronger) * 100;
+}
+
+function asymPct(left: number, right: number): number {
+  const avg = (left + right) / 2;
+  return avg === 0 ? 0 : ((right - left) / avg) * 100;
+}
+
+function lsiColorClass(value: number): string {
+  if (value >= 90) return "text-lime-400";
+  if (value >= 80) return "text-amber-400";
+  return "text-rose-400";
+}
+
+function pairedGroupHeading(mKey: string): string {
+  return parseSegmentLabel(mKey).replace(/\s*\(rep \d+\)$/, "");
+}
+
+type DisplayGroup =
+  | { kind: "single"; key: string; sessions: Session[] }
+  | { kind: "paired"; movementKey: string; left: Session[]; right: Session[] };
+
+function buildDisplayGroups(groupMap: Map<string, Session[]>): DisplayGroup[] {
+  const movementIndex = new Map<
+    string,
+    { leftKey?: string; rightKey?: string }
+  >();
+  const unpairedKeys: string[] = [];
+
+  for (const gKey of groupMap.keys()) {
+    const mKey = movementKey(gKey);
+    const side = sideFromGroupKey(gKey);
+    if (side === "left" || side === "right") {
+      const entry = movementIndex.get(mKey) ?? {};
+      if (side === "left") entry.leftKey = gKey;
+      else entry.rightKey = gKey;
+      movementIndex.set(mKey, entry);
+    } else {
+      unpairedKeys.push(gKey);
+    }
+  }
+
+  const pairedKeys = new Set<string>();
+  const items: DisplayGroup[] = [];
+
+  for (const [mKey, { leftKey, rightKey }] of movementIndex) {
+    if (leftKey && rightKey) {
+      items.push({
+        kind: "paired",
+        movementKey: mKey,
+        left: groupMap.get(leftKey) ?? [],
+        right: groupMap.get(rightKey) ?? [],
+      });
+      pairedKeys.add(leftKey);
+      pairedKeys.add(rightKey);
+    } else if (leftKey) {
+      unpairedKeys.push(leftKey);
+    } else if (rightKey) {
+      unpairedKeys.push(rightKey);
+    }
+  }
+
+  for (const gKey of unpairedKeys) {
+    if (pairedKeys.has(gKey)) continue;
+    items.push({ kind: "single", key: gKey, sessions: groupMap.get(gKey) ?? [] });
+  }
+
+  items.sort((a, b) => {
+    const dateA =
+      a.kind === "single"
+        ? a.sessions[0]?.session_date ?? ""
+        : a.left[0]?.session_date ?? a.right[0]?.session_date ?? "";
+    const dateB =
+      b.kind === "single"
+        ? b.sessions[0]?.session_date ?? ""
+        : b.left[0]?.session_date ?? b.right[0]?.session_date ?? "";
+    return dateA.localeCompare(dateB);
+  });
+
+  return items;
+}
+
+function latestPairedDate(leftSessions: Session[], rightSessions: Session[]): string | null {
+  const leftDates = new Set(leftSessions.map((s) => s.session_date.slice(0, 10)));
+  const rightDates = new Set(rightSessions.map((s) => s.session_date.slice(0, 10)));
+  const common = [...leftDates].filter((d) => rightDates.has(d)).sort((a, b) => a.localeCompare(b));
+  return common.length > 0 ? common[common.length - 1]! : null;
+}
+
+function buildPairedTrendData(
+  leftSessions: Session[],
+  rightSessions: Session[]
+): Record<string, string | number>[] {
+  const leftDates = new Set(leftSessions.map((s) => s.session_date.slice(0, 10)));
+  const rightDates = new Set(rightSessions.map((s) => s.session_date.slice(0, 10)));
+  const commonDates = [...leftDates]
+    .filter((d) => rightDates.has(d))
+    .sort((a, b) => a.localeCompare(b));
+
+  return commonDates.map((date) => {
+    const leftBest = bestSessionForDate(leftSessions, date);
+    const rightBest = bestSessionForDate(rightSessions, date);
+    const point: Record<string, string | number> = {
+      date: formatDisplayDate(`${date}T12:00:00`),
+    };
+    if (leftBest && rightBest) {
+      for (const def of AVAILABLE_METRICS) {
+        const lv = metricValue(leftBest.metrics, def.key);
+        const rv = metricValue(rightBest.metrics, def.key);
+        if (lv != null) point[`${def.key}_left`] = lv;
+        if (rv != null) point[`${def.key}_right`] = rv;
+        if (lv != null && rv != null) point[`${def.key}_lsi`] = lsi(lv, rv);
+      }
+    }
+    return point;
+  });
+}
+
+function pairedSessionDates(leftSessions: Session[], rightSessions: Session[]) {
+  const dates = [
+    ...new Set(
+      [...leftSessions, ...rightSessions].map((s) => s.session_date.slice(0, 10))
+    ),
+  ].sort((a, b) => a.localeCompare(b));
+  return dates.map((date) => ({
+    date,
+    left: bestSessionForDate(leftSessions, date),
+    right: bestSessionForDate(rightSessions, date),
+  }));
 }
 
 function parseSegmentLabel(segment: string | null): string {
@@ -260,6 +410,19 @@ export default function DynamometrySection({
     [selectedMetrics]
   );
 
+  const groupMap = useMemo(() => {
+    const map = new Map<string, Session[]>();
+    for (const s of sessions) {
+      const key = groupKey(s);
+      const list = map.get(key) ?? [];
+      list.push(s);
+      map.set(key, list);
+    }
+    return map;
+  }, [sessions]);
+
+  const displayGroups = useMemo(() => buildDisplayGroups(groupMap), [groupMap]);
+
   if (loading) {
     return (
       <section id="dynamometry" className="scroll-mt-28 mt-10">
@@ -297,14 +460,6 @@ export default function DynamometrySection({
     );
   }
 
-  const groups = new Map<string, Session[]>();
-  for (const s of sessions) {
-    const key = groupKey(s);
-    const list = groups.get(key) ?? [];
-    list.push(s);
-    groups.set(key, list);
-  }
-
   return (
     <section id="dynamometry" className="scroll-mt-28 mt-10">
       <div className="flex items-center justify-between gap-3">
@@ -315,59 +470,232 @@ export default function DynamometrySection({
       </div>
 
       <div className="mt-4 space-y-4">
-        {Array.from(groups.entries()).map(([gKey, gSessions]) => {
-          const isExpanded = expandedGroup === gKey;
-          const groupLabel = groupHeading(gSessions[0]?.test_sub_type ?? null);
-          const trendData = buildTrendData(gSessions);
-          const latestMetrics = latestSessionMetrics(gSessions);
-          const side = gSessions[0]?.metrics[0]?.side;
-          const sideLabel = side
-            ? side.charAt(0).toUpperCase() + side.slice(1).toLowerCase()
-            : null;
+        {displayGroups.map((item) => {
+          if (item.kind === "single") {
+            const { key: gKey, sessions: gSessions } = item;
+            const isExpanded = expandedGroup === gKey;
+            const groupLabel = groupHeading(gSessions[0]?.test_sub_type ?? null);
+            const trendData = buildTrendData(gSessions);
+            const latestMetrics = latestSessionMetrics(gSessions);
+            const side = gSessions[0]?.metrics[0]?.side;
+            const sideLabel = side
+              ? side.charAt(0).toUpperCase() + side.slice(1).toLowerCase()
+              : null;
+            const summaryMetrics = selectedMetricDefs.slice(0, 4);
+
+            return (
+              <div
+                key={gKey}
+                className="rounded-lg border border-slate-800 bg-slate-900/50"
+              >
+                <button
+                  type="button"
+                  onClick={() => setExpandedGroup(isExpanded ? null : gKey)}
+                  className="flex w-full items-center justify-between px-5 py-4 text-left"
+                >
+                  <div>
+                    <span className="text-sm font-medium text-slate-200">{groupLabel}</span>
+                    {sideLabel ? (
+                      <span className="ml-2 text-xs text-slate-500">{sideLabel}</span>
+                    ) : null}
+                    <span className="ml-2 text-xs text-slate-500">
+                      · {gSessions.length} session{gSessions.length !== 1 ? "s" : ""}
+                    </span>
+                  </div>
+                  <span className="text-xs text-slate-500">{isExpanded ? "▲" : "▼"}</span>
+                </button>
+
+                {!isExpanded && summaryMetrics.length > 0 ? (
+                  <div
+                    className="grid gap-3 border-t border-slate-800/60 px-5 pb-4 pt-3"
+                    style={{
+                      gridTemplateColumns: `repeat(${summaryMetrics.length}, minmax(0, 1fr))`,
+                    }}
+                  >
+                    {summaryMetrics.map(({ key, label, unit }) => {
+                      const val = metricValue(latestMetrics, key);
+                      return (
+                        <div key={key}>
+                          <p className="text-xs text-slate-500">{label}</p>
+                          <p className="text-lg font-semibold text-slate-100">
+                            {val != null ? val.toFixed(1) : "—"}
+                            {unit ? (
+                              <span className="ml-1 text-xs font-normal text-slate-500">
+                                {unit}
+                              </span>
+                            ) : null}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : null}
+
+                {isExpanded ? (
+                  <div className="space-y-6 border-t border-slate-800/60 px-5 py-4">
+                    {selectedMetricDefs.length > 0 ? (
+                      trendData.length > 1 ? (
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                          {selectedMetricDefs.map(({ key, label, unit }) => (
+                            <div key={key}>
+                              <p className="mb-2 text-xs text-slate-400">
+                                {label}
+                                {unit ? ` (${unit})` : ""}
+                              </p>
+                              <div className="h-[130px] w-full rounded border border-slate-800 bg-[#0f172a]">
+                                <ResponsiveContainer width="100%" height="100%">
+                                  <LineChart
+                                    data={trendData}
+                                    margin={{ top: 4, right: 8, left: -16, bottom: 0 }}
+                                  >
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                                    <XAxis dataKey="date" tick={AXIS_TICK} />
+                                    <YAxis tick={AXIS_TICK} width={36} />
+                                    <Tooltip
+                                      contentStyle={TOOLTIP_STYLE}
+                                      labelStyle={{ color: "#94a3b8" }}
+                                      itemStyle={{ color: "#a3e635" }}
+                                    />
+                                    <Line
+                                      type="monotone"
+                                      dataKey={key}
+                                      stroke="#a3e635"
+                                      strokeWidth={2}
+                                      dot={{ fill: "#a3e635", r: 3 }}
+                                      connectNulls
+                                    />
+                                  </LineChart>
+                                </ResponsiveContainer>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-slate-500">
+                          One session recorded — trend charts appear after more tests for this
+                          movement.
+                        </p>
+                      )
+                    ) : (
+                      <p className="text-xs text-slate-500">
+                        Select at least one metric to view trends.
+                      </p>
+                    )}
+
+                    <div className="space-y-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Session Detail
+                      </p>
+                      {gSessions.map((s) => (
+                        <div
+                          key={s.id}
+                          className="overflow-hidden rounded border border-slate-800 bg-slate-950/40"
+                        >
+                          <div className="flex items-center justify-between bg-slate-800/40 px-4 py-2">
+                            <span className="text-xs font-medium text-slate-300">
+                              {formatDisplayDate(s.session_date)}
+                            </span>
+                            <span className="text-xs text-slate-500">
+                              {parseSegmentLabel(s.test_sub_type)}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-1 px-4 py-3">
+                            {orderedMetricRows(s.metrics).map((m) => (
+                              <div
+                                key={`${s.id}-${m.key}`}
+                                className="flex items-baseline justify-between gap-2 py-0.5"
+                              >
+                                <span className="text-xs text-slate-400">
+                                  {metricDisplayLabel(m.key)}
+                                </span>
+                                <span className="shrink-0 font-mono text-xs text-slate-200">
+                                  {Number(m.value).toFixed(2)}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            );
+          }
+
+          const pairKey = `pair:${item.movementKey}`;
+          const isExpanded = expandedGroup === pairKey;
+          const { left, right, movementKey: mKey } = item;
+          const allSessions = [...left, ...right];
+          const groupLabel = pairedGroupHeading(mKey);
+          const latestDate = latestPairedDate(left, right);
+          const leftLatest = latestDate ? bestSessionForDate(left, latestDate) : null;
+          const rightLatest = latestDate ? bestSessionForDate(right, latestDate) : null;
+          const trendData = buildPairedTrendData(left, right);
           const summaryMetrics = selectedMetricDefs.slice(0, 4);
+          const sessionRows = pairedSessionDates(left, right);
 
           return (
             <div
-              key={gKey}
+              key={pairKey}
               className="rounded-lg border border-slate-800 bg-slate-900/50"
             >
               <button
                 type="button"
-                onClick={() => setExpandedGroup(isExpanded ? null : gKey)}
+                onClick={() => setExpandedGroup(isExpanded ? null : pairKey)}
                 className="flex w-full items-center justify-between px-5 py-4 text-left"
               >
-                <div>
+                <div className="flex flex-wrap items-center gap-2">
                   <span className="text-sm font-medium text-slate-200">{groupLabel}</span>
-                  {sideLabel ? (
-                    <span className="ml-2 text-xs text-slate-500">{sideLabel}</span>
-                  ) : null}
-                  <span className="ml-2 text-xs text-slate-500">
-                    · {gSessions.length} session{gSessions.length !== 1 ? "s" : ""}
+                  <span className="rounded border border-lime-500/30 bg-lime-400/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-lime-300">
+                    L ↔ R
+                  </span>
+                  <span className="text-xs text-slate-500">
+                    · {allSessions.length} session{allSessions.length !== 1 ? "s" : ""}
                   </span>
                 </div>
                 <span className="text-xs text-slate-500">{isExpanded ? "▲" : "▼"}</span>
               </button>
 
               {!isExpanded && summaryMetrics.length > 0 ? (
-                <div
-                  className="grid gap-3 border-t border-slate-800/60 px-5 pb-4 pt-3"
-                  style={{
-                    gridTemplateColumns: `repeat(${summaryMetrics.length}, minmax(0, 1fr))`,
-                  }}
-                >
+                <div className="space-y-3 border-t border-slate-800/60 px-5 pb-4 pt-3">
                   {summaryMetrics.map(({ key, label, unit }) => {
-                    const val = metricValue(latestMetrics, key);
+                    const lv = leftLatest ? metricValue(leftLatest.metrics, key) : null;
+                    const rv = rightLatest ? metricValue(rightLatest.metrics, key) : null;
+                    const lsiVal = lv != null && rv != null ? lsi(lv, rv) : null;
                     return (
                       <div key={key}>
-                        <p className="text-xs text-slate-500">{label}</p>
-                        <p className="text-lg font-semibold text-slate-100">
-                          {val != null ? val.toFixed(1) : "—"}
-                          {unit ? (
-                            <span className="ml-1 text-xs font-normal text-slate-500">
-                              {unit}
-                            </span>
-                          ) : null}
-                        </p>
+                        <p className="mb-1.5 text-xs text-slate-500">{label}</p>
+                        <div className="grid grid-cols-3 gap-2 text-center">
+                          <div>
+                            <p className="text-[10px] uppercase text-blue-400">Left</p>
+                            <p className="font-mono text-sm text-slate-100">
+                              {lv != null ? lv.toFixed(1) : "—"}
+                              {unit && lv != null ? (
+                                <span className="ml-0.5 text-[10px] text-slate-500">{unit}</span>
+                              ) : null}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] uppercase text-lime-400">Right</p>
+                            <p className="font-mono text-sm text-slate-100">
+                              {rv != null ? rv.toFixed(1) : "—"}
+                              {unit && rv != null ? (
+                                <span className="ml-0.5 text-[10px] text-slate-500">{unit}</span>
+                              ) : null}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] uppercase text-slate-500">LSI%</p>
+                            <p
+                              className={`font-mono text-sm font-semibold ${
+                                lsiVal != null ? lsiColorClass(lsiVal) : "text-slate-500"
+                              }`}
+                            >
+                              {lsiVal != null ? `${lsiVal.toFixed(1)}%` : "—"}
+                            </p>
+                          </div>
+                        </div>
                       </div>
                     );
                   })}
@@ -376,6 +704,59 @@ export default function DynamometrySection({
 
               {isExpanded ? (
                 <div className="space-y-6 border-t border-slate-800/60 px-5 py-4">
+                  {selectedMetricDefs.length > 0 && latestDate && leftLatest && rightLatest ? (
+                    <div className="space-y-4">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Asymmetry — {formatDisplayDate(`${latestDate}T12:00:00`)}
+                      </p>
+                      {selectedMetricDefs.map(({ key, label, unit }) => {
+                        const lv = metricValue(leftLatest.metrics, key);
+                        const rv = metricValue(rightLatest.metrics, key);
+                        if (lv == null || rv == null) return null;
+                        const lsiVal = lsi(lv, rv);
+                        const asym = asymPct(lv, rv);
+                        const total = lv + rv;
+                        const leftPct = total > 0 ? (lv / total) * 100 : 50;
+                        const rightPct = total > 0 ? (rv / total) * 100 : 50;
+                        return (
+                          <div key={key}>
+                            <div className="mb-1 flex items-baseline justify-between gap-2">
+                              <span className="text-xs text-slate-400">
+                                {label}
+                                {unit ? ` (${unit})` : ""}
+                              </span>
+                              <span className={`text-xs font-mono ${lsiColorClass(lsiVal)}`}>
+                                LSI {lsiVal.toFixed(1)}%
+                                {asym !== 0 ? (
+                                  <span className="ml-1 text-slate-500">
+                                    ({asym > 0 ? "+" : ""}
+                                    {asym.toFixed(1)}% R)
+                                  </span>
+                                ) : null}
+                              </span>
+                            </div>
+                            <div className="flex h-3 items-stretch overflow-hidden rounded-full">
+                              <div
+                                className="bg-blue-500 transition-all"
+                                style={{ width: `${leftPct}%` }}
+                                title={`Left ${lv.toFixed(1)}`}
+                              />
+                              <div
+                                className="bg-lime-500 transition-all"
+                                style={{ width: `${rightPct}%` }}
+                                title={`Right ${rv.toFixed(1)}`}
+                              />
+                            </div>
+                            <div className="mt-0.5 flex justify-between text-[10px] text-slate-500">
+                              <span>L {lv.toFixed(1)}</span>
+                              <span>R {rv.toFixed(1)}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+
                   {selectedMetricDefs.length > 0 ? (
                     trendData.length > 1 ? (
                       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -389,22 +770,80 @@ export default function DynamometrySection({
                               <ResponsiveContainer width="100%" height="100%">
                                 <LineChart
                                   data={trendData}
-                                  margin={{ top: 4, right: 8, left: -16, bottom: 0 }}
+                                  margin={{ top: 4, right: 4, left: -16, bottom: 0 }}
                                 >
                                   <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
                                   <XAxis dataKey="date" tick={AXIS_TICK} />
-                                  <YAxis tick={AXIS_TICK} width={36} />
+                                  <YAxis
+                                    yAxisId="value"
+                                    tick={AXIS_TICK}
+                                    width={32}
+                                    domain={["auto", "auto"]}
+                                  />
+                                  <YAxis
+                                    yAxisId="lsi"
+                                    orientation="right"
+                                    tick={AXIS_TICK}
+                                    width={28}
+                                    domain={[0, 100]}
+                                    tickFormatter={(v) => `${v}`}
+                                  />
                                   <Tooltip
                                     contentStyle={TOOLTIP_STYLE}
                                     labelStyle={{ color: "#94a3b8" }}
-                                    itemStyle={{ color: "#a3e635" }}
+                                    formatter={(v: number | string, name: string) => {
+                                      const n = typeof v === "number" ? v : Number(v);
+                                      if (name.includes("LSI")) {
+                                        return [`${n.toFixed(1)}%`, "LSI"];
+                                      }
+                                      const side = name.includes("Left") ? "Left" : "Right";
+                                      return [
+                                        Number.isFinite(n)
+                                          ? `${n.toFixed(1)}${unit ? ` ${unit}` : ""}`
+                                          : String(v),
+                                        side,
+                                      ];
+                                    }}
+                                  />
+                                  <Legend
+                                    wrapperStyle={{ fontSize: "10px" }}
+                                    formatter={(value) =>
+                                      value.includes("_left")
+                                        ? "Left"
+                                        : value.includes("_right")
+                                          ? "Right"
+                                          : "LSI %"
+                                    }
                                   />
                                   <Line
+                                    yAxisId="value"
                                     type="monotone"
-                                    dataKey={key}
+                                    dataKey={`${key}_left`}
+                                    name={`${key}_left`}
+                                    stroke="#60a5fa"
+                                    strokeWidth={2}
+                                    dot={{ fill: "#60a5fa", r: 2 }}
+                                    connectNulls
+                                  />
+                                  <Line
+                                    yAxisId="value"
+                                    type="monotone"
+                                    dataKey={`${key}_right`}
+                                    name={`${key}_right`}
                                     stroke="#a3e635"
                                     strokeWidth={2}
-                                    dot={{ fill: "#a3e635", r: 3 }}
+                                    dot={{ fill: "#a3e635", r: 2 }}
+                                    connectNulls
+                                  />
+                                  <Line
+                                    yAxisId="lsi"
+                                    type="monotone"
+                                    dataKey={`${key}_lsi`}
+                                    name={`${key}_lsi`}
+                                    stroke="#fbbf24"
+                                    strokeWidth={1.5}
+                                    strokeDasharray="4 3"
+                                    dot={false}
                                     connectNulls
                                   />
                                 </LineChart>
@@ -415,8 +854,8 @@ export default function DynamometrySection({
                       </div>
                     ) : (
                       <p className="text-xs text-slate-500">
-                        One session recorded — trend charts appear after more tests for this
-                        movement.
+                        One paired session recorded — trend charts appear after more bilateral
+                        tests for this movement.
                       </p>
                     )
                   ) : (
@@ -429,33 +868,62 @@ export default function DynamometrySection({
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                       Session Detail
                     </p>
-                    {gSessions.map((s) => (
+                    {sessionRows.map(({ date, left: leftS, right: rightS }) => (
                       <div
-                        key={s.id}
+                        key={date}
                         className="overflow-hidden rounded border border-slate-800 bg-slate-950/40"
                       >
-                        <div className="flex items-center justify-between bg-slate-800/40 px-4 py-2">
+                        <div className="bg-slate-800/40 px-4 py-2">
                           <span className="text-xs font-medium text-slate-300">
-                            {formatDisplayDate(s.session_date)}
-                          </span>
-                          <span className="text-xs text-slate-500">
-                            {parseSegmentLabel(s.test_sub_type)}
+                            {formatDisplayDate(`${date}T12:00:00`)}
                           </span>
                         </div>
-                        <div className="grid grid-cols-2 gap-x-4 gap-y-1 px-4 py-3">
-                          {orderedMetricRows(s.metrics).map((m) => (
-                            <div
-                              key={`${s.id}-${m.key}`}
-                              className="flex items-baseline justify-between gap-2 py-0.5"
-                            >
-                              <span className="text-xs text-slate-400">
-                                {metricDisplayLabel(m.key)}
-                              </span>
-                              <span className="shrink-0 font-mono text-xs text-slate-200">
-                                {Number(m.value).toFixed(2)}
-                              </span>
-                            </div>
-                          ))}
+                        <div className="overflow-x-auto px-4 py-3">
+                          <table className="w-full text-xs">
+                            <thead>
+                              <tr className="border-b border-slate-800 text-left text-slate-500">
+                                <th className="pb-2 pr-3 font-medium">Metric</th>
+                                <th className="pb-2 pr-3 font-medium text-blue-400">Left</th>
+                                <th className="pb-2 pr-3 font-medium text-lime-400">Right</th>
+                                <th className="pb-2 font-medium">LSI%</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {orderedMetricRows(
+                                leftS?.metrics ?? rightS?.metrics ?? []
+                              ).map((m) => {
+                                const lv = leftS ? metricValue(leftS.metrics, m.key) : null;
+                                const rv = rightS ? metricValue(rightS.metrics, m.key) : null;
+                                const lsiVal =
+                                  lv != null && rv != null ? lsi(lv, rv) : null;
+                                return (
+                                  <tr
+                                    key={m.key}
+                                    className="border-b border-slate-800/60 last:border-0"
+                                  >
+                                    <td className="py-1.5 pr-3 text-slate-400">
+                                      {metricDisplayLabel(m.key)}
+                                    </td>
+                                    <td className="py-1.5 pr-3 font-mono text-slate-200">
+                                      {lv != null ? lv.toFixed(2) : "—"}
+                                    </td>
+                                    <td className="py-1.5 pr-3 font-mono text-slate-200">
+                                      {rv != null ? rv.toFixed(2) : "—"}
+                                    </td>
+                                    <td
+                                      className={`py-1.5 font-mono font-semibold ${
+                                        lsiVal != null
+                                          ? lsiColorClass(lsiVal)
+                                          : "text-slate-500"
+                                      }`}
+                                    >
+                                      {lsiVal != null ? `${lsiVal.toFixed(1)}%` : "—"}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
                         </div>
                       </div>
                     ))}
