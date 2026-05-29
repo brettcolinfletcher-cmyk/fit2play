@@ -2,15 +2,20 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  Bar,
+  BarChart,
   CartesianGrid,
+  Cell,
   Line,
   LineChart,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
 import { formatDisplayDate } from "@/lib/dateDisplay";
+import ChartTypeToggle, { type ChartType } from "./ChartTypeToggle";
 import SectionComment from "./SectionComment";
 
 export type DJDataPoint = {
@@ -142,6 +147,7 @@ export default function ForcePlateDJSection({
   sectionComment,
 }: Props) {
   const [selected, setSelected] = useState<Set<string>>(() => new Set(DJ_DEFAULT));
+  const [chartType, setChartType] = useState<ChartType>("bar");
 
   const chartRows = useMemo(
     () => [...data].sort((a, b) => a.t - b.t),
@@ -160,12 +166,15 @@ export default function ForcePlateDJSection({
         <h2 className="text-sm font-semibold uppercase tracking-wide text-lime-300">
           Force plate — Drop jump
         </h2>
-        <MetricPicker
-          metrics={DJ_METRICS}
-          defaultSelected={DJ_DEFAULT}
-          selected={selected}
-          onChange={setSelected}
-        />
+        <div className="flex items-center gap-2">
+          <ChartTypeToggle value={chartType} onChange={setChartType} />
+          <MetricPicker
+            metrics={DJ_METRICS}
+            defaultSelected={DJ_DEFAULT}
+            selected={selected}
+            onChange={setSelected}
+          />
+        </div>
       </div>
       <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {selectedMetrics.map((metric) => {
@@ -190,36 +199,71 @@ export default function ForcePlateDJSection({
               ) : (
                 <div className="h-[130px] w-full rounded border border-slate-800 bg-[#0f172a]">
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={pts} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                      <XAxis dataKey="date" tick={AXIS_TICK} />
-                      <YAxis tick={AXIS_TICK} width={36} />
-                      <Tooltip
-                        contentStyle={TOOLTIP_STYLE}
-                        labelStyle={{ color: "#94a3b8" }}
-                        itemStyle={{ color: "#a3e635" }}
-                        formatter={(v: number | string) => {
-                          const n = typeof v === "number" ? v : Number(v);
-                          const text = Number.isFinite(n)
-                            ? decimals === 0
-                              ? String(Math.round(n))
-                              : n.toFixed(decimals)
-                            : String(v);
-                          return [
-                            metric.unit ? `${text} ${metric.unit}` : text,
-                            metric.label,
-                          ];
-                        }}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="v"
-                        stroke="#a3e635"
-                        strokeWidth={2}
-                        dot={{ fill: "#a3e635", r: 3 }}
-                        connectNulls
-                      />
-                    </LineChart>
+                    {chartType === "bar" ? (
+                      <BarChart data={pts} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                        <XAxis dataKey="date" tick={AXIS_TICK} />
+                        <YAxis tick={AXIS_TICK} width={36} />
+                        <Tooltip
+                          contentStyle={TOOLTIP_STYLE}
+                          labelStyle={{ color: "#94a3b8" }}
+                          itemStyle={{ color: "#a3e635" }}
+                          formatter={(v: number | string) => {
+                            const n = typeof v === "number" ? v : Number(v);
+                            const text = Number.isFinite(n)
+                              ? decimals === 0
+                                ? String(Math.round(n))
+                                : n.toFixed(decimals)
+                              : String(v);
+                            return [
+                              metric.unit ? `${text} ${metric.unit}` : text,
+                              metric.label,
+                            ];
+                          }}
+                        />
+                        <ReferenceLine
+                          y={pts[0]!.v}
+                          stroke="#334155"
+                          strokeDasharray="4 3"
+                        />
+                        <Bar dataKey="v" radius={[3, 3, 0, 0]}>
+                          {pts.map((_, i) => (
+                            <Cell key={i} fill="#a3e635" />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    ) : (
+                      <LineChart data={pts} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                        <XAxis dataKey="date" tick={AXIS_TICK} />
+                        <YAxis tick={AXIS_TICK} width={36} />
+                        <Tooltip
+                          contentStyle={TOOLTIP_STYLE}
+                          labelStyle={{ color: "#94a3b8" }}
+                          itemStyle={{ color: "#a3e635" }}
+                          formatter={(v: number | string) => {
+                            const n = typeof v === "number" ? v : Number(v);
+                            const text = Number.isFinite(n)
+                              ? decimals === 0
+                                ? String(Math.round(n))
+                                : n.toFixed(decimals)
+                              : String(v);
+                            return [
+                              metric.unit ? `${text} ${metric.unit}` : text,
+                              metric.label,
+                            ];
+                          }}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="v"
+                          stroke="#a3e635"
+                          strokeWidth={2}
+                          dot={{ fill: "#a3e635", r: 3 }}
+                          connectNulls
+                        />
+                      </LineChart>
+                    )}
                   </ResponsiveContainer>
                 </div>
               )}

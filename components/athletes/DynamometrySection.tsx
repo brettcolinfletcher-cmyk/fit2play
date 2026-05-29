@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  Bar,
+  BarChart,
   CartesianGrid,
   Legend,
   Line,
@@ -14,6 +16,7 @@ import {
 } from "recharts";
 import { formatDisplayDate } from "@/lib/dateDisplay";
 import { supabase } from "@/lib/supabaseClient";
+import ChartTypeToggle, { type ChartType } from "./ChartTypeToggle";
 import SectionComment from "./SectionComment";
 
 type MetricRow = { key: string; value: string; side: string | null };
@@ -384,6 +387,7 @@ export default function DynamometrySection({
   const [selectedMetrics, setSelectedMetrics] = useState<Set<string>>(
     () => new Set(DEFAULT_SELECTED)
   );
+  const [chartType, setChartType] = useState<ChartType>("bar");
 
   useEffect(() => {
     async function load() {
@@ -466,7 +470,10 @@ export default function DynamometrySection({
         <h2 className="text-sm font-semibold uppercase tracking-wide text-lime-300">
           Dynamometry
         </h2>
-        <MetricPicker selected={selectedMetrics} onChange={setSelectedMetrics} />
+        <div className="flex items-center gap-2">
+          <ChartTypeToggle value={chartType} onChange={setChartType} />
+          <MetricPicker selected={selectedMetrics} onChange={setSelectedMetrics} />
+        </div>
       </div>
 
       <div className="mt-4 space-y-4">
@@ -534,7 +541,7 @@ export default function DynamometrySection({
                 {isExpanded ? (
                   <div className="space-y-6 border-t border-slate-800/60 px-5 py-4">
                     {selectedMetricDefs.length > 0 ? (
-                      trendData.length > 1 ? (
+                      (chartType === "bar" ? trendData.length >= 1 : trendData.length > 1) ? (
                         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                           {selectedMetricDefs.map(({ key, label, unit }) => (
                             <div key={key}>
@@ -544,38 +551,59 @@ export default function DynamometrySection({
                               </p>
                               <div className="h-[130px] w-full rounded border border-slate-800 bg-[#0f172a]">
                                 <ResponsiveContainer width="100%" height="100%">
-                                  <LineChart
-                                    data={trendData}
-                                    margin={{ top: 4, right: 8, left: -16, bottom: 0 }}
-                                  >
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                                    <XAxis dataKey="date" tick={AXIS_TICK} />
-                                    <YAxis tick={AXIS_TICK} width={36} />
-                                    <Tooltip
-                                      contentStyle={TOOLTIP_STYLE}
-                                      labelStyle={{ color: "#94a3b8" }}
-                                      itemStyle={{ color: "#a3e635" }}
-                                    />
-                                    <Line
-                                      type="monotone"
-                                      dataKey={key}
-                                      stroke="#a3e635"
-                                      strokeWidth={2}
-                                      dot={{ fill: "#a3e635", r: 3 }}
-                                      connectNulls
-                                    />
-                                  </LineChart>
+                                  {chartType === "bar" ? (
+                                    <BarChart
+                                      data={trendData}
+                                      margin={{ top: 4, right: 8, left: -16, bottom: 0 }}
+                                    >
+                                      <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                                      <XAxis dataKey="date" tick={AXIS_TICK} />
+                                      <YAxis tick={AXIS_TICK} width={36} />
+                                      <Tooltip
+                                        contentStyle={TOOLTIP_STYLE}
+                                        labelStyle={{ color: "#94a3b8" }}
+                                        itemStyle={{ color: "#a3e635" }}
+                                      />
+                                      <Bar
+                                        dataKey={key}
+                                        fill="#a3e635"
+                                        radius={[3, 3, 0, 0]}
+                                      />
+                                    </BarChart>
+                                  ) : (
+                                    <LineChart
+                                      data={trendData}
+                                      margin={{ top: 4, right: 8, left: -16, bottom: 0 }}
+                                    >
+                                      <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                                      <XAxis dataKey="date" tick={AXIS_TICK} />
+                                      <YAxis tick={AXIS_TICK} width={36} />
+                                      <Tooltip
+                                        contentStyle={TOOLTIP_STYLE}
+                                        labelStyle={{ color: "#94a3b8" }}
+                                        itemStyle={{ color: "#a3e635" }}
+                                      />
+                                      <Line
+                                        type="monotone"
+                                        dataKey={key}
+                                        stroke="#a3e635"
+                                        strokeWidth={2}
+                                        dot={{ fill: "#a3e635", r: 3 }}
+                                        connectNulls
+                                      />
+                                    </LineChart>
+                                  )}
                                 </ResponsiveContainer>
                               </div>
                             </div>
                           ))}
                         </div>
-                      ) : (
+                      ) : chartType === "line" && trendData.length < 2 ? (
                         <p className="text-xs text-slate-500">
                           One session recorded — trend charts appear after more tests for this
                           movement.
                         </p>
-                      )
+                      ) : null
                     ) : (
                       <p className="text-xs text-slate-500">
                         Select at least one metric to view trends.
@@ -758,7 +786,7 @@ export default function DynamometrySection({
                   ) : null}
 
                   {selectedMetricDefs.length > 0 ? (
-                    trendData.length > 1 ? (
+                    (chartType === "bar" ? trendData.length >= 1 : trendData.length > 1) ? (
                       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                         {selectedMetricDefs.map(({ key, label, unit }) => (
                           <div key={key}>
@@ -768,96 +796,139 @@ export default function DynamometrySection({
                             </p>
                             <div className="h-[130px] w-full rounded border border-slate-800 bg-[#0f172a]">
                               <ResponsiveContainer width="100%" height="100%">
-                                <LineChart
-                                  data={trendData}
-                                  margin={{ top: 4, right: 4, left: -16, bottom: 0 }}
-                                >
-                                  <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                                  <XAxis dataKey="date" tick={AXIS_TICK} />
-                                  <YAxis
-                                    yAxisId="value"
-                                    tick={AXIS_TICK}
-                                    width={32}
-                                    domain={["auto", "auto"]}
-                                  />
-                                  <YAxis
-                                    yAxisId="lsi"
-                                    orientation="right"
-                                    tick={AXIS_TICK}
-                                    width={28}
-                                    domain={[0, 100]}
-                                    tickFormatter={(v) => `${v}`}
-                                  />
-                                  <Tooltip
-                                    contentStyle={TOOLTIP_STYLE}
-                                    labelStyle={{ color: "#94a3b8" }}
-                                    formatter={(v: number | string, name: string) => {
-                                      const n = typeof v === "number" ? v : Number(v);
-                                      if (name.includes("LSI")) {
-                                        return [`${n.toFixed(1)}%`, "LSI"];
+                                {chartType === "bar" ? (
+                                  <BarChart
+                                    data={trendData}
+                                    margin={{ top: 4, right: 4, left: -16, bottom: 0 }}
+                                  >
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                                    <XAxis dataKey="date" tick={AXIS_TICK} />
+                                    <YAxis tick={AXIS_TICK} width={32} />
+                                    <Tooltip
+                                      contentStyle={TOOLTIP_STYLE}
+                                      labelStyle={{ color: "#94a3b8" }}
+                                      formatter={(v: number | string, name: string) => {
+                                        const n = typeof v === "number" ? v : Number(v);
+                                        const side = name.includes("_left") ? "Left" : "Right";
+                                        return [
+                                          Number.isFinite(n)
+                                            ? `${n.toFixed(1)}${unit ? ` ${unit}` : ""}`
+                                            : String(v),
+                                          side,
+                                        ];
+                                      }}
+                                    />
+                                    <Legend
+                                      wrapperStyle={{ fontSize: "10px" }}
+                                      formatter={(value) =>
+                                        value.includes("_left") ? "Left" : "Right"
                                       }
-                                      const side = name.includes("Left") ? "Left" : "Right";
-                                      return [
-                                        Number.isFinite(n)
-                                          ? `${n.toFixed(1)}${unit ? ` ${unit}` : ""}`
-                                          : String(v),
-                                        side,
-                                      ];
-                                    }}
-                                  />
-                                  <Legend
-                                    wrapperStyle={{ fontSize: "10px" }}
-                                    formatter={(value) =>
-                                      value.includes("_left")
-                                        ? "Left"
-                                        : value.includes("_right")
-                                          ? "Right"
-                                          : "LSI %"
-                                    }
-                                  />
-                                  <Line
-                                    yAxisId="value"
-                                    type="monotone"
-                                    dataKey={`${key}_left`}
-                                    name={`${key}_left`}
-                                    stroke="#60a5fa"
-                                    strokeWidth={2}
-                                    dot={{ fill: "#60a5fa", r: 2 }}
-                                    connectNulls
-                                  />
-                                  <Line
-                                    yAxisId="value"
-                                    type="monotone"
-                                    dataKey={`${key}_right`}
-                                    name={`${key}_right`}
-                                    stroke="#a3e635"
-                                    strokeWidth={2}
-                                    dot={{ fill: "#a3e635", r: 2 }}
-                                    connectNulls
-                                  />
-                                  <Line
-                                    yAxisId="lsi"
-                                    type="monotone"
-                                    dataKey={`${key}_lsi`}
-                                    name={`${key}_lsi`}
-                                    stroke="#fbbf24"
-                                    strokeWidth={1.5}
-                                    strokeDasharray="4 3"
-                                    dot={false}
-                                    connectNulls
-                                  />
-                                </LineChart>
+                                    />
+                                    <Bar
+                                      dataKey={`${key}_left`}
+                                      name={`${key}_left`}
+                                      fill="#60a5fa"
+                                      radius={[3, 3, 0, 0]}
+                                    />
+                                    <Bar
+                                      dataKey={`${key}_right`}
+                                      name={`${key}_right`}
+                                      fill="#a3e635"
+                                      radius={[3, 3, 0, 0]}
+                                    />
+                                  </BarChart>
+                                ) : (
+                                  <LineChart
+                                    data={trendData}
+                                    margin={{ top: 4, right: 4, left: -16, bottom: 0 }}
+                                  >
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                                    <XAxis dataKey="date" tick={AXIS_TICK} />
+                                    <YAxis
+                                      yAxisId="value"
+                                      tick={AXIS_TICK}
+                                      width={32}
+                                      domain={["auto", "auto"]}
+                                    />
+                                    <YAxis
+                                      yAxisId="lsi"
+                                      orientation="right"
+                                      tick={AXIS_TICK}
+                                      width={28}
+                                      domain={[0, 100]}
+                                      tickFormatter={(v) => `${v}`}
+                                    />
+                                    <Tooltip
+                                      contentStyle={TOOLTIP_STYLE}
+                                      labelStyle={{ color: "#94a3b8" }}
+                                      formatter={(v: number | string, name: string) => {
+                                        const n = typeof v === "number" ? v : Number(v);
+                                        if (name.includes("LSI")) {
+                                          return [`${n.toFixed(1)}%`, "LSI"];
+                                        }
+                                        const side = name.includes("Left") ? "Left" : "Right";
+                                        return [
+                                          Number.isFinite(n)
+                                            ? `${n.toFixed(1)}${unit ? ` ${unit}` : ""}`
+                                            : String(v),
+                                          side,
+                                        ];
+                                      }}
+                                    />
+                                    <Legend
+                                      wrapperStyle={{ fontSize: "10px" }}
+                                      formatter={(value) =>
+                                        value.includes("_left")
+                                          ? "Left"
+                                          : value.includes("_right")
+                                            ? "Right"
+                                            : "LSI %"
+                                      }
+                                    />
+                                    <Line
+                                      yAxisId="value"
+                                      type="monotone"
+                                      dataKey={`${key}_left`}
+                                      name={`${key}_left`}
+                                      stroke="#60a5fa"
+                                      strokeWidth={2}
+                                      dot={{ fill: "#60a5fa", r: 2 }}
+                                      connectNulls
+                                    />
+                                    <Line
+                                      yAxisId="value"
+                                      type="monotone"
+                                      dataKey={`${key}_right`}
+                                      name={`${key}_right`}
+                                      stroke="#a3e635"
+                                      strokeWidth={2}
+                                      dot={{ fill: "#a3e635", r: 2 }}
+                                      connectNulls
+                                    />
+                                    <Line
+                                      yAxisId="lsi"
+                                      type="monotone"
+                                      dataKey={`${key}_lsi`}
+                                      name={`${key}_lsi`}
+                                      stroke="#fbbf24"
+                                      strokeWidth={1.5}
+                                      strokeDasharray="4 3"
+                                      dot={false}
+                                      connectNulls
+                                    />
+                                  </LineChart>
+                                )}
                               </ResponsiveContainer>
                             </div>
                           </div>
                         ))}
                       </div>
-                    ) : (
+                    ) : chartType === "line" && trendData.length < 2 ? (
                       <p className="text-xs text-slate-500">
                         One paired session recorded — trend charts appear after more bilateral
                         tests for this movement.
                       </p>
-                    )
+                    ) : null
                   ) : (
                     <p className="text-xs text-slate-500">
                       Select at least one metric to view trends.
