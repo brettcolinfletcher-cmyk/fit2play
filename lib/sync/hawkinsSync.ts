@@ -21,42 +21,32 @@ function mapHawkinsTestType(name: string | undefined): string {
   if (n.includes("countermovement") || n === "cmj") return "force_plate_cmj";
   if (n.includes("drop jump")) return "force_plate_dj";
   if (n.includes("mid-thigh") || n.includes("imtp")) return "force_plate_imtp";
+  if (n.includes("isometric")) return "force_plate_isometric";
   if (n.includes("sprint")) return "1080_sprint";
   if (n.includes("calf")) return "force_plate_calf";
   return "force_plate";
 }
 
+// Keys that are NOT metrics — skip these when extracting top-level numeric fields
+const HAWKINS_NON_METRIC_KEYS = new Set([
+  "id", "timestamp", "segment", "testType", "athlete", "active",
+]);
+
 function flattenMetrics(
-  obj: unknown,
-  prefix = ""
+  test: Record<string, unknown>
 ): { key: string; value: number }[] {
   const out: { key: string; value: number }[] = [];
-  if (obj == null) return out;
-  if (Array.isArray(obj)) {
-    for (const item of obj) {
-      if (
-        item &&
-        typeof item === "object" &&
-        "name" in item &&
-        typeof (item as { name: unknown }).name === "string" &&
-        "value" in item &&
-        typeof (item as { value: unknown }).value === "number"
-      ) {
-        const v = (item as { value: number }).value;
-        if (!Number.isNaN(v)) {
-          out.push({ key: (item as { name: string }).name, value: v });
-        }
-      }
-    }
-    return out;
-  }
-  if (typeof obj !== "object") return out;
-  for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
-    const key = prefix ? `${prefix}.${k}` : k;
+  for (const [k, v] of Object.entries(test)) {
+    if (HAWKINS_NON_METRIC_KEYS.has(k)) continue;
     if (typeof v === "number" && !Number.isNaN(v)) {
-      out.push({ key, value: v });
-    } else if (v && typeof v === "object") {
-      out.push(...flattenMetrics(v, key));
+      // Convert to snake_case canonical key
+      const canonicalKey = k
+        .replace(/\(.*?\)/g, "")   // strip units in parens e.g. "Peak Force(N)" -> "Peak Force"
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "_")
+        .replace(/^_|_$/g, "");
+      out.push({ key: canonicalKey, value: v });
     }
   }
   return out;
@@ -72,10 +62,15 @@ function hawkinsAthleteId(test: Record<string, unknown>): string | null {
 }
 
 function hawkinsAthleteSide(test: Record<string, unknown>): string | null {
-  const a = test.athlete;
-  if (a && typeof a === "object" && "side" in a) {
-    const s = (a as { side: unknown }).side;
-    return s != null ? String(s) : null;
+  // Side comes from testType.tags, not athlete.side
+  const tt = test.testType;
+  if (tt && typeof tt === "object") {
+    const tags = (tt as { tags?: { name?: string }[] }).tags ?? [];
+    for (const tag of tags) {
+      const n = (tag.name ?? "").toLowerCase();
+      if (n === "left") return "left";
+      if (n === "right") return "right";
+    }
   }
   return null;
 }
@@ -245,8 +240,7 @@ export async function runHawkinsSync(
       const testType = mapHawkinsTestType(typeName);
       const side = hawkinsAthleteSide(test);
 
-      const metricsPayload = test.metrics ?? test.results ?? test.values;
-      const flat = flattenMetrics(metricsPayload);
+      const flat = flattenMetrics(test);
 
       const syncDedupeKey = `hawkins:${hawkinsTestId}`;
 

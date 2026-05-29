@@ -35,16 +35,32 @@ export async function GET(request: Request) {
       method: "GET",
       headers: { Authorization: `Bearer ${refreshToken}`, Accept: "application/json" },
     });
-    const tokenJson = await tokenRes.json() as { access_token?: string };
-    const accessToken = tokenJson.access_token;
-    if (!accessToken) return NextResponse.json({ error: "no access token", tokenJson });
+    const tokenText = await tokenRes.text();
+    let accessToken: string | null = null;
+    try {
+      const tokenJson = JSON.parse(tokenText) as { access_token?: string };
+      accessToken = tokenJson.access_token ?? null;
+    } catch { /* ignore */ }
+    if (!accessToken) return NextResponse.json({ error: "no access token", tokenStatus: tokenRes.status, tokenText });
     const authHeaders = { Authorization: `Bearer ${accessToken}`, Accept: "application/json" };
-    const fromUnix = Math.floor(Date.now() / 1000) - 86400 * 90; // last 90 days
-    const [athletesPayload, testsPayload] = await Promise.all([
-      fetch(`${apiBase}/athletes`, { headers: authHeaders }).then(r => r.json()),
-      fetch(`${apiBase}/tests?syncFrom=${fromUnix}`, { headers: authHeaders }).then(r => r.json()),
-    ]);
-    return NextResponse.json({ athletesPayload, testsPayload });
+    const fromUnix = Math.floor(Date.now() / 1000) - 86400 * 90;
+    // Probe multiple candidate endpoints to find where tests live
+    const probes = [
+      `${apiBase}/tests?syncFrom=${fromUnix}`,
+      `${apiBase}?syncFrom=${fromUnix}`,
+      `${apiBase}/trials?syncFrom=${fromUnix}`,
+      `${apiBase}/data?syncFrom=${fromUnix}`,
+    ];
+    const probeResults: Record<string, { status: number; body: string }> = {};
+    for (const endpoint of probes) {
+      const r = await fetch(endpoint, { headers: authHeaders });
+      probeResults[endpoint] = { status: r.status, body: (await r.text()).slice(0, 500) };
+    }
+    // Also return full first test object from the working endpoint
+    const fullRes = await fetch(`${apiBase}?syncFrom=${fromUnix}`, { headers: authHeaders });
+    const fullJson = await fullRes.json() as { data?: unknown[] };
+    const firstTest = Array.isArray(fullJson.data) ? fullJson.data[0] : fullJson;
+    return NextResponse.json({ apiBase, probeResults, firstTest });
   }
 
   const supabase = serviceClient();
