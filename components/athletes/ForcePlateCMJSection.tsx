@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   CartesianGrid,
   Line,
@@ -53,67 +53,114 @@ function maxMetric(rows: MetricLite[], key: string): number | null {
   return Math.max(...vals);
 }
 
-const AXIS_TICK = { fill: "#94a3b8", fontSize: 11 };
+const CMJ_METRICS = [
+  { key: "jump_height", label: "Jump Height", unit: "cm" },
+  { key: "mrsi", label: "mRSI", unit: "" },
+  { key: "propulsive_impulse", label: "Propulsive Impulse", unit: "N·s" },
+  { key: "braking_impulse", label: "Braking Impulse", unit: "N·s" },
+  { key: "peak_propulsive_force", label: "Peak Propulsive Force", unit: "N" },
+  { key: "peak_braking_force", label: "Peak Braking Force", unit: "N" },
+] as const;
+
+const CMJ_DEFAULT = new Set<string>(["jump_height", "mrsi", "propulsive_impulse"]);
+
+const DECIMALS: Record<string, number> = {
+  jump_height: 1,
+  mrsi: 3,
+  propulsive_impulse: 1,
+  braking_impulse: 1,
+  peak_propulsive_force: 0,
+  peak_braking_force: 0,
+};
+
+const AXIS_TICK = { fill: "#64748b", fontSize: 10 };
 const TOOLTIP_STYLE = {
-  backgroundColor: "rgb(15 23 42)",
-  border: "1px solid rgb(30 41 59)",
-  borderRadius: "0.5rem",
-  fontSize: "12px",
+  backgroundColor: "#0f172a",
+  border: "1px solid #1e293b",
+  borderRadius: "0.375rem",
+  fontSize: "11px",
 };
 
-type MetricId =
-  | "jump_height"
-  | "propulsive_impulse"
-  | "braking_impulse"
-  | "peak_propulsive_force"
-  | "peak_braking_force"
-  | "mrsi";
+function MetricPicker({
+  metrics,
+  defaultSelected,
+  selected,
+  onChange,
+}: {
+  metrics: readonly { key: string; label: string; unit: string }[];
+  defaultSelected: Set<string>;
+  selected: Set<string>;
+  onChange: (next: Set<string>) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
 
-const CMJ_PILLS: { id: MetricId; label: string }[] = [
-  { id: "jump_height", label: "Jump Height" },
-  { id: "propulsive_impulse", label: "Propulsive Impulse" },
-  { id: "braking_impulse", label: "Braking Impulse" },
-  { id: "peak_propulsive_force", label: "Peak Propulsive Force" },
-  { id: "peak_braking_force", label: "Peak Braking Force" },
-  { id: "mrsi", label: "mRSI" },
-];
+  useEffect(() => {
+    if (!open) return;
+    function onDocClick(e: MouseEvent) {
+      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [open]);
 
-const METRIC_META: Record<
-  MetricId,
-  { field: keyof CMJDataPoint; unit: string; decimals: number; title: string }
-> = {
-  jump_height: {
-    field: "jump_height",
-    unit: "cm",
-    decimals: 1,
-    title: "Jump height",
-  },
-  propulsive_impulse: {
-    field: "propulsive_impulse",
-    unit: "N·s",
-    decimals: 1,
-    title: "Propulsive impulse",
-  },
-  braking_impulse: {
-    field: "braking_impulse",
-    unit: "N·s",
-    decimals: 1,
-    title: "Braking impulse",
-  },
-  peak_propulsive_force: {
-    field: "peak_propulsive_force",
-    unit: "N",
-    decimals: 0,
-    title: "Peak propulsive force",
-  },
-  peak_braking_force: {
-    field: "peak_braking_force",
-    unit: "N",
-    decimals: 0,
-    title: "Peak braking force",
-  },
-  mrsi: { field: "mrsi", unit: "", decimals: 3, title: "mRSI" },
-};
+  return (
+    <div className="relative" ref={panelRef}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-300 hover:border-slate-600 hover:text-slate-100"
+      >
+        Metrics ({selected.size}) ▼
+      </button>
+      {open ? (
+        <div className="absolute right-0 z-20 mt-2 w-64 rounded-lg border border-slate-700 bg-slate-950 p-3 shadow-xl">
+          <ul className="max-h-64 space-y-1 overflow-y-auto">
+            {metrics.map((m) => {
+              const checked = selected.has(m.key);
+              return (
+                <li key={m.key}>
+                  <label className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-xs text-slate-200 hover:bg-slate-900/80">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => {
+                        const next = new Set(selected);
+                        if (checked) next.delete(m.key);
+                        else next.add(m.key);
+                        onChange(next);
+                      }}
+                      className="h-3.5 w-3.5 rounded border-slate-600 bg-slate-900 accent-lime-400"
+                    />
+                    <span>{m.label}</span>
+                  </label>
+                </li>
+              );
+            })}
+          </ul>
+          <div className="mt-3 flex justify-end gap-2 border-t border-slate-800 pt-3">
+            <button
+              type="button"
+              onClick={() => onChange(new Set(defaultSelected))}
+              className="rounded px-2 py-1 text-xs text-slate-400 hover:text-slate-200"
+            >
+              Reset
+            </button>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="rounded bg-lime-400/20 px-2 py-1 text-xs font-medium text-lime-300 ring-1 ring-lime-500/40 hover:bg-lime-400/30"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 type Props = {
   athleteId: string;
@@ -126,108 +173,80 @@ export default function ForcePlateCMJSection({
   data,
   sectionComment,
 }: Props) {
-  const [visible, setVisible] = useState<Set<MetricId>>(
-    () => new Set(CMJ_PILLS.map((p) => p.id))
-  );
+  const [selected, setSelected] = useState<Set<string>>(() => new Set(CMJ_DEFAULT));
 
   const chartData = useMemo(() => [...data].sort((a, b) => a.t - b.t), [data]);
-
-  function toggle(id: MetricId) {
-    setVisible((prev) => {
-      const n = new Set(prev);
-      n.has(id) ? n.delete(id) : n.add(id);
-      return n;
-    });
-  }
+  const selectedMetrics = useMemo(
+    () => CMJ_METRICS.filter((m) => selected.has(m.key)),
+    [selected]
+  );
 
   if (data.length === 0) return null;
 
   return (
     <section id="cmj" className="scroll-mt-28 mt-10">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-lime-300">
-        Force plate — CMJ
-      </h2>
-      <div className="mt-3 flex flex-wrap gap-2">
-        {CMJ_PILLS.map(({ id, label }) => {
-          const on = visible.has(id);
-          return (
-            <button
-              key={id}
-              type="button"
-              onClick={() => toggle(id)}
-              className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
-                on
-                  ? "border-lime-400 bg-lime-400/15 text-lime-300"
-                  : "border-slate-700 bg-slate-900/60 text-slate-500 hover:border-slate-600 hover:text-slate-400"
-              }`}
-            >
-              {label}
-            </button>
-          );
-        })}
+      <div className="flex items-start justify-between gap-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-lime-300">
+          Force plate — CMJ
+        </h2>
+        <MetricPicker
+          metrics={CMJ_METRICS}
+          defaultSelected={CMJ_DEFAULT}
+          selected={selected}
+          onChange={setSelected}
+        />
       </div>
-      <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-        {CMJ_PILLS.filter((p) => visible.has(p.id)).map((pill) => {
-          const meta = METRIC_META[pill.id];
+      <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {selectedMetrics.map((metric) => {
+          const field = metric.key as keyof CMJDataPoint;
+          const decimals = DECIMALS[metric.key] ?? 2;
           const pts = chartData
             .map((row) => {
-              const v = row[meta.field] as number | null;
+              const v = row[field] as number | null;
               if (v == null || !Number.isFinite(v)) return null;
-              return { label: row.date, v };
+              return { date: row.date, v };
             })
-            .filter(Boolean) as { label: string; v: number }[];
+            .filter(Boolean) as { date: string; v: number }[];
           const enough = pts.length >= 1;
           return (
-            <div
-              key={pill.id}
-              className="rounded-lg border border-slate-800 bg-slate-900/50 p-4"
-            >
-              <h3 className="mb-3 text-xs font-medium text-slate-400">{meta.title}</h3>
+            <div key={metric.key}>
+              <p className="mb-2 text-xs text-slate-400">
+                {metric.label}
+                {metric.unit ? ` (${metric.unit})` : ""}
+              </p>
               {!enough ? (
                 <p className="py-12 text-center text-xs text-slate-500">Not enough data</p>
               ) : (
-                <div className="h-64 w-full">
+                <div className="h-[130px] w-full rounded border border-slate-800 bg-[#0f172a]">
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={pts}>
-                      <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
-                      <XAxis
-                        dataKey="label"
-                        stroke="#64748b"
-                        tick={AXIS_TICK}
-                        interval="preserveStartEnd"
-                      />
-                      <YAxis
-                        stroke="#64748b"
-                        tick={AXIS_TICK}
-                        tickFormatter={(v) =>
-                          meta.decimals === 0
-                            ? String(Math.round(Number(v)))
-                            : Number(v).toFixed(meta.decimals)
-                        }
-                        label={{
-                          value: meta.unit || "—",
-                          angle: -90,
-                          position: "insideLeft",
-                          fill: "#94a3b8",
-                          fontSize: 11,
-                        }}
-                      />
+                    <LineChart data={pts} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                      <XAxis dataKey="date" tick={AXIS_TICK} />
+                      <YAxis tick={AXIS_TICK} width={36} />
                       <Tooltip
                         contentStyle={TOOLTIP_STYLE}
-                        labelFormatter={(label) => String(label)}
-                        formatter={(v: number | string) => [
-                          typeof v === "number"
-                            ? v.toFixed(meta.decimals)
-                            : String(v),
-                          meta.title,
-                        ]}
+                        labelStyle={{ color: "#94a3b8" }}
+                        itemStyle={{ color: "#a3e635" }}
+                        formatter={(v: number | string) => {
+                          const n = typeof v === "number" ? v : Number(v);
+                          const text = Number.isFinite(n)
+                            ? decimals === 0
+                              ? String(Math.round(n))
+                              : n.toFixed(decimals)
+                            : String(v);
+                          return [
+                            metric.unit ? `${text} ${metric.unit}` : text,
+                            metric.label,
+                          ];
+                        }}
                       />
                       <Line
                         type="monotone"
                         dataKey="v"
-                        stroke="#84cc16"
+                        stroke="#a3e635"
                         strokeWidth={2}
-                        dot={{ r: 3 }}
+                        dot={{ fill: "#a3e635", r: 3 }}
+                        connectNulls
                       />
                     </LineChart>
                   </ResponsiveContainer>

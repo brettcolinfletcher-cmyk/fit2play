@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
@@ -214,44 +214,126 @@ function sessionsChronological(sess: SessionRow[]): SessionRow[] {
   });
 }
 
-// ─── Chart IDs ───────────────────────────────────────────────────────────────
+// ─── Sprint / COD metric pickers ─────────────────────────────────────────────
 
 type SprintChartId = "topSpeed" | "peakForce" | "peakPower" | "split5m";
 type CodChartId = "topSpeed505" | "decelMax505" | "accelMax505";
 
-const SPRINT_CHART_PILLS: { id: SprintChartId; label: string }[] = [
-  { id: "topSpeed", label: "Top Speed" },
-  { id: "peakForce", label: "Peak Force" },
-  { id: "peakPower", label: "Peak Power" },
-  { id: "split5m", label: "5m Split" },
-];
+const SPRINT_METRICS = [
+  { key: "topSpeed", label: "Top Speed", unit: "m/s" },
+  { key: "peakForce", label: "Peak Force", unit: "N" },
+  { key: "peakPower", label: "Peak Power", unit: "W" },
+  { key: "split5m", label: "5m Split Time", unit: "s" },
+] as const;
 
-const COD_CHART_PILLS: { id: CodChartId; label: string }[] = [
-  { id: "topSpeed505", label: "Top Speed" },
-  { id: "decelMax505", label: "Peak Deceleration" },
-  { id: "accelMax505", label: "Peak Re-Acceleration" },
-];
+const SPRINT_DEFAULT = new Set<string>(["topSpeed", "peakForce", "peakPower"]);
+
+const COD_METRICS = [
+  { key: "topSpeed505", label: "Top Speed", unit: "m/s" },
+  { key: "decelMax505", label: "Peak Deceleration", unit: "m/s²" },
+  { key: "accelMax505", label: "Peak Re-Acceleration", unit: "m/s²" },
+] as const;
+
+const COD_DEFAULT = new Set<string>(["topSpeed505", "decelMax505", "accelMax505"]);
+
+type MetricDef = { key: string; label: string; unit: string };
+
+function MetricPicker({
+  metrics,
+  defaultSelected,
+  selected,
+  onChange,
+}: {
+  metrics: readonly MetricDef[];
+  defaultSelected: Set<string>;
+  selected: Set<string>;
+  onChange: (next: Set<string>) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDocClick(e: MouseEvent) {
+      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [open]);
+
+  return (
+    <div className="relative shrink-0" ref={panelRef}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-300 hover:border-slate-600 hover:text-slate-100"
+      >
+        Metrics ({selected.size}) ▼
+      </button>
+      {open ? (
+        <div className="absolute right-0 z-20 mt-2 w-64 rounded-lg border border-slate-700 bg-slate-950 p-3 shadow-xl">
+          <ul className="max-h-64 space-y-1 overflow-y-auto">
+            {metrics.map((m) => {
+              const checked = selected.has(m.key);
+              return (
+                <li key={m.key}>
+                  <label className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-xs text-slate-200 hover:bg-slate-900/80">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => {
+                        const next = new Set(selected);
+                        if (checked) next.delete(m.key);
+                        else next.add(m.key);
+                        onChange(next);
+                      }}
+                      className="h-3.5 w-3.5 rounded border-slate-600 bg-slate-900 accent-lime-400"
+                    />
+                    <span>{m.label}</span>
+                  </label>
+                </li>
+              );
+            })}
+          </ul>
+          <div className="mt-3 flex justify-end gap-2 border-t border-slate-800 pt-3">
+            <button
+              type="button"
+              onClick={() => onChange(new Set(defaultSelected))}
+              className="rounded px-2 py-1 text-xs text-slate-400 hover:text-slate-200"
+            >
+              Reset
+            </button>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="rounded bg-lime-400/20 px-2 py-1 text-xs font-medium text-lime-300 ring-1 ring-lime-500/40 hover:bg-lime-400/30"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 // ─── Shared chart styles ──────────────────────────────────────────────────────
 
 const TOOLTIP_STYLE = {
-  backgroundColor: "rgb(15 23 42)",
-  border: "1px solid rgb(30 41 59)",
-  borderRadius: "0.5rem",
-  fontSize: "12px",
+  backgroundColor: "#0f172a",
+  border: "1px solid #1e293b",
+  borderRadius: "0.375rem",
+  fontSize: "11px",
 };
 
-const AXIS_TICK = { fill: "#94a3b8", fontSize: 11 };
+const AXIS_TICK = { fill: "#64748b", fontSize: 10 };
 
-function xAxisProps(formatDate: (ts: number) => string) {
-  return {
-    dataKey: "t",
-    type: "number" as const,
-    domain: ["dataMin", "dataMax"] as [string, string],
-    tickFormatter: (ts: number) => formatDate(ts),
-    stroke: "#64748b",
-    tick: AXIS_TICK,
-  };
+function formatTrendValue(key: string, v: number): string {
+  if (key === "peakForce" || key === "peakPower") return String(Math.round(v));
+  if (key === "split5m" || key === "topSpeed" || key === "topSpeed505") return v.toFixed(2);
+  return v.toFixed(2);
 }
 
 // ─── Main page ────────────────────────────────────────────────────────────────
@@ -270,11 +352,11 @@ export default function AthleteDetailPage() {
   const [sectionCommentBySection, setSectionCommentBySection] = useState<
     Record<string, string | null>
   >({});
-  const [visibleSprintCharts, setVisibleSprintCharts] = useState<Set<SprintChartId>>(
-    () => new Set(SPRINT_CHART_PILLS.map((p) => p.id))
+  const [visibleSprintCharts, setVisibleSprintCharts] = useState<Set<string>>(
+    () => new Set(SPRINT_DEFAULT)
   );
-  const [visibleCodCharts, setVisibleCodCharts] = useState<Set<CodChartId>>(
-    () => new Set(COD_CHART_PILLS.map((p) => p.id))
+  const [visibleCodCharts, setVisibleCodCharts] = useState<Set<string>>(
+    () => new Set(COD_DEFAULT)
   );
   const [rangeStart, setRangeStart] = useState<string | null>(null);
   const [rangeEnd, setRangeEnd] = useState<string | null>(null);
@@ -621,13 +703,6 @@ export default function AthleteDetailPage() {
   function toggleExpand(sid: string) {
     setExpanded((prev) => { const n = new Set(prev); n.has(sid) ? n.delete(sid) : n.add(sid); return n; });
   }
-  function toggleSprintChart(cid: SprintChartId) {
-    setVisibleSprintCharts((prev) => { const n = new Set(prev); n.has(cid) ? n.delete(cid) : n.add(cid); return n; });
-  }
-  function toggleCodChart(cid: CodChartId) {
-    setVisibleCodCharts((prev) => { const n = new Set(prev); n.has(cid) ? n.delete(cid) : n.add(cid); return n; });
-  }
-
   function renderSessionSection(list: SessionRow[]) {
     if (list.length === 0) return <p className="text-xs text-slate-500">No sessions.</p>;
     return (
@@ -687,46 +762,39 @@ export default function AthleteDetailPage() {
     );
   }
 
-  function Pills<T extends string>({
-    pills, visible, toggle,
-  }: {
-    pills: { id: T; label: string }[];
-    visible: Set<T>;
-    toggle: (id: T) => void;
-  }) {
-    return (
-      <div className="mt-3 flex flex-wrap gap-2">
-        {pills.map(({ id, label }) => {
-          const on = visible.has(id);
-          return (
-            <button key={id} type="button" onClick={() => toggle(id)}
-              className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
-                on ? "border-lime-400 bg-lime-400/15 text-lime-300"
-                   : "border-slate-700 bg-slate-900/60 text-slate-500 hover:border-slate-600 hover:text-slate-400"}`}>
-              {label}
-            </button>
-          );
-        })}
-      </div>
-    );
-  }
-
   function ChartShell({ title, enough, children }: { title: string; enough: boolean; children: React.ReactNode }) {
     return (
-      <div className="rounded-lg border border-slate-800 bg-slate-900/50 p-4">
-        <h3 className="mb-3 text-xs font-medium text-slate-400">{title}</h3>
+      <div>
+        <p className="mb-2 text-xs text-slate-400">{title}</p>
         {enough ? (
-          <div className="h-64 w-full">{children}</div>
+          <div className="h-[130px] w-full rounded border border-slate-800 bg-[#0f172a]">
+            {children}
+          </div>
         ) : (
-          <p className="py-16 text-center text-xs text-slate-500">Not enough data</p>
+          <p className="py-12 text-center text-xs text-slate-500">Not enough data</p>
         )}
       </div>
     );
   }
 
-  const tsFormatter = (ts: number) => formatChartAxisDate(new Date(ts).toISOString());
-  const labelFormatter = (_: unknown, payload: { payload?: { label?: string } }[]) =>
-    payload[0]?.payload?.label ?? "";
+  const sprintTrendByKey: Record<
+    SprintChartId,
+    { points: { t: number; label: string; v: number }[]; enough: boolean }
+  > = {
+    topSpeed: trendTopSpeed,
+    peakForce: trendPeakForce,
+    peakPower: trendPeakPower,
+    split5m: trendSplit5m,
+  };
+
+  const codTrendByKey: Record<
+    CodChartId,
+    { points: { t: number; label: string; v: number }[]; enough: boolean }
+  > = {
+    topSpeed505: trend505TopSpeed,
+    decelMax505: trend505DecelMax,
+    accelMax505: trend505AccelMax,
+  };
 
   if (!staffOk) {
     return (
@@ -820,71 +888,59 @@ export default function AthleteDetailPage() {
             {/* ── Linear sprint trends (1080) ── */}
             {has1080Charts && hasLinearSprint && (
               <section id="linear" className="scroll-mt-28 mt-8">
-                <h2 className="text-sm font-semibold uppercase tracking-wide text-lime-300">
-                  Sprint trends — Linear
-                </h2>
-                <Pills pills={SPRINT_CHART_PILLS} visible={visibleSprintCharts} toggle={toggleSprintChart} />
-                <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-                  {visibleSprintCharts.has("topSpeed") && (
-                    <ChartShell title="Top speed over time (best rep)" enough={trendTopSpeed.enough}>
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={trendTopSpeed.points}>
-                          <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
-                          <XAxis {...xAxisProps(tsFormatter)} />
-                          <YAxis stroke="#64748b" tick={AXIS_TICK} tickFormatter={(v) => Number(v).toFixed(1)}
-                            label={{ value: "m/s", angle: -90, position: "insideLeft", fill: "#94a3b8", fontSize: 11 }} />
-                          <Tooltip contentStyle={TOOLTIP_STYLE} labelFormatter={labelFormatter as any}
-                            formatter={(v: number | string) => [typeof v === "number" ? v.toFixed(2) : v, "Top Speed"]} />
-                          <Line type="monotone" dataKey="v" name="Top Speed" stroke="#84cc16" strokeWidth={2} dot={{ r: 3 }} />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </ChartShell>
-                  )}
-                  {visibleSprintCharts.has("peakForce") && (
-                    <ChartShell title="Peak force over time (best rep)" enough={trendPeakForce.enough}>
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={trendPeakForce.points}>
-                          <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
-                          <XAxis {...xAxisProps(tsFormatter)} />
-                          <YAxis stroke="#64748b" tick={AXIS_TICK} tickFormatter={(v) => Math.round(Number(v)).toString()}
-                            label={{ value: "N", angle: -90, position: "insideLeft", fill: "#94a3b8", fontSize: 11 }} />
-                          <Tooltip contentStyle={TOOLTIP_STYLE} labelFormatter={labelFormatter as any}
-                            formatter={(v: number | string) => [typeof v === "number" ? Math.round(v) : v, "Peak Force"]} />
-                          <Line type="monotone" dataKey="v" name="Peak Force" stroke="#f43f5e" strokeWidth={2} dot={{ r: 3 }} />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </ChartShell>
-                  )}
-                  {visibleSprintCharts.has("peakPower") && (
-                    <ChartShell title="Peak power over time (best rep)" enough={trendPeakPower.enough}>
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={trendPeakPower.points}>
-                          <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
-                          <XAxis {...xAxisProps(tsFormatter)} />
-                          <YAxis stroke="#64748b" tick={AXIS_TICK} tickFormatter={(v) => Math.round(Number(v)).toString()}
-                            label={{ value: "W", angle: -90, position: "insideLeft", fill: "#94a3b8", fontSize: 11 }} />
-                          <Tooltip contentStyle={TOOLTIP_STYLE} labelFormatter={labelFormatter as any}
-                            formatter={(v: number | string) => [typeof v === "number" ? Math.round(v) : v, "Peak Power"]} />
-                          <Line type="monotone" dataKey="v" name="Peak Power" stroke="#fbbf24" strokeWidth={2} dot={{ r: 3 }} />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </ChartShell>
-                  )}
-                  {visibleSprintCharts.has("split5m") && (
-                    <ChartShell title="5m split time over time (best rep)" enough={trendSplit5m.enough}>
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={trendSplit5m.points}>
-                          <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
-                          <XAxis {...xAxisProps(tsFormatter)} />
-                          <YAxis stroke="#64748b" tick={AXIS_TICK} tickFormatter={(v) => Number(v).toFixed(2)}
-                            label={{ value: "s", angle: -90, position: "insideLeft", fill: "#94a3b8", fontSize: 11 }} />
-                          <Tooltip contentStyle={TOOLTIP_STYLE} labelFormatter={labelFormatter as any}
-                            formatter={(v: number | string) => [typeof v === "number" ? v.toFixed(2) : v, "5m Split"]} />
-                          <Line type="monotone" dataKey="v" name="5m Split" stroke="#38bdf8" strokeWidth={2} dot={{ r: 3 }} />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </ChartShell>
-                  )}
+                <div className="flex items-start justify-between gap-3">
+                  <h2 className="text-sm font-semibold uppercase tracking-wide text-lime-300">
+                    Sprint trends — Linear
+                  </h2>
+                  <MetricPicker
+                    metrics={SPRINT_METRICS}
+                    defaultSelected={SPRINT_DEFAULT}
+                    selected={visibleSprintCharts}
+                    onChange={setVisibleSprintCharts}
+                  />
+                </div>
+                <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                  {SPRINT_METRICS.filter((m) => visibleSprintCharts.has(m.key)).map((metric) => {
+                    const trend = sprintTrendByKey[metric.key as SprintChartId];
+                    const title = `${metric.label} over time (best rep)`;
+                    return (
+                      <ChartShell key={metric.key} title={title} enough={trend.enough}>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <LineChart
+                            data={trend.points}
+                            margin={{ top: 4, right: 8, left: -16, bottom: 0 }}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                            <XAxis dataKey="label" tick={AXIS_TICK} />
+                            <YAxis tick={AXIS_TICK} width={36} />
+                            <Tooltip
+                              contentStyle={TOOLTIP_STYLE}
+                              labelStyle={{ color: "#94a3b8" }}
+                              itemStyle={{ color: "#a3e635" }}
+                              formatter={(v: number | string) => {
+                                const n = typeof v === "number" ? v : Number(v);
+                                const text = Number.isFinite(n)
+                                  ? formatTrendValue(metric.key, n)
+                                  : String(v);
+                                return [
+                                  metric.unit ? `${text} ${metric.unit}` : text,
+                                  metric.label,
+                                ];
+                              }}
+                            />
+                            <Line
+                              type="monotone"
+                              dataKey="v"
+                              stroke="#a3e635"
+                              strokeWidth={2}
+                              dot={{ fill: "#a3e635", r: 3 }}
+                              connectNulls
+                            />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </ChartShell>
+                    );
+                  })}
                 </div>
                 <SectionComment
                   athleteId={id}
@@ -897,59 +953,65 @@ export default function AthleteDetailPage() {
             {/* ── 5-10-5 COD trends ── */}
             {has505 && (
               <section id="cod" className="scroll-mt-28 mt-10">
-                <h2 className="text-sm font-semibold uppercase tracking-wide text-lime-300">
-                  COD trends — 5-10-5
-                </h2>
-                <p className="mt-1 text-xs text-slate-500">
-                  Best rep per session. Top speed and peak re-acceleration higher is better; peak deceleration higher indicates greater braking capacity.
-                </p>
-                <Pills pills={COD_CHART_PILLS} visible={visibleCodCharts} toggle={toggleCodChart} />
-                <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-                  {visibleCodCharts.has("topSpeed505") && (
-                    <ChartShell title="Top speed — 5-10-5 (best rep)" enough={trend505TopSpeed.enough}>
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={trend505TopSpeed.points}>
-                          <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
-                          <XAxis {...xAxisProps(tsFormatter)} />
-                          <YAxis stroke="#64748b" tick={AXIS_TICK} tickFormatter={(v) => Number(v).toFixed(1)}
-                            label={{ value: "m/s", angle: -90, position: "insideLeft", fill: "#94a3b8", fontSize: 11 }} />
-                          <Tooltip contentStyle={TOOLTIP_STYLE} labelFormatter={labelFormatter as any}
-                            formatter={(v: number | string) => [typeof v === "number" ? v.toFixed(2) : v, "Top Speed"]} />
-                          <Line type="monotone" dataKey="v" name="Top Speed" stroke="#84cc16" strokeWidth={2} dot={{ r: 4 }} />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </ChartShell>
-                  )}
-                  {visibleCodCharts.has("decelMax505") && (
-                    <ChartShell title="Peak deceleration — 5-10-5 (best rep)" enough={trend505DecelMax.enough}>
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={trend505DecelMax.points}>
-                          <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
-                          <XAxis {...xAxisProps(tsFormatter)} />
-                          <YAxis stroke="#64748b" tick={AXIS_TICK} tickFormatter={(v) => Number(v).toFixed(1)}
-                            label={{ value: "m/s²", angle: -90, position: "insideLeft", fill: "#94a3b8", fontSize: 11 }} />
-                          <Tooltip contentStyle={TOOLTIP_STYLE} labelFormatter={labelFormatter as any}
-                            formatter={(v: number | string) => [typeof v === "number" ? v.toFixed(2) : v, "Peak Decel"]} />
-                          <Line type="monotone" dataKey="v" name="Peak Decel" stroke="#f43f5e" strokeWidth={2} dot={{ r: 4 }} />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </ChartShell>
-                  )}
-                  {visibleCodCharts.has("accelMax505") && (
-                    <ChartShell title="Peak re-acceleration — 5-10-5 (best rep)" enough={trend505AccelMax.enough}>
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={trend505AccelMax.points}>
-                          <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
-                          <XAxis {...xAxisProps(tsFormatter)} />
-                          <YAxis stroke="#64748b" tick={AXIS_TICK} tickFormatter={(v) => Number(v).toFixed(1)}
-                            label={{ value: "m/s²", angle: -90, position: "insideLeft", fill: "#94a3b8", fontSize: 11 }} />
-                          <Tooltip contentStyle={TOOLTIP_STYLE} labelFormatter={labelFormatter as any}
-                            formatter={(v: number | string) => [typeof v === "number" ? v.toFixed(2) : v, "Peak Accel"]} />
-                          <Line type="monotone" dataKey="v" name="Peak Accel" stroke="#fbbf24" strokeWidth={2} dot={{ r: 4 }} />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </ChartShell>
-                  )}
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h2 className="text-sm font-semibold uppercase tracking-wide text-lime-300">
+                      COD trends — 5-10-5
+                    </h2>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Best rep per session. Top speed and peak re-acceleration higher is better; peak
+                      deceleration higher indicates greater braking capacity.
+                    </p>
+                  </div>
+                  <MetricPicker
+                    metrics={COD_METRICS}
+                    defaultSelected={COD_DEFAULT}
+                    selected={visibleCodCharts}
+                    onChange={setVisibleCodCharts}
+                  />
+                </div>
+                <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                  {COD_METRICS.filter((m) => visibleCodCharts.has(m.key)).map((metric) => {
+                    const trend = codTrendByKey[metric.key as CodChartId];
+                    const title = `${metric.label} — 5-10-5 (best rep)`;
+                    return (
+                      <ChartShell key={metric.key} title={title} enough={trend.enough}>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <LineChart
+                            data={trend.points}
+                            margin={{ top: 4, right: 8, left: -16, bottom: 0 }}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                            <XAxis dataKey="label" tick={AXIS_TICK} />
+                            <YAxis tick={AXIS_TICK} width={36} />
+                            <Tooltip
+                              contentStyle={TOOLTIP_STYLE}
+                              labelStyle={{ color: "#94a3b8" }}
+                              itemStyle={{ color: "#a3e635" }}
+                              formatter={(v: number | string) => {
+                                const n = typeof v === "number" ? v : Number(v);
+                                const text = Number.isFinite(n)
+                                  ? formatTrendValue(metric.key, n)
+                                  : String(v);
+                                return [
+                                  metric.unit ? `${text} ${metric.unit}` : text,
+                                  metric.label,
+                                ];
+                              }}
+                            />
+                            <Line
+                              type="monotone"
+                              dataKey="v"
+                              stroke="#a3e635"
+                              strokeWidth={2}
+                              dot={{ fill: "#a3e635", r: 3 }}
+                              connectNulls
+                            />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </ChartShell>
+                    );
+                  })}
                 </div>
                 <SectionComment
                   athleteId={id}
