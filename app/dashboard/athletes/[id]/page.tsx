@@ -4,14 +4,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
+  Bar,
+  BarChart,
   CartesianGrid,
   Line,
   LineChart,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
+import ChartTypeToggle, { type ChartType } from "@/components/athletes/ChartTypeToggle";
 import DashboardNav from "@/components/DashboardNav";
 import DateRangeBar from "@/components/athletes/DateRangeBar";
 import DynamometrySection from "@/components/athletes/DynamometrySection";
@@ -336,6 +340,82 @@ function formatTrendValue(key: string, v: number): string {
   return v.toFixed(2);
 }
 
+function ChartShell({
+  title,
+  enough,
+  chartType,
+  points,
+  metricKey,
+  unit,
+}: {
+  title: string;
+  enough: boolean;
+  chartType: ChartType;
+  points: { label: string; v: number }[];
+  metricKey: string;
+  unit: string;
+}) {
+  const showChart = chartType === "bar" ? points.length >= 1 : enough;
+  return (
+    <div>
+      <p className="mb-2 text-xs text-slate-400">{title}</p>
+      {showChart ? (
+        <div className="h-[130px] w-full rounded border border-slate-800 bg-[#0f172a]">
+          <ResponsiveContainer width="100%" height="100%">
+            {chartType === "bar" ? (
+              <BarChart data={points} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                <XAxis dataKey="label" tick={AXIS_TICK} />
+                <YAxis tick={AXIS_TICK} width={36} />
+                <Tooltip
+                  contentStyle={TOOLTIP_STYLE}
+                  labelStyle={{ color: "#94a3b8" }}
+                  itemStyle={{ color: "#a3e635" }}
+                  formatter={(v: number | string) => {
+                    const n = typeof v === "number" ? v : Number(v);
+                    const text = Number.isFinite(n) ? formatTrendValue(metricKey, n) : String(v);
+                    return [unit ? `${text} ${unit}` : text, title];
+                  }}
+                />
+                {points.length > 0 && (
+                  <ReferenceLine y={points[0]!.v} stroke="#334155" strokeDasharray="4 3" />
+                )}
+                <Bar dataKey="v" fill="#a3e635" radius={[3, 3, 0, 0]} />
+              </BarChart>
+            ) : (
+              <LineChart data={points} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                <XAxis dataKey="label" tick={AXIS_TICK} />
+                <YAxis tick={AXIS_TICK} width={36} />
+                <Tooltip
+                  contentStyle={TOOLTIP_STYLE}
+                  labelStyle={{ color: "#94a3b8" }}
+                  itemStyle={{ color: "#a3e635" }}
+                  formatter={(v: number | string) => {
+                    const n = typeof v === "number" ? v : Number(v);
+                    const text = Number.isFinite(n) ? formatTrendValue(metricKey, n) : String(v);
+                    return [unit ? `${text} ${unit}` : text, title];
+                  }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="v"
+                  stroke="#a3e635"
+                  strokeWidth={2}
+                  dot={{ fill: "#a3e635", r: 3 }}
+                  connectNulls
+                />
+              </LineChart>
+            )}
+          </ResponsiveContainer>
+        </div>
+      ) : (
+        <p className="py-12 text-center text-xs text-slate-500">Not enough data</p>
+      )}
+    </div>
+  );
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function AthleteDetailPage() {
@@ -358,6 +438,8 @@ export default function AthleteDetailPage() {
   const [visibleCodCharts, setVisibleCodCharts] = useState<Set<string>>(
     () => new Set(COD_DEFAULT)
   );
+  const [sprintChartType, setSprintChartType] = useState<ChartType>("bar");
+  const [codChartType, setCodChartType] = useState<ChartType>("bar");
   const [rangeStart, setRangeStart] = useState<string | null>(null);
   const [rangeEnd, setRangeEnd] = useState<string | null>(null);
   const [pdfModalOpen, setPdfModalOpen] = useState(false);
@@ -762,21 +844,6 @@ export default function AthleteDetailPage() {
     );
   }
 
-  function ChartShell({ title, enough, children }: { title: string; enough: boolean; children: React.ReactNode }) {
-    return (
-      <div>
-        <p className="mb-2 text-xs text-slate-400">{title}</p>
-        {enough ? (
-          <div className="h-[130px] w-full rounded border border-slate-800 bg-[#0f172a]">
-            {children}
-          </div>
-        ) : (
-          <p className="py-12 text-center text-xs text-slate-500">Not enough data</p>
-        )}
-      </div>
-    );
-  }
-
   const sprintTrendByKey: Record<
     SprintChartId,
     { points: { t: number; label: string; v: number }[]; enough: boolean }
@@ -892,53 +959,30 @@ export default function AthleteDetailPage() {
                   <h2 className="text-sm font-semibold uppercase tracking-wide text-lime-300">
                     Sprint trends — Linear
                   </h2>
-                  <MetricPicker
-                    metrics={SPRINT_METRICS}
-                    defaultSelected={SPRINT_DEFAULT}
-                    selected={visibleSprintCharts}
-                    onChange={setVisibleSprintCharts}
-                  />
+                  <div className="flex items-center gap-2">
+                    <ChartTypeToggle value={sprintChartType} onChange={setSprintChartType} />
+                    <MetricPicker
+                      metrics={SPRINT_METRICS}
+                      defaultSelected={SPRINT_DEFAULT}
+                      selected={visibleSprintCharts}
+                      onChange={setVisibleSprintCharts}
+                    />
+                  </div>
                 </div>
                 <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                   {SPRINT_METRICS.filter((m) => visibleSprintCharts.has(m.key)).map((metric) => {
                     const trend = sprintTrendByKey[metric.key as SprintChartId];
                     const title = `${metric.label} over time (best rep)`;
                     return (
-                      <ChartShell key={metric.key} title={title} enough={trend.enough}>
-                        <ResponsiveContainer width="100%" height="100%">
-                          <LineChart
-                            data={trend.points}
-                            margin={{ top: 4, right: 8, left: -16, bottom: 0 }}
-                          >
-                            <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                            <XAxis dataKey="label" tick={AXIS_TICK} />
-                            <YAxis tick={AXIS_TICK} width={36} />
-                            <Tooltip
-                              contentStyle={TOOLTIP_STYLE}
-                              labelStyle={{ color: "#94a3b8" }}
-                              itemStyle={{ color: "#a3e635" }}
-                              formatter={(v: number | string) => {
-                                const n = typeof v === "number" ? v : Number(v);
-                                const text = Number.isFinite(n)
-                                  ? formatTrendValue(metric.key, n)
-                                  : String(v);
-                                return [
-                                  metric.unit ? `${text} ${metric.unit}` : text,
-                                  metric.label,
-                                ];
-                              }}
-                            />
-                            <Line
-                              type="monotone"
-                              dataKey="v"
-                              stroke="#a3e635"
-                              strokeWidth={2}
-                              dot={{ fill: "#a3e635", r: 3 }}
-                              connectNulls
-                            />
-                          </LineChart>
-                        </ResponsiveContainer>
-                      </ChartShell>
+                      <ChartShell
+                        key={metric.key}
+                        title={title}
+                        enough={trend.enough}
+                        chartType={sprintChartType}
+                        points={trend.points}
+                        metricKey={metric.key}
+                        unit={metric.unit}
+                      />
                     );
                   })}
                 </div>
@@ -963,53 +1007,30 @@ export default function AthleteDetailPage() {
                       deceleration higher indicates greater braking capacity.
                     </p>
                   </div>
-                  <MetricPicker
-                    metrics={COD_METRICS}
-                    defaultSelected={COD_DEFAULT}
-                    selected={visibleCodCharts}
-                    onChange={setVisibleCodCharts}
-                  />
+                  <div className="flex items-center gap-2">
+                    <ChartTypeToggle value={codChartType} onChange={setCodChartType} />
+                    <MetricPicker
+                      metrics={COD_METRICS}
+                      defaultSelected={COD_DEFAULT}
+                      selected={visibleCodCharts}
+                      onChange={setVisibleCodCharts}
+                    />
+                  </div>
                 </div>
                 <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                   {COD_METRICS.filter((m) => visibleCodCharts.has(m.key)).map((metric) => {
                     const trend = codTrendByKey[metric.key as CodChartId];
                     const title = `${metric.label} — 5-10-5 (best rep)`;
                     return (
-                      <ChartShell key={metric.key} title={title} enough={trend.enough}>
-                        <ResponsiveContainer width="100%" height="100%">
-                          <LineChart
-                            data={trend.points}
-                            margin={{ top: 4, right: 8, left: -16, bottom: 0 }}
-                          >
-                            <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                            <XAxis dataKey="label" tick={AXIS_TICK} />
-                            <YAxis tick={AXIS_TICK} width={36} />
-                            <Tooltip
-                              contentStyle={TOOLTIP_STYLE}
-                              labelStyle={{ color: "#94a3b8" }}
-                              itemStyle={{ color: "#a3e635" }}
-                              formatter={(v: number | string) => {
-                                const n = typeof v === "number" ? v : Number(v);
-                                const text = Number.isFinite(n)
-                                  ? formatTrendValue(metric.key, n)
-                                  : String(v);
-                                return [
-                                  metric.unit ? `${text} ${metric.unit}` : text,
-                                  metric.label,
-                                ];
-                              }}
-                            />
-                            <Line
-                              type="monotone"
-                              dataKey="v"
-                              stroke="#a3e635"
-                              strokeWidth={2}
-                              dot={{ fill: "#a3e635", r: 3 }}
-                              connectNulls
-                            />
-                          </LineChart>
-                        </ResponsiveContainer>
-                      </ChartShell>
+                      <ChartShell
+                        key={metric.key}
+                        title={title}
+                        enough={trend.enough}
+                        chartType={codChartType}
+                        points={trend.points}
+                        metricKey={metric.key}
+                        unit={metric.unit}
+                      />
                     );
                   })}
                 </div>
