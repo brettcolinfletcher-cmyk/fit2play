@@ -81,6 +81,14 @@ function fmtTestType(raw: string | null) {
   return SESSION_TYPE_LABELS[raw] ?? raw.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+function fmtSubType(raw: string | null): string | null {
+  if (!raw) return null;
+  const cleaned = raw.replace(/^TS\s+/i, "").replace(/^Isometric\s+Test[-\s]*/i, "");
+  const [name, repStr] = cleaned.split(":");
+  const parts = name.split("-").map((p) => p.trim()).filter(Boolean);
+  return parts.join(" – ") + (repStr ? ` (rep ${repStr.trim()})` : "");
+}
+
 function typeColor(t: string | null) {
   const s = t ?? "";
   if (s === "force_plate_isometric") return "text-sky-300";
@@ -388,7 +396,7 @@ export default function StaffDashboardPage() {
                               {s.test_sub_type ? (
                                 <span className="text-slate-500">
                                   {" · "}
-                                  {s.test_sub_type}
+                                  {fmtSubType(s.test_sub_type)}
                                 </span>
                               ) : null}
                             </p>
