@@ -15,7 +15,7 @@ import {
   YAxis,
 } from "recharts";
 import { formatDisplayDate } from "@/lib/dateDisplay";
-import { lsiColorClass } from "@/lib/sideColors";
+import { lsiColorClass, sideColor } from "@/lib/sideColors";
 import { supabase } from "@/lib/supabaseClient";
 import ChartTypeToggle, { type ChartType } from "./ChartTypeToggle";
 import SectionComment from "./SectionComment";
@@ -484,6 +484,8 @@ export default function DynamometrySection({
               ? side.charAt(0).toUpperCase() + side.slice(1).toLowerCase()
               : null;
             const summaryMetrics = selectedMetricDefs.slice(0, 4);
+            const groupSide = sideFromGroupKey(gKey);
+            const singleGroupColor = sideColor(groupSide);
 
             return (
               <div
@@ -536,7 +538,7 @@ export default function DynamometrySection({
                 {isExpanded ? (
                   <div className="space-y-6 border-t border-slate-800/60 px-5 py-4">
                     {selectedMetricDefs.length > 0 ? (
-                      (chartType === "bar" ? trendData.length >= 1 : trendData.length > 1) ? (
+                      chartType === "bar" || trendData.length > 1 ? (
                         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                           {selectedMetricDefs.map(({ key, label, unit }) => (
                             <div key={key}>
@@ -557,11 +559,11 @@ export default function DynamometrySection({
                                       <Tooltip
                                         contentStyle={TOOLTIP_STYLE}
                                         labelStyle={{ color: "#94a3b8" }}
-                                        itemStyle={{ color: "#a3e635" }}
+                                        itemStyle={{ color: singleGroupColor }}
                                       />
                                       <Bar
                                         dataKey={key}
-                                        fill="#a3e635"
+                                        fill={singleGroupColor}
                                         radius={[3, 3, 0, 0]}
                                       />
                                     </BarChart>
@@ -576,14 +578,14 @@ export default function DynamometrySection({
                                       <Tooltip
                                         contentStyle={TOOLTIP_STYLE}
                                         labelStyle={{ color: "#94a3b8" }}
-                                        itemStyle={{ color: "#a3e635" }}
+                                        itemStyle={{ color: singleGroupColor }}
                                       />
                                       <Line
                                         type="monotone"
                                         dataKey={key}
-                                        stroke="#a3e635"
+                                        stroke={singleGroupColor}
                                         strokeWidth={2}
-                                        dot={{ fill: "#a3e635", r: 3 }}
+                                        dot={{ fill: singleGroupColor, r: 3 }}
                                         connectNulls
                                       />
                                     </LineChart>
@@ -593,12 +595,12 @@ export default function DynamometrySection({
                             </div>
                           ))}
                         </div>
-                      ) : chartType === "line" && trendData.length < 2 ? (
+                      ) : (
                         <p className="text-xs text-slate-500">
                           One session recorded — trend charts appear after more tests for this
                           movement.
                         </p>
-                      ) : null
+                      )
                     ) : (
                       <p className="text-xs text-slate-500">
                         Select at least one metric to view trends.
