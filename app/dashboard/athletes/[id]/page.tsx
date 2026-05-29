@@ -992,6 +992,8 @@ export default function AthleteDetailPage() {
             <DynamometrySection
               athleteId={id}
               sectionComment={sectionNote("dynamometry")}
+              dateFrom={rangeStart ? new Date(rangeStart) : null}
+              dateTo={rangeEnd ? new Date(rangeEnd) : null}
             />
 
             {/* ── LR session settings (Phase D-C) ── */}

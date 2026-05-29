@@ -239,6 +239,8 @@ export async function runHawkinsSync(
           : undefined;
       const testType = mapHawkinsTestType(typeName);
       const side = hawkinsAthleteSide(test);
+      // Store segment as test_sub_type (e.g. "TS Isometric Test-Abduction-Right-Supine:1")
+      const segment = typeof test.segment === "string" ? test.segment : null;
 
       const flat = flattenMetrics(test);
 
@@ -250,7 +252,7 @@ export async function runHawkinsSync(
           {
             athlete_id: internalAthleteId,
             test_type: testType,
-            test_sub_type: null,
+            test_sub_type: segment,
             file_name: null,
             source: "hawkins",
             external_id: hawkinsTestId,
