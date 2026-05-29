@@ -66,15 +66,26 @@ function fmtDate(iso: string | null | undefined) {
   return formatDisplayDate(iso);
 }
 
+const SESSION_TYPE_LABELS: Record<string, string> = {
+  force_plate_cmj:       "Force Plate — CMJ",
+  force_plate_dj:        "Force Plate — Drop Jump",
+  force_plate_imtp:      "Force Plate — IMTP",
+  force_plate_isometric: "Handheld Dynamometry",
+  force_plate_calf:      "Force Plate — Calf",
+  force_plate:           "Force Plate",
+  "1080_sprint":         "1080 Motion — Sprint",
+};
+
 function fmtTestType(raw: string | null) {
   if (!raw) return "Session";
-  return raw.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  return SESSION_TYPE_LABELS[raw] ?? raw.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 function typeColor(t: string | null) {
   const s = t ?? "";
+  if (s === "force_plate_isometric") return "text-sky-300";
   if (s.startsWith("force_plate")) return "text-violet-300";
-  if (s.startsWith("sprint") || s === "1080") return "text-lime-300";
+  if (s.startsWith("1080")) return "text-lime-300";
   if (s.startsWith("dynamom")) return "text-sky-300";
   if (s.startsWith("hop")) return "text-amber-300";
   return "text-slate-400";
