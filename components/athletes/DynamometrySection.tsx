@@ -15,6 +15,7 @@ import {
   YAxis,
 } from "recharts";
 import { formatDisplayDate } from "@/lib/dateDisplay";
+import { lsiColorClass } from "@/lib/sideColors";
 import { supabase } from "@/lib/supabaseClient";
 import ChartTypeToggle, { type ChartType } from "./ChartTypeToggle";
 import SectionComment from "./SectionComment";
@@ -95,12 +96,6 @@ function lsi(left: number, right: number): number {
 function asymPct(left: number, right: number): number {
   const avg = (left + right) / 2;
   return avg === 0 ? 0 : ((right - left) / avg) * 100;
-}
-
-function lsiColorClass(value: number): string {
-  if (value >= 90) return "text-lime-400";
-  if (value >= 80) return "text-amber-400";
-  return "text-rose-400";
 }
 
 function pairedGroupHeading(mKey: string): string {

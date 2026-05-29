@@ -15,8 +15,43 @@ import {
   YAxis,
 } from "recharts";
 import { formatDisplayDate } from "@/lib/dateDisplay";
+import { lsiColorClass, SIDE_COLORS, sideColor } from "@/lib/sideColors";
 import ChartTypeToggle, { type ChartType } from "./ChartTypeToggle";
 import SectionComment from "./SectionComment";
+
+export type CMJLRPair = {
+  label: string;
+  leftKey: string;
+  rightKey: string;
+};
+
+const CMJ_LR_PAIRS: CMJLRPair[] = [
+  {
+    label: "Avg Propulsive Force",
+    leftKey: "fp_left_avg_propulsive_force",
+    rightKey: "fp_right_avg_propulsive_force",
+  },
+  {
+    label: "Avg Braking Force",
+    leftKey: "fp_left_avg_braking_force",
+    rightKey: "fp_right_avg_braking_force",
+  },
+  {
+    label: "Avg Landing Force",
+    leftKey: "fp_left_avg_landing_force",
+    rightKey: "fp_right_avg_landing_force",
+  },
+  {
+    label: "Peak Propulsive Force",
+    leftKey: "fp_left_force_at_peak_propulsive_force",
+    rightKey: "fp_right_force_at_peak_propulsive_force",
+  },
+  {
+    label: "Peak Braking Force",
+    leftKey: "fp_left_force_at_peak_braking_force",
+    rightKey: "fp_right_force_at_peak_braking_force",
+  },
+];
 
 export type CMJDataPoint = {
   date: string;
@@ -27,6 +62,7 @@ export type CMJDataPoint = {
   peak_propulsive_force: number | null;
   peak_braking_force: number | null;
   mrsi: number | null;
+  rawMetrics?: Record<string, number>;
 };
 
 export type MetricLite = { key: string; value: number | null; rep_index: number | null };
@@ -167,6 +203,68 @@ function MetricPicker({
   );
 }
 
+function CMJAsymmetryStrip({ rawMetrics }: { rawMetrics: Record<string, number> }) {
+  const pairs = CMJ_LR_PAIRS.filter(
+    (p) => rawMetrics[p.leftKey] != null && rawMetrics[p.rightKey] != null
+  );
+  if (pairs.length === 0) return null;
+
+  return (
+    <div className="mt-6 space-y-3">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+        Left / Right Asymmetry — Latest Session
+      </p>
+      {pairs.map((p) => {
+        const lv = rawMetrics[p.leftKey]!;
+        const rv = rawMetrics[p.rightKey]!;
+        const total = lv + rv;
+        const leftPct = total > 0 ? (lv / total) * 100 : 50;
+        const rightPct = 100 - leftPct;
+        const stronger = Math.max(lv, rv);
+        const lsiVal = stronger === 0 ? 100 : (Math.min(lv, rv) / stronger) * 100;
+        return (
+          <div key={p.leftKey}>
+            <div className="mb-1 flex items-baseline justify-between gap-2">
+              <span className="text-xs text-slate-400">{p.label}</span>
+              <span className={`font-mono text-xs ${lsiColorClass(lsiVal)}`}>
+                LSI {lsiVal.toFixed(1)}%
+              </span>
+            </div>
+            <div className="flex h-3 overflow-hidden rounded-full">
+              <div
+                className="transition-all"
+                style={{ width: `${leftPct}%`, backgroundColor: SIDE_COLORS.left }}
+                title={`Left ${lv.toFixed(1)} N`}
+              />
+              <div
+                className="transition-all"
+                style={{ width: `${rightPct}%`, backgroundColor: SIDE_COLORS.right }}
+                title={`Right ${rv.toFixed(1)} N`}
+              />
+            </div>
+            <div className="mt-0.5 flex justify-between text-[10px] text-slate-500">
+              <span>L {lv.toFixed(1)}</span>
+              <span>R {rv.toFixed(1)}</span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function extractRawLrMetrics(rows: MetricLite[]): Record<string, number> | undefined {
+  const raw: Record<string, number> = {};
+  for (const r of rows) {
+    if (r.value == null || !Number.isFinite(r.value)) continue;
+    if (r.key.startsWith("fp_left_") || r.key.startsWith("fp_right_")) {
+      const prev = raw[r.key];
+      raw[r.key] = prev != null ? Math.max(prev, r.value) : r.value;
+    }
+  }
+  return Object.keys(raw).length > 0 ? raw : undefined;
+}
+
 type Props = {
   athleteId: string;
   data: CMJDataPoint[];
@@ -188,6 +286,8 @@ export default function ForcePlateCMJSection({
   );
 
   if (data.length === 0) return null;
+
+  const chartColor = sideColor(null);
 
   return (
     <section id="cmj" className="scroll-mt-28 mt-10">
@@ -236,7 +336,7 @@ export default function ForcePlateCMJSection({
                         <Tooltip
                           contentStyle={TOOLTIP_STYLE}
                           labelStyle={{ color: "#94a3b8" }}
-                          itemStyle={{ color: "#a3e635" }}
+                          itemStyle={{ color: chartColor }}
                           formatter={(v: number | string) => {
                             const n = typeof v === "number" ? v : Number(v);
                             const text = Number.isFinite(n)
@@ -257,7 +357,7 @@ export default function ForcePlateCMJSection({
                         />
                         <Bar dataKey="v" radius={[3, 3, 0, 0]}>
                           {pts.map((_, i) => (
-                            <Cell key={i} fill="#a3e635" />
+                            <Cell key={i} fill={chartColor} />
                           ))}
                         </Bar>
                       </BarChart>
@@ -269,7 +369,7 @@ export default function ForcePlateCMJSection({
                         <Tooltip
                           contentStyle={TOOLTIP_STYLE}
                           labelStyle={{ color: "#94a3b8" }}
-                          itemStyle={{ color: "#a3e635" }}
+                          itemStyle={{ color: chartColor }}
                           formatter={(v: number | string) => {
                             const n = typeof v === "number" ? v : Number(v);
                             const text = Number.isFinite(n)
@@ -286,9 +386,9 @@ export default function ForcePlateCMJSection({
                         <Line
                           type="monotone"
                           dataKey="v"
-                          stroke="#a3e635"
+                          stroke={chartColor}
                           strokeWidth={2}
-                          dot={{ fill: "#a3e635", r: 3 }}
+                          dot={{ fill: chartColor, r: 3 }}
                           connectNulls
                         />
                       </LineChart>
@@ -300,6 +400,11 @@ export default function ForcePlateCMJSection({
           );
         })}
       </div>
+      {(() => {
+        const latest = chartData[chartData.length - 1];
+        if (!latest?.rawMetrics) return null;
+        return <CMJAsymmetryStrip rawMetrics={latest.rawMetrics} />;
+      })()}
       <SectionComment
         athleteId={athleteId}
         section="cmj"
@@ -377,6 +482,7 @@ export function buildCmjDataPoints(
         peak_propulsive_force: ppf,
         peak_braking_force: pbf,
         mrsi,
+        rawMetrics: extractRawLrMetrics(rows),
       });
       continue;
     }
@@ -395,6 +501,7 @@ export function buildCmjDataPoints(
       peak_propulsive_force: bestRep.fp_peak_propulsive_force ?? null,
       peak_braking_force: bestRep.fp_peak_braking_force ?? null,
       mrsi: bestRep.fp_mrsi ?? null,
+      rawMetrics: extractRawLrMetrics(rows),
     });
   }
   return out;
