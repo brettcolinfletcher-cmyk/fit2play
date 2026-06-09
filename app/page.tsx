@@ -12,6 +12,15 @@ const btnPrimary =
 const btnSecondary =
   "inline-flex items-center justify-center rounded-full border border-slate-600 px-4 py-2 text-xs font-semibold text-slate-100 hover:border-lime-400 hover:text-lime-400 md:text-sm";
 
+const CREDIBILITY_CLUBS = [
+  { name: "Carlton FC", slug: "carlton" },
+  { name: "New England Patriots", slug: "patriots" },
+  { name: "AC Milan", slug: "ac-milan" },
+  { name: "Australian Institute of Sport", slug: "ais" },
+  { name: "Western Force", slug: "western-force" },
+  { name: "WACA", slug: "waca" },
+] as const;
+
 export default function HomePage() {
   const [menuOpen, setMenuOpen] = useState(false);
   const closeMenu = () => setMenuOpen(false);
@@ -113,7 +122,7 @@ export default function HomePage() {
               Know when they&apos;re ready — and how far they can go.
             </h1>
             <p className="mb-5 max-w-xl text-sm text-slate-300 md:text-base">
-              Fit2Perform turns your force plates, 1080 Sprint and dynamometry into one
+              Fit2Perform turns force plates, sprint testing and dynamometry into one
               decision-ready platform — measuring strength, power, asymmetry and readiness.
               Guide athletes safely back from injury, and benchmark performance when
               they&apos;re fit.
@@ -147,25 +156,11 @@ export default function HomePage() {
             New England Patriots (NFL), AC Milan, the Australian Institute of Sport, the
             Western Force and the WACA.
           </p>
-          {/* TODO: confirm relationship verb per club (e.g. worked with, consulted for) */}
-          <ul className="grid gap-2 text-xs text-slate-400 sm:grid-cols-2 md:grid-cols-3 md:text-sm">
-            {[
-              "Carlton FC (AFL)",
-              "New England Patriots (NFL)",
-              "AC Milan",
-              "Australian Institute of Sport",
-              "Western Force",
-              "WACA",
-            ].map((club) => (
-              <li
-                key={club}
-                className="rounded-lg border border-dashed border-slate-700 bg-slate-950/50 px-3 py-2"
-              >
-                <span className="font-medium text-slate-300">{club}</span>
-                <span className="ml-1 text-slate-500">— [relationship TBC]</span>
-              </li>
+          <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-4">
+            {CREDIBILITY_CLUBS.map((club) => (
+              <ClubLogo key={club.slug} name={club.name} slug={club.slug} />
             ))}
-          </ul>
+          </div>
         </section>
 
         {/* 3 — Benefit blocks */}
@@ -176,8 +171,8 @@ export default function HomePage() {
               body="Every test is quantified — strength, power, jump, sprint, change-of-direction and asymmetry. Limb Symmetry Index and performance bands flag risk at a glance, so decisions rest on data, not feel."
             />
             <BenefitCard
-              title="All your hardware, one platform"
-              body="Hawkins force plates, 1080 Sprint and Vald dynamometry sync automatically into a single athlete record. No spreadsheets, no manual collation."
+              title="Comprehensive, objective measurement"
+              body="We assess strength, power, acceleration, deceleration and change of direction on world-class testing equipment — including force plates and dynamometry — capturing the full picture in one place."
             />
             <BenefitCard
               title="Track the whole journey"
@@ -353,6 +348,31 @@ export default function HomePage() {
         </div>
       </footer>
     </div>
+  );
+}
+
+function ClubLogo({ name, slug }: { name: string; slug: string }) {
+  const [useFallback, setUseFallback] = useState(false);
+
+  if (useFallback) {
+    // TODO: add logo asset
+    return (
+      <span className="text-center text-xs font-semibold uppercase tracking-wide text-slate-400">
+        {name}
+      </span>
+    );
+  }
+
+  return (
+    <Image
+      src={`/logos/${slug}.svg`}
+      alt={name}
+      width={120}
+      height={48}
+      unoptimized
+      className="max-h-10 w-auto max-w-[7.5rem] object-contain opacity-80 grayscale transition hover:opacity-100 hover:grayscale-0"
+      onError={() => setUseFallback(true)}
+    />
   );
 }
 
