@@ -6,6 +6,25 @@ import { useState } from "react";
 
 const MAIL_BOOK =
   "mailto:info@fit2play.com.au?subject=Testing%20session%20booking";
+const MAIL_ENQUIRY = "mailto:info@fit2play.com.au?subject=Enquiry";
+
+const ASSESSMENT_COVERAGE = [
+  "Lower-limb strength and capacity",
+  "Power and reactive strength (jump testing)",
+  "Acceleration, deceleration and change-of-direction profiling",
+  "Left/right asymmetry across every measure",
+  "Longitudinal comparison to the athlete's own history and benchmarks",
+  "A clear, shareable report with actionable findings",
+] as const;
+
+const INJURY_AREAS = [
+  "ACL and knee",
+  "Hamstring",
+  "Calf and Achilles",
+  "Lower-limb tendinopathy & overuse",
+  "Patellofemoral",
+  "Hip, groin & core",
+] as const;
 
 const btnPrimary =
   "inline-flex items-center justify-center rounded-full bg-lime-400 px-5 py-2 text-xs font-semibold text-slate-950 shadow-md hover:brightness-110 md:text-sm";
@@ -163,7 +182,40 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* 3 — Benefit blocks */}
+        {/* Our solutions */}
+        <section id="solutions" className="scroll-mt-24 pb-16">
+          <h2 className="mb-2 text-sm font-semibold uppercase tracking-[0.2em] text-lime-300">
+            Our solutions
+          </h2>
+          <p className="mb-6 max-w-2xl text-sm text-slate-300 md:text-base">
+            Four ways we put objective data behind your decisions.
+          </p>
+          <div className="grid gap-4 md:grid-cols-2">
+            <BenefitCard
+              title="Return-to-Play Testing"
+              body="Objective benchmarks to guide rehab and confirm an athlete is truly ready to return, not just healed."
+            />
+            <BenefitCard
+              title="Performance Testing"
+              body="Track strength, power and speed in fit athletes, and benchmark against their own best and their sport."
+            />
+            <BenefitCard
+              title="Pre-Injury Screening"
+              body="Identify asymmetry and capacity gaps before they become an injury, at the individual or squad level."
+            />
+            <BenefitCard
+              title="GPS Hire"
+              body="Hire athlete-tracking GPS units to capture running load, speed and distance in training and competition, bringing on-field data into the same picture."
+            />
+          </div>
+          <div className="mt-8 text-center">
+            <a href={MAIL_ENQUIRY} className={btnPrimary}>
+              Get in touch
+            </a>
+          </div>
+        </section>
+
+        {/* Benefit blocks */}
         <section className="scroll-mt-24 py-16">
           <div className="grid gap-4 sm:grid-cols-2">
             <BenefitCard
@@ -221,38 +273,44 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* 6 — What we test */}
+        {/* What every assessment covers */}
         <section id="testing" className="scroll-mt-24 pb-16">
           <h2 className="mb-2 text-sm font-semibold uppercase tracking-[0.2em] text-lime-300">
-            What we test
+            What every assessment covers
           </h2>
           <p className="mb-6 max-w-2xl text-sm text-slate-300 md:text-base">
-            A comprehensive battery across the domains that determine readiness and
-            performance.
+            A complete picture, in one session.
           </p>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <TestDomainCard
-              title="Motor control"
-              body="Single-leg control, balance, time to stabilisation"
-            />
-            <TestDomainCard
-              title="Strength"
-              body="Isometric hip, knee, calf (handheld dynamometry & IMTP)"
-            />
-            <TestDomainCard
-              title="Power"
-              body="Countermovement jump, drop jump (RSI), vertical & horizontal"
-            />
-            <TestDomainCard
-              title="Speed & change of direction"
-              body="Acceleration/deceleration, 5-0-5, 5-10-5"
-            />
-            <TestDomainCard
-              title="Readiness"
-              body="Psychological readiness to return"
-              className="sm:col-span-2 lg:col-span-1"
-            />
-          </div>
+          <ul className="space-y-3 rounded-2xl border border-slate-700 bg-slate-950/60 p-5 md:p-6">
+            {ASSESSMENT_COVERAGE.map((item) => (
+              <CheckListItem key={item}>{item}</CheckListItem>
+            ))}
+          </ul>
+        </section>
+
+        {/* Injuries we help you manage */}
+        <section className="scroll-mt-24 pb-16">
+          <h2 className="mb-2 text-sm font-semibold uppercase tracking-[0.2em] text-lime-300">
+            Built for the injuries that matter
+          </h2>
+          <p className="mb-6 max-w-2xl text-sm text-slate-300 md:text-base">
+            Our testing supports return-to-play and risk monitoring across the lower-limb
+            injuries that most affect athletes:
+          </p>
+          <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {INJURY_AREAS.map((item) => (
+              <li
+                key={item}
+                className="flex gap-2 rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3 text-sm text-slate-300"
+              >
+                <span
+                  className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-lime-400"
+                  aria-hidden
+                />
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
         </section>
 
         {/* 7 — Product proof */}
@@ -283,9 +341,12 @@ export default function HomePage() {
               className="sm:col-span-2 lg:col-span-1"
             />
           </div>
-          <div className="mt-6">
+          <div className="mt-6 flex flex-col items-center gap-4">
             <a href="#product-proof" className={btnSecondary}>
               See a full sample report
+            </a>
+            <a href={MAIL_BOOK} className={btnPrimary}>
+              Book a testing session
             </a>
           </div>
         </section>
@@ -407,22 +468,15 @@ function WhoPathCard({
   );
 }
 
-function TestDomainCard({
-  title,
-  body,
-  className = "",
-}: {
-  title: string;
-  body: string;
-  className?: string;
-}) {
+function CheckListItem({ children }: { children: string }) {
   return (
-    <div
-      className={`rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3 ${className}`}
-    >
-      <h3 className="mb-1 text-sm font-semibold text-lime-300 md:text-base">{title}</h3>
-      <p className="text-xs text-slate-300 md:text-sm">{body}</p>
-    </div>
+    <li className="flex gap-2 text-sm text-slate-300">
+      <span
+        className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-lime-400"
+        aria-hidden
+      />
+      <span>{children}</span>
+    </li>
   );
 }
 
