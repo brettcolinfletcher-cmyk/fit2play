@@ -171,13 +171,13 @@ export default function HomePage() {
         {/* 2 — Credibility strip */}
         <section className="scroll-mt-24 border-y border-slate-800 py-10">
           <h2 className="mb-3 text-xl font-semibold text-slate-100 md:text-2xl">
-            Two decades inside elite sport.
+            Decades inside elite sport.
           </h2>
           <p className="mb-6 max-w-3xl text-sm text-slate-300 md:text-base">
-            Fit2Perform is built on Brett Fletcher&apos;s 20+ years working across
-            professional and high-performance programs — including Carlton FC (AFL), the
-            New England Patriots (NFL), AC Milan, the Australian Institute of Sport, the
-            Western Force and the WACA.
+            The experience behind Fit2Perform spans some of the most demanding programs in
+            world sport — Carlton FC (AFL), the New England Patriots (NFL), AC Milan, the
+            Australian Institute of Sport, the Western Force and the WACA — in codes with
+            historically high rates of lower-limb injury.
           </p>
           <div className="flex flex-wrap justify-center gap-4">
             {CREDIBILITY_CLUBS.map((club) => (
