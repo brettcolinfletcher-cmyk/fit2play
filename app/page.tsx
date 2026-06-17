@@ -3,6 +3,8 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useState } from "react";
+import SiteNav from "@/components/SiteNav";
+import SiteFooter from "@/components/SiteFooter";
 
 const MAIL_BOOK =
   "mailto:info@fit2play.com.au?subject=Testing%20session%20booking";
@@ -45,94 +47,9 @@ const CREDIBILITY_CLUBS = [
 ] as const;
 
 export default function HomePage() {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const closeMenu = () => setMenuOpen(false);
-
   return (
     <div className="min-h-screen overflow-x-hidden bg-[radial-gradient(circle_at_top,_#111827_0,_#020617_55%)] text-slate-50">
-      <header className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 pt-6">
-        <Link href="/" className="flex shrink-0 items-center gap-2">
-          {/* TODO: replace logo with transparent-bg export from Canva — current asset has baked-in dark background */}
-          <Image
-            src="/fit2play_logo_transparent.png"
-            alt="Fit2Perform logo"
-            width={200}
-            height={80}
-            className="max-h-10 w-auto"
-            priority
-          />
-        </Link>
-
-        <nav className="hidden flex-wrap items-center justify-end gap-x-3 gap-y-1 text-sm text-slate-300 md:flex md:gap-x-2">
-          <a href="#testing" className="hover:text-lime-400">
-            Testing
-          </a>
-          <span className="text-slate-600" aria-hidden>
-            ·
-          </span>
-          <a href="#product-proof" className="hover:text-lime-400">
-            Sample report
-          </a>
-          <span className="text-slate-600" aria-hidden>
-            ·
-          </span>
-          <a href="#contact" className="hover:text-lime-400">
-            Contact
-          </a>
-          <span className="text-slate-600" aria-hidden>
-            ·
-          </span>
-          <Link href="/login" className="hover:text-lime-400">
-            Login
-          </Link>
-          <a href={MAIL_BOOK} className={`ml-2 ${btnPrimary} px-4 py-1.5 text-xs md:text-sm`}>
-            Book a testing session
-          </a>
-        </nav>
-
-        <div className="flex items-center gap-2 md:hidden">
-          <a
-            href={MAIL_BOOK}
-            className="inline-flex items-center justify-center rounded-full bg-lime-400 px-3 py-1.5 text-[0.65rem] font-semibold text-slate-950 shadow-md hover:brightness-110"
-          >
-            Book
-          </a>
-          <button
-            type="button"
-            aria-expanded={menuOpen}
-            aria-label={menuOpen ? "Close menu" : "Open menu"}
-            className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-700 bg-slate-950/80 text-lg leading-none text-slate-200"
-            onClick={() => setMenuOpen((o) => !o)}
-          >
-            {menuOpen ? "×" : "☰"}
-          </button>
-        </div>
-      </header>
-
-      {menuOpen ? (
-        <div
-          className="border-b border-slate-800 bg-slate-950/95 px-4 py-4 md:hidden"
-          id="mobile-nav"
-        >
-          <nav className="mx-auto flex max-w-5xl flex-col gap-3 text-sm text-slate-200">
-            <a href="#testing" className="hover:text-lime-400" onClick={closeMenu}>
-              Testing
-            </a>
-            <a href="#product-proof" className="hover:text-lime-400" onClick={closeMenu}>
-              Sample report
-            </a>
-            <a href="#contact" className="hover:text-lime-400" onClick={closeMenu}>
-              Contact
-            </a>
-            <Link href="/login" className="hover:text-lime-400" onClick={closeMenu}>
-              Login
-            </Link>
-            <a href={MAIL_BOOK} className={`mt-1 w-fit ${btnPrimary}`} onClick={closeMenu}>
-              Book a testing session
-            </a>
-          </nav>
-        </div>
-      ) : null}
+      <SiteNav />
 
       <main className="mx-auto max-w-5xl px-4 pb-20 pt-10">
         {/* 1 — Hero */}
@@ -411,23 +328,7 @@ export default function HomePage() {
         </section>
       </main>
 
-      <footer className="border-t border-slate-800 bg-slate-950/80">
-        <div className="mx-auto flex max-w-5xl flex-col items-center justify-between gap-4 px-4 py-8 text-xs text-slate-500 md:flex-row">
-          <Link href="/" className="opacity-90 hover:opacity-100">
-            <Image
-              src="/fit2play_logo_transparent.png"
-              alt="Fit2Perform"
-              width={160}
-              height={64}
-              className="max-h-8 w-auto"
-            />
-          </Link>
-          <p>© {new Date().getFullYear()} Fit2Perform</p>
-          <a href="mailto:info@fit2play.com.au" className="hover:text-lime-400">
-            info@fit2play.com.au
-          </a>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }
