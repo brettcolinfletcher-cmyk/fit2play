@@ -180,7 +180,7 @@ export default function HomePage() {
             Force and WA Cricket. That experience shapes everything we do, from
             return-to-play to peak performance.
           </p>
-          <div className="flex flex-wrap justify-center gap-4">
+          <div className="mx-auto grid max-w-3xl grid-cols-2 justify-items-center gap-4 sm:grid-cols-3 lg:grid-cols-5">
             {CREDIBILITY_CLUBS.map((club) => (
               <ClubLogo key={club.name} name={club.name} file={club.file} />
             ))}
