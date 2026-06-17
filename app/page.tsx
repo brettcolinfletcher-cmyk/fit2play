@@ -270,10 +270,10 @@ export default function HomePage() {
               Built for the whole roster.
             </h2>
             <p className="max-w-3xl text-sm text-slate-300 md:text-base">
-              Return-to-play and performance testing has historically been calibrated to
-              male athletes. Fit2Perform brings genuine experience across female sport —
-              including AFLW, elite netball and women&apos;s cricket — and a commitment to
-              benchmarks that reflect the athlete in front of you.
+              Return-to-play and performance testing has historically been built around
+              male athletes. Fit2Perform brings real experience across female sport,
+              including AFLW, elite netball and women&apos;s cricket, with benchmarks that
+              reflect the athlete in front of you — not a population average.
             </p>
           </div>
         </section>
