@@ -32,16 +32,16 @@ const btnSecondary =
   "inline-flex items-center justify-center rounded-full border border-slate-600 px-4 py-2 text-xs font-semibold text-slate-100 hover:border-lime-400 hover:text-lime-400 md:text-sm";
 
 const CREDIBILITY_CLUBS = [
-  { name: "Carlton FC", file: "carlton.png" },
-  { name: "Fremantle Dockers", file: "fremantle.svg" },
-  { name: "AFLW", file: "aflw.png" },
-  { name: "Western Force", file: "western-force.svg" },
-  { name: "WACA", file: "waca.svg" },
-  { name: "Perth FC", file: "perth-fc.png" },
-  { name: "Perth Scorchers", file: "perth-scorchers.png" },
-  { name: "Australian Institute of Sport", file: "ais.png" },
   { name: "AC Milan", file: "ac-milan.png" },
   { name: "New England Patriots", file: "patriots.png" },
+  { name: "Australian Institute of Sport", file: "ais.png" },
+  { name: "Carlton FC", file: "carlton.png" },
+  { name: "Western Force", file: "western-force.svg" },
+  { name: "WA Cricket", file: "waca.svg" },
+  { name: "Fremantle Dockers", file: "fremantle.svg" },
+  { name: "Perth FC", file: "perth-fc.png" },
+  { name: "Perth Scorchers", file: "perth-scorchers.png" },
+  { name: "AFLW", file: "aflw.png" },
 ] as const;
 
 export default function HomePage() {
@@ -174,10 +174,11 @@ export default function HomePage() {
             Decades inside elite sport.
           </h2>
           <p className="mb-6 max-w-3xl text-sm text-slate-300 md:text-base">
-            The experience behind Fit2Perform spans some of the most demanding programs in
-            world sport — Carlton FC (AFL), the New England Patriots (NFL), AC Milan, the
-            Australian Institute of Sport, the Western Force and the WACA — in codes with
-            historically high rates of lower-limb injury.
+            Fit2Perform is built by people who&apos;ve worked across professional sport —
+            from AFL and the NFL to Serie A and Olympic programs — including Carlton FC, the
+            New England Patriots, AC Milan, the Australian Institute of Sport, the Western
+            Force and WA Cricket. That experience shapes everything we do, from
+            return-to-play to peak performance.
           </p>
           <div className="flex flex-wrap justify-center gap-4">
             {CREDIBILITY_CLUBS.map((club) => (
