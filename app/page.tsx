@@ -18,12 +18,12 @@ const ASSESSMENT_COVERAGE = [
 ] as const;
 
 const INJURY_AREAS = [
-  "ACL and knee",
-  "Hamstring",
-  "Calf and Achilles",
-  "Lower-limb tendinopathy & overuse",
-  "Patellofemoral",
-  "Hip, groin & core",
+  { label: "ACL & traumatic knee injuries" },
+  { label: "Muscle injuries", detail: "hamstring, quadriceps, calf" },
+  { label: "Tendon injuries & tendinopathy", detail: "Achilles, patellar, proximal hamstring" },
+  { label: "Athletic groin pain" },
+  { label: "Ankle injuries" },
+  { label: "Bone stress injuries" },
 ] as const;
 
 const btnPrimary =
@@ -293,29 +293,44 @@ export default function HomePage() {
           </ul>
         </section>
 
-        {/* Injuries we help you manage */}
+        {/* Injuries / range */}
         <section className="scroll-mt-24 pb-16">
           <h2 className="mb-2 text-sm font-semibold uppercase tracking-[0.2em] text-lime-300">
-            Built for the injuries that matter
+            From first session to full performance
           </h2>
+          <p className="mb-4 max-w-2xl text-sm text-slate-300 md:text-base">
+            Fit2Perform isn&apos;t just for injured athletes. Screen a healthy squad before
+            problems start, benchmark performance in your best players, or guide a safe
+            return — the same objective testing serves all three.
+          </p>
           <p className="mb-6 max-w-2xl text-sm text-slate-300 md:text-base">
-            Our testing supports return-to-play and risk monitoring across the lower-limb
-            injuries that most affect athletes:
+            And when injury does happen, our testing supports return-to-play across the
+            areas that matter most:
           </p>
           <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {INJURY_AREAS.map((item) => (
               <li
-                key={item}
+                key={item.label}
                 className="flex gap-2 rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3 text-sm text-slate-300"
               >
                 <span
                   className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-lime-400"
                   aria-hidden
                 />
-                <span>{item}</span>
+                <span>
+                  {item.label}
+                  {"detail" in item && item.detail ? (
+                    <span className="block text-xs text-slate-500">{item.detail}</span>
+                  ) : null}
+                </span>
               </li>
             ))}
           </ul>
+          <div className="mt-8 text-center">
+            <a href={MAIL_BOOK} className={btnPrimary}>
+              Book a testing session
+            </a>
+          </div>
         </section>
 
         {/* 7 — Product proof */}
