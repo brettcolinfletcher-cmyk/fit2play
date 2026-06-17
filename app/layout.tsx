@@ -13,18 +13,23 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Fit2Play — Return-to-Sport Intelligence",
+  metadataBase: new URL("https://www.fit2perform.com.au"),
+  title: "Fit2Perform — Return-to-Sport & Performance Testing",
   description:
-    "Data-driven return-to-sport testing for athletes. 1080 Sprint, Hawkins force plates, dynamometry and clinical strength testing in one performance dashboard.",
+    "Objective return-to-play and performance testing for athletes. Force plates, sprint testing, dynamometry and clinical strength testing in one performance dashboard.",
   icons: {
-    icon: "/fit2play_logo_symbol.png",
-    apple: "/fit2play_logo_symbol.png",
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icon-512.png", type: "image/png", sizes: "512x512" },
+    ],
+    apple: "/apple-touch-icon.png",
   },
   openGraph: {
-    title: "Fit2Play — Return-to-Sport Intelligence",
-    description: "Objective return-to-sport testing for high-performance athletes. 1080 Motion and Hawkins force plate data in one performance dashboard.",
+    title: "Fit2Perform — Return-to-Sport & Performance Testing",
+    description:
+      "Objective return-to-play and performance testing for high-performance athletes — strength, power, speed and asymmetry in one dashboard.",
     url: "https://www.fit2perform.com.au",
-    siteName: "Fit2Play",
+    siteName: "Fit2Perform",
     images: [{ url: "/logo_full_original.png", width: 1200, height: 630 }],
     type: "website",
   },
