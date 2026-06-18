@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useState } from "react";
 import SiteNav from "@/components/SiteNav";
 import SiteFooter from "@/components/SiteFooter";
+import DashboardShowcase from "@/components/DashboardShowcase";
 
 const MAIL_BOOK =
   "mailto:info@fit2play.com.au?subject=Testing%20session%20booking";
@@ -53,7 +54,7 @@ export default function HomePage() {
 
       <main className="mx-auto max-w-5xl px-4 pb-20 pt-10">
         {/* 1 — Hero */}
-        <section className="grid gap-10 pb-16 md:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] md:items-center">
+        <section className="grid gap-10 pb-16 md:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] md:items-center">
           <div>
             <p className="mb-3 inline-flex rounded-full bg-slate-900/70 px-3 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.25em] text-lime-300">
               Return-to-play &amp; performance testing
@@ -77,12 +78,7 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* TODO: replace with de-identified report/dashboard screenshot */}
-          <PlaceholderVisual
-            label="Hero visual"
-            detail="De-identified report or dashboard screenshot"
-            className="shadow-xl shadow-lime-400/10"
-          />
+          <DashboardShowcase />
         </section>
 
         {/* 2 — Credibility strip */}

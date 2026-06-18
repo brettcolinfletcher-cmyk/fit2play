@@ -28,6 +28,7 @@ import LRStartingLegEditor from "@/components/athletes/LRStartingLegEditor";
 import PdfExportModal from "@/components/athletes/PdfExportModal";
 import SectionComment from "@/components/athletes/SectionComment";
 import SectionJumpNav from "@/components/athletes/SectionJumpNav";
+import SnapshotHeader from "@/components/athletes/SnapshotHeader";
 import TimepointSummary from "@/components/athletes/TimepointSummary";
 import {
   buildHopTestBlocks,
@@ -41,8 +42,26 @@ import {
   type LREligibleSession,
 } from "@/lib/athleteCompareCharts";
 import { formatDisplayDateTime } from "@/lib/dateDisplay";
+import {
+  ALL_CRITERIA,
+  fetchReportCriteria,
+  fetchReportVisibility,
+  setClinicDefault,
+  setReportCriterion,
+  setReportCutoff,
+  setReportVisibility,
+  type CriteriaResolver,
+  type ReportVisibility,
+} from "@/lib/reportSections";
 import { useRequireDashboardStaff } from "@/lib/useRequireDashboardStaff";
 import { supabase } from "@/lib/supabaseClient";
+import ReportBuilder from "@/components/athletes/ReportBuilder";
+
+const ALL_VISIBLE: ReportVisibility = {
+  isSectionVisible: () => true,
+  isSubtestVisible: () => true,
+  raw: new Map(),
+};
 
 // ─── Labels ──────────────────────────────────────────────────────────────────
 
@@ -445,6 +464,8 @@ export default function AthleteDetailPage() {
   const [pdfModalOpen, setPdfModalOpen] = useState(false);
   const [lrPending, setLrPending] = useState<Set<string>>(() => new Set());
   const [lrSaveError, setLrSaveError] = useState<string | null>(null);
+  const [visibility, setVisibility] = useState<ReportVisibility>(ALL_VISIBLE);
+  const [criteria, setCriteria] = useState<CriteriaResolver>(ALL_CRITERIA);
 
   function inRange(dateIso: string | null): boolean {
     if (!dateIso) return true;
@@ -530,6 +551,56 @@ export default function AthleteDetailPage() {
     [id]
   );
 
+  const reloadVisibility = useCallback(async () => {
+    if (!id) return;
+    setVisibility(await fetchReportVisibility(id));
+  }, [id]);
+
+  const reloadCriteria = useCallback(async () => {
+    if (!id) return;
+    setCriteria(await fetchReportCriteria(id));
+  }, [id]);
+
+  const handleReportToggle = useCallback(
+    async (section: string, subKey: string, visible: boolean) => {
+      if (!id) return;
+      await setReportVisibility({ athleteId: id, section, subKey, visible });
+      await reloadVisibility();
+    },
+    [id, reloadVisibility]
+  );
+
+  const handleSetCriterion = useCallback(
+    async (section: string, subKey: string, isCriterion: boolean) => {
+      if (!id) return;
+      await setReportCriterion({ athleteId: id, section, subKey, isCriterion });
+      await reloadCriteria();
+    },
+    [id, reloadCriteria]
+  );
+
+  const handleSetCutoff = useCallback(
+    async (section: string, subKey: string, lsiPass: number | null) => {
+      if (!id) return;
+      await setReportCutoff({ athleteId: id, section, subKey, lsiPass });
+      await reloadCriteria();
+    },
+    [id, reloadCriteria]
+  );
+
+  const handleSetClinicDefault = useCallback(
+    async (
+      section: string,
+      subKey: string,
+      lsiPass: number,
+      isCriterion: boolean
+    ) => {
+      await setClinicDefault({ section, subKey, lsiPass, isCriterion });
+      await reloadCriteria();
+    },
+    [reloadCriteria]
+  );
+
   /** LR-eligible sessions for THIS athlete, wrapped in the Map shape the editor expects. */
   const lrSessionsByAthlete = useMemo(() => {
     if (!id) return new Map<string, LREligibleSession[]>();
@@ -596,6 +667,12 @@ export default function AthleteDetailPage() {
         }
       }
       setMetricsBySession(map);
+
+      const vis = await fetchReportVisibility(id);
+      if (!cancelled) setVisibility(vis);
+
+      const c = await fetchReportCriteria(id);
+      if (!cancelled) setCriteria(c);
 
       const [hRes, cRes] = await Promise.all([
         supabase
@@ -678,13 +755,22 @@ export default function AthleteDetailPage() {
 
   const sectionsWithData = useMemo(() => {
     const keys: string[] = ["summary"];
-    if (has1080Charts && hasLinearSprint) keys.push("linear");
-    if (has505) keys.push("cod");
-    if (cmjSeries.length > 0) keys.push("cmj");
-    if (djSeries.length > 0) keys.push("drop_jump");
-    keys.push("hop_tests");
+    if (has1080Charts && hasLinearSprint && visibility.isSectionVisible("linear"))
+      keys.push("linear");
+    if (has505 && visibility.isSectionVisible("cod")) keys.push("cod");
+    if (cmjSeries.length > 0 && visibility.isSectionVisible("cmj")) keys.push("cmj");
+    if (djSeries.length > 0 && visibility.isSectionVisible("drop_jump"))
+      keys.push("drop_jump");
+    if (visibility.isSectionVisible("hop_tests")) keys.push("hop_tests");
     return keys;
-  }, [has1080Charts, hasLinearSprint, has505, cmjSeries.length, djSeries.length]);
+  }, [
+    has1080Charts,
+    hasLinearSprint,
+    has505,
+    cmjSeries.length,
+    djSeries.length,
+    visibility,
+  ]);
 
   function sectionNote(section: string): string | null {
     return sectionCommentBySection[section] ?? null;
@@ -693,7 +779,13 @@ export default function AthleteDetailPage() {
   // ── Linear sprint trend data ──────────────────────────────────────────────────
 
   const trendTopSpeed = useMemo(() => {
-    const sorted = sessionsChronological(filteredSessions.filter(isLinearSprintSession));
+    const sorted = sessionsChronological(
+      filteredSessions.filter(
+        (s) =>
+          isLinearSprintSession(s) &&
+          visibility.isSubtestVisible("linear", s.test_sub_type ?? "")
+      )
+    );
     const points: { t: number; label: string; v: number }[] = [];
     for (const s of sorted) {
       if (!s.session_date) continue;
@@ -702,10 +794,16 @@ export default function AthleteDetailPage() {
       points.push({ t: new Date(s.session_date).getTime(), label: formatChartAxisDate(s.session_date), v });
     }
     return { points, enough: points.length >= 2 };
-  }, [filteredSessions, metricsBySession]);
+  }, [filteredSessions, metricsBySession, visibility]);
 
   const trendPeakForce = useMemo(() => {
-    const sorted = sessionsChronological(filteredSessions.filter(isLinearSprintSession));
+    const sorted = sessionsChronological(
+      filteredSessions.filter(
+        (s) =>
+          isLinearSprintSession(s) &&
+          visibility.isSubtestVisible("linear", s.test_sub_type ?? "")
+      )
+    );
     const points: { t: number; label: string; v: number }[] = [];
     for (const s of sorted) {
       if (!s.session_date) continue;
@@ -714,10 +812,16 @@ export default function AthleteDetailPage() {
       points.push({ t: new Date(s.session_date).getTime(), label: formatChartAxisDate(s.session_date), v });
     }
     return { points, enough: points.length >= 2 };
-  }, [filteredSessions, metricsBySession]);
+  }, [filteredSessions, metricsBySession, visibility]);
 
   const trendPeakPower = useMemo(() => {
-    const sorted = sessionsChronological(filteredSessions.filter(isLinearSprintSession));
+    const sorted = sessionsChronological(
+      filteredSessions.filter(
+        (s) =>
+          isLinearSprintSession(s) &&
+          visibility.isSubtestVisible("linear", s.test_sub_type ?? "")
+      )
+    );
     const points: { t: number; label: string; v: number }[] = [];
     for (const s of sorted) {
       if (!s.session_date) continue;
@@ -726,10 +830,16 @@ export default function AthleteDetailPage() {
       points.push({ t: new Date(s.session_date).getTime(), label: formatChartAxisDate(s.session_date), v });
     }
     return { points, enough: points.length >= 2 };
-  }, [filteredSessions, metricsBySession]);
+  }, [filteredSessions, metricsBySession, visibility]);
 
   const trendSplit5m = useMemo(() => {
-    const sorted = sessionsChronological(filteredSessions.filter(isLinearSprintSession));
+    const sorted = sessionsChronological(
+      filteredSessions.filter(
+        (s) =>
+          isLinearSprintSession(s) &&
+          visibility.isSubtestVisible("linear", s.test_sub_type ?? "")
+      )
+    );
     const points: { t: number; label: string; v: number }[] = [];
     for (const s of sorted) {
       if (!s.session_date) continue;
@@ -738,12 +848,18 @@ export default function AthleteDetailPage() {
       points.push({ t: new Date(s.session_date).getTime(), label: formatChartAxisDate(s.session_date), v });
     }
     return { points, enough: points.length >= 2 };
-  }, [filteredSessions, metricsBySession]);
+  }, [filteredSessions, metricsBySession, visibility]);
 
   // ── 5-10-5 COD trend data ─────────────────────────────────────────────────────
 
   const trend505TopSpeed = useMemo(() => {
-    const sorted = sessionsChronological(filteredSessions.filter(is505Session));
+    const sorted = sessionsChronological(
+      filteredSessions.filter(
+        (s) =>
+          is505Session(s) &&
+          visibility.isSubtestVisible("cod", s.test_sub_type ?? "")
+      )
+    );
     const points: { t: number; label: string; v: number }[] = [];
     for (const s of sorted) {
       if (!s.session_date) continue;
@@ -752,10 +868,16 @@ export default function AthleteDetailPage() {
       points.push({ t: new Date(s.session_date).getTime(), label: formatChartAxisDate(s.session_date), v });
     }
     return { points, enough: points.length >= 2 };
-  }, [filteredSessions, metricsBySession]);
+  }, [filteredSessions, metricsBySession, visibility]);
 
   const trend505DecelMax = useMemo(() => {
-    const sorted = sessionsChronological(filteredSessions.filter(is505Session));
+    const sorted = sessionsChronological(
+      filteredSessions.filter(
+        (s) =>
+          is505Session(s) &&
+          visibility.isSubtestVisible("cod", s.test_sub_type ?? "")
+      )
+    );
     const points: { t: number; label: string; v: number }[] = [];
     for (const s of sorted) {
       if (!s.session_date) continue;
@@ -764,10 +886,16 @@ export default function AthleteDetailPage() {
       points.push({ t: new Date(s.session_date).getTime(), label: formatChartAxisDate(s.session_date), v });
     }
     return { points, enough: points.length >= 2 };
-  }, [filteredSessions, metricsBySession]);
+  }, [filteredSessions, metricsBySession, visibility]);
 
   const trend505AccelMax = useMemo(() => {
-    const sorted = sessionsChronological(filteredSessions.filter(is505Session));
+    const sorted = sessionsChronological(
+      filteredSessions.filter(
+        (s) =>
+          is505Session(s) &&
+          visibility.isSubtestVisible("cod", s.test_sub_type ?? "")
+      )
+    );
     const points: { t: number; label: string; v: number }[] = [];
     for (const s of sorted) {
       if (!s.session_date) continue;
@@ -776,7 +904,7 @@ export default function AthleteDetailPage() {
       points.push({ t: new Date(s.session_date).getTime(), label: formatChartAxisDate(s.session_date), v });
     }
     return { points, enough: points.length >= 2 };
-  }, [filteredSessions, metricsBySession]);
+  }, [filteredSessions, metricsBySession, visibility]);
 
   // ── Misc ─────────────────────────────────────────────────────────────────────
 
@@ -897,33 +1025,27 @@ export default function AthleteDetailPage() {
           <p className="mt-8 text-sm text-rose-400">{error}</p>
         ) : athlete ? (
           <>
-            {/* ── Athlete header ── */}
-            <header className="mt-6 rounded-2xl border border-slate-800 bg-slate-900/40 p-6 shadow-xl shadow-lime-400/10">
-              <h1 className="text-xl font-semibold text-slate-50">{name}</h1>
-              <dl className="mt-4 grid gap-2 text-sm text-slate-400 sm:grid-cols-2">
-                {([
-                  ["Team", athlete.team],
-                  ["Sport", athlete.primary_sport],
-                  ["Email", athlete.email],
-                  ["Height", athlete.height_cm != null ? `${athlete.height_cm} cm` : null],
-                  ["Weight", athlete.weight_kg != null ? `${athlete.weight_kg} kg` : null],
-                  ["Dominant", (athlete.dominant_leg || athlete.dominant_hand) ? `${athlete.dominant_leg ?? "—"} / ${athlete.dominant_hand ?? "—"}` : null],
-                ] as [string, unknown][]).filter(([, val]) => val != null && val !== "").map(([label, val]) => (
-                  <div key={String(label)}>
-                    <dt className="text-xs uppercase text-slate-500">{String(label)}</dt>
-                    <dd className="text-slate-200">{String(val)}</dd>
-                  </div>
-                ))}
-                {(athlete.notes as string) && (
-                  <div className="sm:col-span-2">
-                    <dt className="text-xs uppercase text-slate-500">Notes</dt>
-                    <dd className="whitespace-pre-wrap text-slate-300">{athlete.notes as string}</dd>
-                  </div>
-                )}
-              </dl>
-            </header>
+            <SnapshotHeader
+              athlete={athlete}
+              sessions={filteredSessions}
+              metricsBySession={metricsBySession}
+              hopTests={filteredHopTests}
+              visibility={visibility}
+              criteria={criteria}
+            />
 
             <SectionJumpNav sectionsWithData={sectionsWithData} />
+
+            <ReportBuilder
+              sessions={filteredSessions}
+              visibility={visibility}
+              criteria={criteria}
+              hopTests={filteredHopTests}
+              onToggle={handleReportToggle}
+              onSetCriterion={handleSetCriterion}
+              onSetCutoff={handleSetCutoff}
+              onSetClinicDefault={handleSetClinicDefault}
+            />
 
             <DateRangeBar
               rangeStart={rangeStart}
@@ -953,7 +1075,7 @@ export default function AthleteDetailPage() {
             />
 
             {/* ── Linear sprint trends (1080) ── */}
-            {has1080Charts && hasLinearSprint && (
+            {has1080Charts && hasLinearSprint && visibility.isSectionVisible("linear") && (
               <section id="linear" className="scroll-mt-28 mt-8">
                 <div className="flex items-start justify-between gap-3">
                   <h2 className="text-sm font-semibold uppercase tracking-wide text-lime-300">
@@ -995,7 +1117,7 @@ export default function AthleteDetailPage() {
             )}
 
             {/* ── 5-10-5 COD trends ── */}
-            {has505 && (
+            {has505 && visibility.isSectionVisible("cod") && (
               <section id="cod" className="scroll-mt-28 mt-10">
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -1042,7 +1164,7 @@ export default function AthleteDetailPage() {
               </section>
             )}
 
-            {cmjSeries.length > 0 && (
+            {cmjSeries.length > 0 && visibility.isSectionVisible("cmj") && (
               <ForcePlateCMJSection
                 athleteId={id}
                 data={cmjSeries}
@@ -1050,7 +1172,7 @@ export default function AthleteDetailPage() {
               />
             )}
 
-            {djSeries.length > 0 && (
+            {djSeries.length > 0 && visibility.isSectionVisible("drop_jump") && (
               <ForcePlateDJSection
                 athleteId={id}
                 data={djSeries}
@@ -1058,29 +1180,34 @@ export default function AthleteDetailPage() {
               />
             )}
 
-            <HopTestsSection
-              athleteId={id}
-              blocks={hopTestBlocks}
-              sectionComment={sectionNote("hop_tests")}
-              onHopTestSaved={async () => {
-                const { data } = await supabase
-                  .from("hop_tests")
-                  .select("session_date, test_type, side, best_cm")
-                  .eq("athlete_id", id)
-                  .order("session_date", { ascending: true });
-                if (data) setHopTests(data as HopTestDbRow[]);
-              }}
-            />
+            {visibility.isSectionVisible("hop_tests") && (
+              <HopTestsSection
+                athleteId={id}
+                blocks={hopTestBlocks}
+                sectionComment={sectionNote("hop_tests")}
+                onHopTestSaved={async () => {
+                  const { data } = await supabase
+                    .from("hop_tests")
+                    .select("session_date, test_type, side, best_cm")
+                    .eq("athlete_id", id)
+                    .order("session_date", { ascending: true });
+                  if (data) setHopTests(data as HopTestDbRow[]);
+                }}
+              />
+            )}
 
-            <DynamometrySection
-              athleteId={id}
-              sectionComment={sectionNote("dynamometry")}
-              dateFrom={rangeStart ? new Date(rangeStart) : null}
-              dateTo={rangeEnd ? new Date(rangeEnd) : null}
-            />
+            {visibility.isSectionVisible("dynamometry") && (
+              <DynamometrySection
+                athleteId={id}
+                sectionComment={sectionNote("dynamometry")}
+                dateFrom={rangeStart ? new Date(rangeStart) : null}
+                dateTo={rangeEnd ? new Date(rangeEnd) : null}
+                visibility={visibility}
+              />
+            )}
 
             {/* ── LR session settings (Phase D-C) ── */}
-            {lrSessionsByAthlete.get(id)?.length ? (
+            {lrSessionsByAthlete.get(id)?.length && visibility.isSectionVisible("lr_settings") ? (
               <section id="lr_settings" className="scroll-mt-28 mt-10">
                 <h2 className="text-sm font-semibold uppercase tracking-wide text-lime-300">
                   Left/Right session settings

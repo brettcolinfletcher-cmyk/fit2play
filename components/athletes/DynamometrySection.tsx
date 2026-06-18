@@ -15,6 +15,7 @@ import {
   YAxis,
 } from "recharts";
 import { formatDisplayDate } from "@/lib/dateDisplay";
+import { parseHhdMovement, type ReportVisibility } from "@/lib/reportSections";
 import { lsiColorClass, sideColor } from "@/lib/sideColors";
 import { supabase } from "@/lib/supabaseClient";
 import ChartTypeToggle, { type ChartType } from "./ChartTypeToggle";
@@ -33,6 +34,7 @@ type Props = {
   sectionComment: string | null;
   dateFrom?: Date | null;
   dateTo?: Date | null;
+  visibility?: ReportVisibility;
 };
 
 const AVAILABLE_METRICS = [
@@ -105,6 +107,15 @@ function pairedGroupHeading(mKey: string): string {
 type DisplayGroup =
   | { kind: "single"; key: string; sessions: Session[] }
   | { kind: "paired"; movementKey: string; left: Session[]; right: Session[] };
+
+function hhdMovementOf(g: DisplayGroup): string {
+  if (g.kind === "paired") {
+    const sub = g.left[0]?.test_sub_type ?? g.right[0]?.test_sub_type ?? g.movementKey;
+    return parseHhdMovement(sub);
+  }
+  const sub = g.sessions[0]?.test_sub_type ?? g.key;
+  return parseHhdMovement(sub);
+}
 
 function buildDisplayGroups(groupMap: Map<string, Session[]>): DisplayGroup[] {
   const movementIndex = new Map<
@@ -375,6 +386,7 @@ export default function DynamometrySection({
   sectionComment,
   dateFrom,
   dateTo,
+  visibility,
 }: Props) {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
@@ -420,7 +432,13 @@ export default function DynamometrySection({
     return map;
   }, [sessions]);
 
-  const displayGroups = useMemo(() => buildDisplayGroups(groupMap), [groupMap]);
+  const displayGroups = useMemo(
+    () =>
+      buildDisplayGroups(groupMap).filter(
+        (g) => !visibility || visibility.isSubtestVisible("dynamometry", hhdMovementOf(g))
+      ),
+    [groupMap, visibility]
+  );
 
   if (loading) {
     return (
