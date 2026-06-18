@@ -568,31 +568,6 @@ export function compareLRMetricById(id: string): CompareLRMetricDef | undefined 
 
 export type CompareLRMetricId = (typeof COMPARE_LR_METRICS)[number]["id"];
 
-/** Aggregate metric values for one session filtered by side. */
-function aggregateSessionSide(
-  map: Map<string, ReportMetricRow[]>,
-  sessionId: string,
-  metricKey: string,
-  side: "left" | "right",
-  mode: "max" | "min" | "avg"
-): number | null {
-  const rows = map.get(sessionId) ?? [];
-  const vals: number[] = [];
-  for (const r of rows) {
-    if (r.key !== metricKey) continue;
-    if (r.side !== side) continue;
-    if (r.value == null) continue;
-    // Postgres `numeric` arrives as a string via PostgREST — coerce explicitly.
-    const n = Number(r.value);
-    if (!Number.isFinite(n)) continue;
-    vals.push(n);
-  }
-  if (vals.length === 0) return null;
-  if (mode === "max") return Math.max(...vals);
-  if (mode === "min") return Math.min(...vals);
-  return vals.reduce((a, b) => a + b, 0) / vals.length;
-}
-
 function lsiPercent(l: number, r: number): number | null {
   const hi = Math.max(l, r);
   if (hi <= 0 || !Number.isFinite(hi)) return null;
@@ -606,12 +581,52 @@ function pctDiffPercent(l: number, r: number): number | null {
   return Math.round((Math.abs(l - r) / m) * 1000) / 10;
 }
 
+/** All per-side metric values for one session, swap-corrected, as raw arrays (pre-aggregation). */
+function sessionSideValues(
+  map: Map<string, ReportMetricRow[]>,
+  sessionId: string,
+  metricKey: string,
+  swap: boolean
+): { left: number[]; right: number[] } {
+  const rows = map.get(sessionId) ?? [];
+  const left: number[] = [];
+  const right: number[] = [];
+  for (const r of rows) {
+    if (r.key !== metricKey) continue;
+    if (r.value == null) continue;
+    // Postgres `numeric` arrives as a string via PostgREST — coerce explicitly.
+    const n = Number(r.value);
+    if (!Number.isFinite(n)) continue;
+    // When swap is true, rows tagged side='left' represent the anatomical right leg, and
+    // vice versa. Apply per session (swap is a session-level setting) BEFORE pooling, so
+    // same-day sessions with different swap settings still pool to correct anatomical sides.
+    if (r.side === "left") (swap ? right : left).push(n);
+    else if (r.side === "right") (swap ? left : right).push(n);
+  }
+  return { left, right };
+}
+
+function aggregateNumbers(vals: number[], mode: "max" | "min" | "avg"): number | null {
+  if (vals.length === 0) return null;
+  if (mode === "max") return Math.max(...vals);
+  if (mode === "min") return Math.min(...vals);
+  return vals.reduce((a, b) => a + b, 0) / vals.length;
+}
+
 /**
- * For all 1080 sessions in the bundle, produce one LRPoint per session for this metric.
- * `repAggregate` (default = def.aggregate) controls how reps within a single session
- * are combined: "max" (best rep), "min" (best for time-like metrics), or "avg".
+ * Produce one LRPoint per ATHLETE-DAY for this metric, pooling per-leg values across all
+ * 1080 sessions sharing a calendar date. This handles the three verified Running (LR)
+ * capture patterns uniformly:
+ *   A) one session holding both sides            → pool of one session
+ *   B) two same-day sessions, each single-side    → left from one, right from the other
+ *   C) same-day sessions with uneven side capture → all left reps + all right reps pooled
+ * A single-session day is just a one-element pool, so Pattern A is unchanged from before.
  *
- * Returns only sessions where BOTH sides yield a finite value.
+ * `repAggregate` (default = def.aggregate) controls how the pooled per-side reps are
+ * combined: "max" (best rep that day), "min" (best for time-like metrics), or "avg".
+ *
+ * Returns only days where BOTH sides yield a finite value (true single-leg days are omitted,
+ * since there is no contralateral limb to compare).
  */
 export function extractLRPoints(
   def: CompareLRMetricDef,
@@ -623,33 +638,84 @@ export function extractLRPoints(
     (s) => (s.source ?? "").toLowerCase() === "1080" && s.session_date
   );
 
-  const out: LRPoint[] = [];
+  // Group sessions by calendar day, preserving chronological order of first appearance.
+  type DayBucket = {
+    dayKey: string;
+    sessionDate: string;
+    t: number;
+    leftVals: number[];
+    rightVals: number[];
+    // Metadata: prefer a session that carried BOTH sides; else the first session seen.
+    repSessionId: string;
+    repTestSubType: string | null;
+    repStartingLeg: "left" | "right" | null;
+    repSwap: boolean;
+    repHasBothSides: boolean;
+  };
+  const byDay = new Map<string, DayBucket>();
+
   for (const s of sess1080) {
     const swap = s.lr_side_swap === true;
-    // When swap is true, the metric rows tagged side='left' represent the anatomical right
-    // leg, and vice versa. We swap at read time so the rest of the UI can treat the values
-    // as anatomical left/right consistently.
-    const leftSide: "left" | "right" = swap ? "right" : "left";
-    const rightSide: "left" | "right" = swap ? "left" : "right";
-    const left = aggregateSessionSide(bundle.metricsBySession, s.id, def.metricKey, leftSide, mode);
-    const right = aggregateSessionSide(bundle.metricsBySession, s.id, def.metricKey, rightSide, mode);
+    const { left, right } = sessionSideValues(bundle.metricsBySession, s.id, def.metricKey, swap);
+    if (left.length === 0 && right.length === 0) continue;
+
+    const dayKey = s.session_date!.slice(0, 10);
+    const sessionHasBoth = left.length > 0 && right.length > 0;
+    const bucket = byDay.get(dayKey);
+    if (!bucket) {
+      byDay.set(dayKey, {
+        dayKey,
+        sessionDate: s.session_date!,
+        t: new Date(s.session_date!).getTime(),
+        leftVals: [...left],
+        rightVals: [...right],
+        repSessionId: s.id,
+        repTestSubType: s.test_sub_type ?? null,
+        repStartingLeg: (s.lr_starting_leg ?? null) as "left" | "right" | null,
+        repSwap: swap,
+        repHasBothSides: sessionHasBoth,
+      });
+    } else {
+      bucket.leftVals.push(...left);
+      bucket.rightVals.push(...right);
+      // Upgrade the representative session to one that has both sides, if we didn't have one.
+      if (sessionHasBoth && !bucket.repHasBothSides) {
+        bucket.repSessionId = s.id;
+        bucket.repTestSubType = s.test_sub_type ?? null;
+        bucket.repStartingLeg = (s.lr_starting_leg ?? null) as "left" | "right" | null;
+        bucket.repSwap = swap;
+        bucket.repHasBothSides = true;
+      }
+      // Keep the earliest timestamp/date label for the day.
+      const ts = new Date(s.session_date!).getTime();
+      if (ts < bucket.t) {
+        bucket.t = ts;
+        bucket.sessionDate = s.session_date!;
+      }
+    }
+  }
+
+  const out: LRPoint[] = [];
+  for (const bucket of byDay.values()) {
+    const left = aggregateNumbers(bucket.leftVals, mode);
+    const right = aggregateNumbers(bucket.rightVals, mode);
     if (left == null || right == null) continue;
     if (!Number.isFinite(left) || !Number.isFinite(right)) continue;
     const lsi = lsiPercent(left, right);
     const pctDiff = pctDiffPercent(left, right);
     if (lsi == null || pctDiff == null) continue;
     out.push({
-      sessionDate: s.session_date!,
-      t: new Date(s.session_date!).getTime(),
-      sessionId: s.id,
-      testSubType: s.test_sub_type ?? null,
+      sessionDate: bucket.sessionDate,
+      t: bucket.t,
+      sessionId: bucket.repSessionId,
+      testSubType: bucket.repTestSubType,
       left,
       right,
       lsi,
       pctDiff,
       flagged: pctDiff > def.redFlagPctDiff,
-      lrStartingLeg: (s.lr_starting_leg ?? null) as "left" | "right" | null,
-      lrSideSwap: swap,
+      lrStartingLeg: bucket.repStartingLeg,
+      lrSideSwap: bucket.repSwap,
     });
   }
   out.sort((a, b) => a.t - b.t || a.sessionId.localeCompare(b.sessionId));
