@@ -6,6 +6,11 @@ import { useState } from "react";
 import SiteNav from "@/components/SiteNav";
 import SiteFooter from "@/components/SiteFooter";
 import DashboardShowcase from "@/components/DashboardShowcase";
+import {
+  AsymmetryMiniCard,
+  ReportFindingsCard,
+  TrendMiniCard,
+} from "@/components/ProductProofVisuals";
 
 const MAIL_BOOK =
   "mailto:info@fit2play.com.au?subject=Testing%20session%20booking";
@@ -255,24 +260,10 @@ export default function HomePage() {
             De-identified examples of what clinicians and athletes receive after every
             session.
           </p>
-          {/* TODO: replace with de-identified athlete report PDF, trend chart, L/R asymmetry screenshots */}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <PlaceholderVisual
-              label="Athlete report PDF"
-              detail="De-identified sample report — findings summary"
-              aspect="4/3"
-            />
-            <PlaceholderVisual
-              label="Longitudinal trend chart"
-              detail="De-identified session-over-session metric trends"
-              aspect="4/3"
-            />
-            <PlaceholderVisual
-              label="L/R asymmetry view"
-              detail="De-identified limb symmetry index visualisation"
-              aspect="4/3"
-              className="sm:col-span-2 lg:col-span-1"
-            />
+            <ReportFindingsCard />
+            <TrendMiniCard />
+            <AsymmetryMiniCard className="sm:col-span-2 lg:col-span-1" />
           </div>
           <div className="mt-6 flex flex-col items-center gap-4">
             <a href="#product-proof" className={btnSecondary}>
@@ -393,32 +384,5 @@ function CheckListItem({ children }: { children: string }) {
       />
       <span>{children}</span>
     </li>
-  );
-}
-
-function PlaceholderVisual({
-  label,
-  detail,
-  aspect = "16/10",
-  className = "",
-}: {
-  label: string;
-  detail: string;
-  aspect?: string;
-  className?: string;
-}) {
-  return (
-    <div
-      className={`flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-600 bg-slate-950/80 p-6 text-center ${className}`}
-      style={{ aspectRatio: aspect }}
-      role="img"
-      aria-label={`${label} — placeholder`}
-    >
-      <span className="mb-1 rounded-full bg-amber-400/10 px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wider text-amber-300">
-        Placeholder
-      </span>
-      <p className="mt-2 text-sm font-semibold text-slate-300">{label}</p>
-      <p className="mt-1 max-w-[14rem] text-xs text-slate-500">{detail}</p>
-    </div>
   );
 }
