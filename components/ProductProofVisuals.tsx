@@ -31,8 +31,8 @@ export function ReportFindingsCard({ className = "" }: { className?: string }) {
         <span className="text-[0.6rem] text-slate-500">12 Jun 2026</span>
       </div>
       <div className="mb-3">
-        <p className="text-sm font-semibold text-slate-100">Athlete A · AFL</p>
-        <p className="text-xs text-slate-500">Left ACL · 28 weeks post-op</p>
+        <p className="text-sm font-semibold text-slate-100">Athlete B · Netball</p>
+        <p className="text-xs text-slate-500">Right ACL · 36 weeks post-op</p>
       </div>
       <div className="mb-4 flex items-center justify-between rounded-xl border border-lime-400/30 bg-lime-400/5 px-3 py-2">
         <span className="text-xs font-medium text-slate-200">Readiness</span>

@@ -114,17 +114,17 @@ export default function DashboardShowcase() {
       <div className="p-4 sm:p-5">
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-lime-400/40 bg-lime-400/15 text-sm font-semibold text-lime-300">
-            SA
+            A
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-base font-medium text-slate-100">Sample Athlete</span>
+              <span className="text-base font-medium text-slate-100">Athlete A</span>
               <span className="rounded-full bg-amber-400/15 px-2 py-0.5 text-[10px] text-amber-300">
                 Monitoring
               </span>
             </div>
             <p className="mt-0.5 text-xs text-slate-500">
-              Football · 178 cm · 74 kg · last tested Jun 2026
+              AFL · 178 cm · 74 kg · last tested Jun 2026
             </p>
           </div>
         </div>
