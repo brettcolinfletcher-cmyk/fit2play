@@ -59,6 +59,14 @@ import {
 import { useRequireDashboardStaff } from "@/lib/useRequireDashboardStaff";
 import { supabase } from "@/lib/supabaseClient";
 import ReportBuilder from "@/components/athletes/ReportBuilder";
+import {
+  CHART_AXIS_LINE,
+  CHART_AXIS_TICK,
+  CHART_GRID,
+  CHART_REFERENCE_STROKE,
+  CHART_TOOLTIP_STYLE,
+  ChartDefs,
+} from "@/components/athletes/chartTheme";
 
 const ALL_VISIBLE: ReportVisibility = {
   isSectionVisible: () => true,
@@ -347,14 +355,9 @@ function MetricPicker({
 
 // ─── Shared chart styles ──────────────────────────────────────────────────────
 
-const TOOLTIP_STYLE = {
-  backgroundColor: "#0f172a",
-  border: "1px solid #1e293b",
-  borderRadius: "0.375rem",
-  fontSize: "11px",
-};
+const TOOLTIP_STYLE = CHART_TOOLTIP_STYLE;
 
-const AXIS_TICK = { fill: "#64748b", fontSize: 10 };
+const AXIS_TICK = CHART_AXIS_TICK;
 
 function formatTrendValue(key: string, v: number): string {
   if (key === "peakForce" || key === "peakPower") return String(Math.round(v));
@@ -386,9 +389,10 @@ function ChartShell({
           <ResponsiveContainer width="100%" height="100%">
             {chartType === "bar" ? (
               <BarChart data={points} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                <XAxis dataKey="label" tick={AXIS_TICK} />
-                <YAxis tick={AXIS_TICK} width={36} />
+                {ChartDefs}
+                <CartesianGrid {...CHART_GRID} />
+                <XAxis dataKey="label" tick={AXIS_TICK} tickLine={false} axisLine={CHART_AXIS_LINE} />
+                <YAxis tick={AXIS_TICK} width={36} tickLine={false} axisLine={false} />
                 <Tooltip
                   contentStyle={TOOLTIP_STYLE}
                   labelStyle={{ color: "#94a3b8" }}
@@ -400,15 +404,19 @@ function ChartShell({
                   }}
                 />
                 {points.length > 0 && (
-                  <ReferenceLine y={points[0]!.v} stroke="#334155" strokeDasharray="4 3" />
+                  <ReferenceLine
+                    y={points[0]!.v}
+                    stroke={CHART_REFERENCE_STROKE}
+                    strokeDasharray="4 4"
+                  />
                 )}
-                <Bar dataKey="v" fill="#a3e635" radius={[3, 3, 0, 0]} />
+                <Bar dataKey="v" fill="url(#f2pBar)" radius={[6, 6, 0, 0]} maxBarSize={44} />
               </BarChart>
             ) : (
               <LineChart data={points} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                <XAxis dataKey="label" tick={AXIS_TICK} />
-                <YAxis tick={AXIS_TICK} width={36} />
+                <CartesianGrid {...CHART_GRID} />
+                <XAxis dataKey="label" tick={AXIS_TICK} tickLine={false} axisLine={CHART_AXIS_LINE} />
+                <YAxis tick={AXIS_TICK} width={36} tickLine={false} axisLine={false} />
                 <Tooltip
                   contentStyle={TOOLTIP_STYLE}
                   labelStyle={{ color: "#94a3b8" }}
@@ -423,8 +431,11 @@ function ChartShell({
                   type="monotone"
                   dataKey="v"
                   stroke="#a3e635"
-                  strokeWidth={2}
-                  dot={{ fill: "#a3e635", r: 3 }}
+                  strokeWidth={2.25}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  dot={{ fill: "#a3e635", r: 2.5, strokeWidth: 0 }}
+                  activeDot={{ r: 4 }}
                   connectNulls
                 />
               </LineChart>
