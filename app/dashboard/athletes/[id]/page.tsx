@@ -388,11 +388,11 @@ function ChartShell({
         <div className="h-[130px] w-full rounded border border-slate-800 bg-[#0f172a]">
           <ResponsiveContainer width="100%" height="100%">
             {chartType === "bar" ? (
-              <BarChart data={points} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
+              <BarChart data={points} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                 {ChartDefs}
                 <CartesianGrid {...CHART_GRID} />
                 <XAxis dataKey="label" tick={AXIS_TICK} tickLine={false} axisLine={CHART_AXIS_LINE} />
-                <YAxis tick={AXIS_TICK} width={36} tickLine={false} axisLine={false} />
+                <YAxis tick={AXIS_TICK} width={48} tickLine={false} axisLine={false} />
                 <Tooltip
                   contentStyle={TOOLTIP_STYLE}
                   labelStyle={{ color: "#94a3b8" }}
@@ -413,10 +413,10 @@ function ChartShell({
                 <Bar dataKey="v" fill="url(#f2pBar)" radius={[6, 6, 0, 0]} maxBarSize={44} />
               </BarChart>
             ) : (
-              <LineChart data={points} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
+              <LineChart data={points} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                 <CartesianGrid {...CHART_GRID} />
                 <XAxis dataKey="label" tick={AXIS_TICK} tickLine={false} axisLine={CHART_AXIS_LINE} />
-                <YAxis tick={AXIS_TICK} width={36} tickLine={false} axisLine={false} />
+                <YAxis tick={AXIS_TICK} width={48} tickLine={false} axisLine={false} />
                 <Tooltip
                   contentStyle={TOOLTIP_STYLE}
                   labelStyle={{ color: "#94a3b8" }}
