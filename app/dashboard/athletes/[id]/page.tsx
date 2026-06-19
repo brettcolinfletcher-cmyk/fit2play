@@ -23,6 +23,9 @@ import ForcePlateCMJSection, {
   buildCmjDataPoints,
 } from "@/components/athletes/ForcePlateCMJSection";
 import ForcePlateDJSection, { buildDjDataPoints } from "@/components/athletes/ForcePlateDJSection";
+import ForcePlateSingleLegDJSection, {
+  buildSingleLegDjSeries,
+} from "@/components/athletes/ForcePlateSingleLegDJSection";
 import HopTestsSection from "@/components/athletes/HopTestsSection";
 import LRStartingLegEditor from "@/components/athletes/LRStartingLegEditor";
 import PdfExportModal from "@/components/athletes/PdfExportModal";
@@ -748,6 +751,11 @@ export default function AthleteDetailPage() {
     [hawkinsCsvSessions, metricsBySession]
   );
 
+  const slDjSeries = useMemo(
+    () => buildSingleLegDjSeries(hawkinsCsvSessions, metricsBySession),
+    [hawkinsCsvSessions, metricsBySession]
+  );
+
   const hopTestBlocks = useMemo(
     () => buildHopTestBlocks(filteredHopTests),
     [filteredHopTests]
@@ -761,6 +769,8 @@ export default function AthleteDetailPage() {
     if (cmjSeries.length > 0 && visibility.isSectionVisible("cmj")) keys.push("cmj");
     if (djSeries.length > 0 && visibility.isSectionVisible("drop_jump"))
       keys.push("drop_jump");
+    if (slDjSeries.length > 0 && visibility.isSectionVisible("drop_jump_single"))
+      keys.push("drop_jump_single");
     if (visibility.isSectionVisible("hop_tests")) keys.push("hop_tests");
     return keys;
   }, [
@@ -769,6 +779,7 @@ export default function AthleteDetailPage() {
     has505,
     cmjSeries.length,
     djSeries.length,
+    slDjSeries.length,
     visibility,
   ]);
 
@@ -1177,6 +1188,14 @@ export default function AthleteDetailPage() {
                 athleteId={id}
                 data={djSeries}
                 sectionComment={sectionNote("drop_jump")}
+              />
+            )}
+
+            {slDjSeries.length > 0 && visibility.isSectionVisible("drop_jump_single") && (
+              <ForcePlateSingleLegDJSection
+                athleteId={id}
+                data={slDjSeries}
+                sectionComment={sectionNote("drop_jump_single")}
               />
             )}
 

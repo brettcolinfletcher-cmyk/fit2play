@@ -8,6 +8,7 @@ const NAV_ITEMS: { id: string; label: string; key: string }[] = [
   { id: "cod", label: "COD", key: "cod" },
   { id: "cmj", label: "Force Plate CMJ", key: "cmj" },
   { id: "drop_jump", label: "Force Plate Drop Jump", key: "drop_jump" },
+  { id: "drop_jump_single", label: "Single-Leg Drop Jump", key: "drop_jump_single" },
   { id: "hop_tests", label: "Hop Tests", key: "hop_tests" },
   { id: "dynamometry", label: "Dynamometry", key: "dynamometry" },
 ];

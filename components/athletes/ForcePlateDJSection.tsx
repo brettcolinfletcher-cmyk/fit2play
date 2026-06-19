@@ -394,6 +394,7 @@ function isDjSession(s: SessionLite): boolean {
   const st = (s.test_sub_type ?? "").toLowerCase();
   if (tt === "force_plate_dj") return true;
   if (tt === "force_plate_cmj") return false;
+  if (tt.includes("single")) return false;
   if (tt.includes("dj") || tt.includes("drop")) return true;
   if (st.includes("dj") || st.includes("drop")) return true;
   return false;

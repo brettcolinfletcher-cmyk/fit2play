@@ -271,9 +271,9 @@ export default function ReportBuilder({
                       {SOURCE_LABELS[section.source]}
                     </span>
                   </label>
-                  {section.key === "cmj" ? (
+                  {["cmj", "drop_jump", "drop_jump_single"].includes(section.key) ? (
                     <CriterionControls
-                      section="cmj"
+                      section={section.key}
                       subKey=""
                       enabled={sectionVisible}
                       {...criterionProps}

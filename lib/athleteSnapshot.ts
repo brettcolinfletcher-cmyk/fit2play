@@ -222,6 +222,64 @@ export function computeAthleteSnapshot(
     }
   }
 
+  if (visibility.isSectionVisible("drop_jump")) {
+    const latestDj = latestSessionOf(
+      sessions,
+      (s) =>
+        (s.source ?? "").toLowerCase() === "hawkins_csv" &&
+        s.test_type === "force_plate_dj"
+    );
+    if (latestDj) {
+      const rows = metricsBySession.get(latestDj.id) ?? [];
+      const left = maxKey(rows, "fp_left_avg_landing_force");
+      const right = maxKey(rows, "fp_right_avg_landing_force");
+      const djLsi = lsi(left, right);
+      if (djLsi != null) {
+        gauges.push(
+          makeGauge(
+            { key: "dj_landing", label: "DJ landing", lsi: djLsi },
+            "drop_jump",
+            "",
+            criteria
+          )
+        );
+      }
+    }
+  }
+
+  if (visibility.isSectionVisible("drop_jump_single")) {
+    const latestSldj = latestSessionOf(
+      sessions,
+      (s) =>
+        (s.source ?? "").toLowerCase() === "hawkins_csv" &&
+        s.test_type === "force_plate_dj_single"
+    );
+    if (latestSldj) {
+      const rows = metricsBySession.get(latestSldj.id) ?? [];
+      let slLeft: number | null = null;
+      let slRight: number | null = null;
+      for (const r of rows) {
+        if (r.key !== "fp_rsi_best") continue;
+        const v = Number(r.value);
+        if (!Number.isFinite(v)) continue;
+        const side = (r.side ?? "").toLowerCase();
+        if (side === "left") slLeft = slLeft == null ? v : Math.max(slLeft, v);
+        if (side === "right") slRight = slRight == null ? v : Math.max(slRight, v);
+      }
+      const slLsi = lsi(slLeft, slRight);
+      if (slLsi != null) {
+        gauges.push(
+          makeGauge(
+            { key: "sldj_rsi", label: "SL-DJ RSI", lsi: slLsi },
+            "drop_jump_single",
+            "",
+            criteria
+          )
+        );
+      }
+    }
+  }
+
   if (visibility.isSectionVisible("dynamometry")) {
     const isoSessions = sessions.filter((s) => s.test_type === "force_plate_isometric");
     const byMovement = new Map<string, ReportSessionRow[]>();

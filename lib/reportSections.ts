@@ -12,6 +12,7 @@ export const REPORT_SECTIONS: ReportSection[] = [
   { key: "lr_settings", label: "Left/Right (1080)", source: "1080" },
   { key: "cmj", label: "Countermovement jump", source: "hawkins" },
   { key: "drop_jump", label: "Drop jump", source: "hawkins" },
+  { key: "drop_jump_single", label: "Drop jump — single leg", source: "hawkins" },
   { key: "dynamometry", label: "Strength (HHD)", source: "hawkins" },
   { key: "hop_tests", label: "Hop tests", source: "mixed" },
 ];
