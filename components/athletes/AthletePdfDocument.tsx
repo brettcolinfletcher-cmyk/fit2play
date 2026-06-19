@@ -15,6 +15,8 @@ import type {
   PdfReportContext,
   PdfTestIncluded,
 } from "@/lib/pdfReportChartData";
+import type { AthleteSnapshot } from "@/lib/athleteSnapshot";
+import type { ReportVisibility } from "@/lib/reportSections";
 
 const styles = StyleSheet.create({
   page: {
@@ -134,6 +136,46 @@ const styles = StyleSheet.create({
     fontSize: 8.5,
     lineHeight: 1.4,
     color: "#374151",
+  },
+  readinessLine: {
+    fontSize: 9,
+    marginBottom: 8,
+  },
+  readinessStrong: {
+    fontWeight: 700,
+    color: "#111827",
+  },
+  gaugeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  gaugeLabel: {
+    width: "32%",
+    fontSize: 8,
+    color: "#374151",
+  },
+  gaugeTrack: {
+    flex: 1,
+    height: 7,
+    backgroundColor: "#f1f5f9",
+    borderRadius: 9999,
+    marginHorizontal: 6,
+  },
+  gaugeFill: {
+    height: 7,
+    borderRadius: 9999,
+  },
+  gaugeValue: {
+    width: 96,
+    fontSize: 7.5,
+    textAlign: "right",
+    color: "#111827",
+    fontWeight: 700,
+  },
+  gaugeMuted: {
+    color: "#9ca3af",
+    fontWeight: 400,
   },
   // ─── Inline section comment block ───
   commentBlock: {
@@ -480,6 +522,10 @@ export type PdfProps = {
   pdfCharts?: PdfReportCharts | null;
   /** Snapshot context (tests-included + key findings); "best" mode only. */
   pdfContext?: PdfReportContext | null;
+  /** Computed athlete snapshot (readiness + symmetry gauges); "best" mode only. */
+  snapshot?: AthleteSnapshot | null;
+  /** Report visibility resolver — gates which modality sections render. */
+  visibility?: ReportVisibility | null;
 };
 
 function BestTable({
@@ -565,6 +611,8 @@ export default function AthletePdfDocument({
   dateComparisonData,
   pdfCharts = null,
   pdfContext = null,
+  snapshot = null,
+  visibility = null,
 }: PdfProps) {
   const rangeLine =
     rangeStart || rangeEnd
@@ -596,6 +644,8 @@ export default function AthletePdfDocument({
   const dc = dateComparisonData;
   const ctx = pdfContext ?? null;
   const isBest = mode === "best";
+  const showSection = (key: string): boolean =>
+    visibility ? visibility.isSectionVisible(key) : true;
 
   // Athlete meta strip: only render when at least one value exists.
   const dobLine = (() => {
@@ -645,6 +695,61 @@ export default function AthletePdfDocument({
           <View>
             <Text style={styles.sectionBanner}>SUMMARY</Text>
             <Text style={styles.body}>{summaryComment.trim()}</Text>
+          </View>
+        ) : null}
+
+        {/* READINESS + SYMMETRY — mirrors the on-screen snapshot. */}
+        {isBest && snapshot ? (
+          <View>
+            <Text style={styles.sectionBanner}>READINESS</Text>
+            <Text style={[styles.readinessLine, styles.readinessStrong]}>
+              {snapshot.readiness.line}
+            </Text>
+            {snapshot.gauges.length > 0 ? (
+              <View>
+                {snapshot.gauges.map((g) => {
+                  const hex =
+                    g.lsi >= g.pass
+                      ? "#16a34a"
+                      : g.lsi >= g.warn
+                      ? "#d97706"
+                      : "#dc2626";
+                  const w = Math.max(0, Math.min(100, g.lsi));
+                  return (
+                    <View key={g.key} style={styles.gaugeRow} wrap={false}>
+                      <Text
+                        style={[
+                          styles.gaugeLabel,
+                          g.isCriterion ? {} : styles.gaugeMuted,
+                        ]}
+                      >
+                        {g.label}
+                        {g.isCriterion ? "" : " (not scored)"}
+                      </Text>
+                      <View style={styles.gaugeTrack}>
+                        <View
+                          style={[
+                            styles.gaugeFill,
+                            {
+                              width: `${w}%`,
+                              backgroundColor: g.isCriterion ? hex : "#cbd5e1",
+                            },
+                          ]}
+                        />
+                      </View>
+                      <Text
+                        style={[
+                          styles.gaugeValue,
+                          g.isCriterion ? {} : styles.gaugeMuted,
+                        ]}
+                      >
+                        {`${Math.round(g.lsi)}% \u00b7 pass ${g.pass}%`}
+                      </Text>
+                    </View>
+                  );
+                })}
+              </View>
+            ) : null}
           </View>
         ) : null}
 
@@ -710,7 +815,8 @@ export default function AthletePdfDocument({
         {/* MODALITY DETAIL — only in "best" mode. */}
         {isBest ? (
           <>
-            {pdfCharts?.sprint != null || linearBestRows.length > 0 ? (
+            {showSection("linear") &&
+            (pdfCharts?.sprint != null || linearBestRows.length > 0) ? (
               <View style={styles.modalitySection}>
                 <Text style={styles.sectionBanner}>LINEAR SPRINT</Text>
                 {pdfCharts?.sprint ? (
@@ -730,7 +836,7 @@ export default function AthletePdfDocument({
               </View>
             ) : null}
 
-            {pdfCharts?.cod != null ? (
+            {showSection("cod") && pdfCharts?.cod != null ? (
               <View style={styles.modalitySection}>
                 <Text style={styles.sectionBanner}>
                   CHANGE OF DIRECTION (5-10-5)
@@ -757,9 +863,10 @@ export default function AthletePdfDocument({
               </View>
             ) : null}
 
-            {pdfCharts?.jump != null ||
-            cmjBestRows.length > 0 ||
-            djBestRows.length > 0 ? (
+            {(showSection("cmj") || showSection("drop_jump")) &&
+            (pdfCharts?.jump != null ||
+              cmjBestRows.length > 0 ||
+              djBestRows.length > 0) ? (
               <View style={styles.modalitySection}>
                 <Text style={styles.sectionBanner}>FORCE PLATE</Text>
                 {pdfCharts?.jump?.variant === "line" ? (
@@ -779,7 +886,7 @@ export default function AthletePdfDocument({
                 {/* With the new ≥3 rule, single-session jump data goes into the
                     KEY FINDINGS tiles on the snapshot page rather than being
                     a lonely standalone bar here. */}
-                {cmjBestRows.length > 0 ? (
+                {showSection("cmj") && cmjBestRows.length > 0 ? (
                   <>
                     <BestTable
                       title={"CMJ \u2014 best values"}
@@ -790,7 +897,7 @@ export default function AthletePdfDocument({
                     ) : null}
                   </>
                 ) : null}
-                {djBestRows.length > 0 ? (
+                {showSection("drop_jump") && djBestRows.length > 0 ? (
                   <>
                     <BestTable
                       title={"Drop jump \u2014 best values"}
@@ -806,7 +913,7 @@ export default function AthletePdfDocument({
               </View>
             ) : null}
 
-            {pdfCharts?.strength != null ? (
+            {showSection("dynamometry") && pdfCharts?.strength != null ? (
               <View style={styles.modalitySection}>
                 <Text style={styles.sectionBanner}>STRENGTH (DYNAMOMETRY)</Text>
                 <PdfGroupedBarChart
@@ -829,7 +936,8 @@ export default function AthletePdfDocument({
               </View>
             ) : null}
 
-            {pdfCharts?.hop != null || hopBestRows.length > 0 ? (
+            {showSection("hop_tests") &&
+            (pdfCharts?.hop != null || hopBestRows.length > 0) ? (
               <View style={styles.modalitySection}>
                 <Text style={styles.sectionBanner}>HOP TESTS</Text>
                 {pdfCharts?.hop ? (

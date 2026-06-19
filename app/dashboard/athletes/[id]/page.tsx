@@ -1083,6 +1083,8 @@ export default function AthleteDetailPage() {
               sectionComments={sectionCommentBySection}
               rangeStart={rangeStart}
               rangeEnd={rangeEnd}
+              visibility={visibility}
+              criteria={criteria}
             />
 
             {/* ── Linear sprint trends (1080) ── */}

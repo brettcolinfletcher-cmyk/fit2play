@@ -23,6 +23,11 @@ import {
   normalizePerformanceBandRow,
   type NormalizedPerformanceBand,
 } from "@/lib/performanceBands";
+import {
+  computeAthleteSnapshot,
+  type AthleteSnapshot,
+} from "@/lib/athleteSnapshot";
+import type { CriteriaResolver, ReportVisibility } from "@/lib/reportSections";
 import { supabase } from "@/lib/supabaseClient";
 
 type AthleteForPdf = {
@@ -45,6 +50,8 @@ type Props = {
   sectionComments: Record<string, string | null>;
   rangeStart: string | null;
   rangeEnd: string | null;
+  visibility: ReportVisibility;
+  criteria: CriteriaResolver;
 };
 
 function inDateRange(dateIso: string | null, start: string | null, end: string | null): boolean {
@@ -76,6 +83,8 @@ export default function PdfExportModal({
   sectionComments,
   rangeStart,
   rangeEnd,
+  visibility,
+  criteria,
 }: Props) {
   const [exportFrom, setExportFrom] = useState<string | null>(null);
   const [exportTo, setExportTo] = useState<string | null>(null);
@@ -214,6 +223,16 @@ export default function PdfExportModal({
               bands
             )
           : null;
+      const snapshot: AthleteSnapshot | null =
+        mode === "best"
+          ? computeAthleteSnapshot(
+              scopeSessions,
+              metricsBySession,
+              scopeHopTests,
+              visibility,
+              criteria
+            )
+          : null;
       const dateComparisonData =
         mode === "date_comparison"
           ? computeDateComparisonData(
@@ -260,6 +279,8 @@ export default function PdfExportModal({
           dateComparisonData={dateComparisonData}
           pdfCharts={pdfCharts}
           pdfContext={pdfContext}
+          snapshot={snapshot}
+          visibility={visibility}
         />
       ).toBlob();
 
@@ -298,6 +319,8 @@ export default function PdfExportModal({
     scopeSessions,
     sectionComments,
     summaryComment,
+    visibility,
+    criteria,
   ]);
 
   if (!open) return null;
