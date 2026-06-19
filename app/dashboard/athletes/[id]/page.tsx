@@ -1263,41 +1263,52 @@ export default function AthleteDetailPage() {
               </section>
             ) : null}
 
-            {/* ── Sessions ── */}
-            <div className="mt-10 flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-lime-300">
-                Sessions
-              </h2>
-              <Link
-                href={`/dashboard/athletes/${id}/hop-tests`}
-                className="text-xs text-lime-300/90 hover:text-lime-300 hover:underline"
-              >
-                Hop tests →
-              </Link>
-            </div>
-            <div className="mt-4 space-y-8">
-              {grouped.hawkins.length > 0 && (
-                <div>
-                  <h3 className="mb-2 text-xs font-medium text-slate-400">Hawkins</h3>
-                  {renderSessionSection(grouped.hawkins)}
-                </div>
-              )}
-              {grouped.motion1080.length > 0 && (
-                <div>
-                  <h3 className="mb-2 text-xs font-medium text-slate-400">1080 Motion</h3>
-                  {renderSessionSection(grouped.motion1080)}
-                </div>
-              )}
-              {grouped.csv.length > 0 && (
-                <div>
-                  <h3 className="mb-2 text-xs font-medium text-slate-400">CSV uploads</h3>
-                  {renderSessionSection(grouped.csv)}
-                </div>
-              )}
-              {sessions.length === 0 && (
-                <p className="text-xs text-slate-500">No sessions recorded yet.</p>
-              )}
-            </div>
+            {/* ── Sessions (collapsed by default so a long history doesn't dominate the page) ── */}
+            <details className="group mt-10">
+              <summary className="flex cursor-pointer items-center justify-between gap-2 list-none [&::-webkit-details-marker]:hidden">
+                <span className="flex items-center gap-2">
+                  <h2 className="text-sm font-semibold uppercase tracking-wide text-lime-300">
+                    Sessions
+                  </h2>
+                  <span className="text-xs text-slate-500">({sessions.length})</span>
+                </span>
+                <span className="flex items-center gap-1 rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-300 group-hover:border-slate-600">
+                  View
+                  <span className="transition-transform group-open:rotate-180">▾</span>
+                </span>
+              </summary>
+              <div className="mt-4 flex justify-end">
+                <Link
+                  href={`/dashboard/athletes/${id}/hop-tests`}
+                  className="text-xs text-lime-300/90 hover:text-lime-300 hover:underline"
+                >
+                  Hop tests →
+                </Link>
+              </div>
+              <div className="mt-2 max-h-[640px] space-y-8 overflow-y-auto pr-2">
+                {grouped.hawkins.length > 0 && (
+                  <div>
+                    <h3 className="mb-2 text-xs font-medium text-slate-400">Hawkins</h3>
+                    {renderSessionSection(grouped.hawkins)}
+                  </div>
+                )}
+                {grouped.motion1080.length > 0 && (
+                  <div>
+                    <h3 className="mb-2 text-xs font-medium text-slate-400">1080 Motion</h3>
+                    {renderSessionSection(grouped.motion1080)}
+                  </div>
+                )}
+                {grouped.csv.length > 0 && (
+                  <div>
+                    <h3 className="mb-2 text-xs font-medium text-slate-400">CSV uploads</h3>
+                    {renderSessionSection(grouped.csv)}
+                  </div>
+                )}
+                {sessions.length === 0 && (
+                  <p className="text-xs text-slate-500">No sessions recorded yet.</p>
+                )}
+              </div>
+            </details>
           </>
         ) : null}
       </section>
