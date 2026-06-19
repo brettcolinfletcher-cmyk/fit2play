@@ -385,7 +385,7 @@ function ChartShell({
     <div>
       <p className="mb-2 text-xs text-slate-400">{title}</p>
       {showChart ? (
-        <div className="h-[130px] w-full rounded border border-slate-800 bg-[#0f172a]">
+        <div className="h-[160px] w-full rounded border border-slate-800 bg-[#0f172a]">
           <ResponsiveContainer width="100%" height="100%">
             {chartType === "bar" ? (
               <BarChart data={points} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
@@ -1115,7 +1115,7 @@ export default function AthleteDetailPage() {
                     />
                   </div>
                 </div>
-                <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
                   {SPRINT_METRICS.filter((m) => visibleSprintCharts.has(m.key)).map((metric) => {
                     const trend = sprintTrendByKey[metric.key as SprintChartId];
                     const title = `${metric.label} over time (best rep)`;
@@ -1163,7 +1163,7 @@ export default function AthleteDetailPage() {
                     />
                   </div>
                 </div>
-                <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
                   {COD_METRICS.filter((m) => visibleCodCharts.has(m.key)).map((metric) => {
                     const trend = codTrendByKey[metric.key as CodChartId];
                     const title = `${metric.label} — 5-10-5 (best rep)`;
