@@ -13,6 +13,12 @@ import {
 } from "recharts";
 import { supabase } from "@/lib/supabaseClient";
 import SectionComment from "./SectionComment";
+import {
+  CHART_AXIS_TICK,
+  CHART_GRID,
+  CHART_REFERENCE_STROKE,
+  CHART_TOOLTIP_STYLE,
+} from "./chartTheme";
 
 export type HopTestTableRow = {
   sessionDate: string;
@@ -37,13 +43,8 @@ const TEST_OPTIONS = [
   { value: "lateral_hop", label: "Lateral Hop" },
 ] as const;
 
-const AXIS_TICK = { fill: "#94a3b8", fontSize: 11 };
-const TOOLTIP_STYLE = {
-  backgroundColor: "rgb(15 23 42)",
-  border: "1px solid rgb(30 41 59)",
-  borderRadius: "0.5rem",
-  fontSize: "12px",
-};
+const AXIS_TICK = CHART_AXIS_TICK;
+const TOOLTIP_STYLE = CHART_TOOLTIP_STYLE;
 
 function todayDateLocal(): string {
   const d = new Date();
@@ -364,17 +365,19 @@ export default function HopTestsSection({
                   <div className="h-56 w-full">
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={block.trendPoints}>
-                        <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
+                        <CartesianGrid {...CHART_GRID} />
                         <XAxis
                           dataKey="label"
-                          stroke="#64748b"
+                          stroke="#233047"
                           tick={AXIS_TICK}
+                          tickLine={false}
                           interval="preserveStartEnd"
                         />
                         <YAxis
                           domain={[0, 100]}
-                          stroke="#64748b"
+                          stroke="#233047"
                           tick={AXIS_TICK}
+                          tickLine={false}
                           tickFormatter={(v) => `${v}%`}
                           label={{
                             value: "LSI%",
@@ -384,7 +387,7 @@ export default function HopTestsSection({
                             fontSize: 11,
                           }}
                         />
-                        <ReferenceLine y={90} stroke="#64748b" strokeDasharray="4 4" />
+                        <ReferenceLine y={90} stroke={CHART_REFERENCE_STROKE} strokeDasharray="4 4" />
                         <Tooltip
                           contentStyle={TOOLTIP_STYLE}
                           labelFormatter={(label) => String(label)}
@@ -396,9 +399,12 @@ export default function HopTestsSection({
                         <Line
                           type="monotone"
                           dataKey="lsi"
-                          stroke="#84cc16"
-                          strokeWidth={2}
-                          dot={{ r: 3 }}
+                          stroke="#a3e635"
+                          strokeWidth={2.25}
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          dot={{ fill: "#a3e635", r: 2.5, strokeWidth: 0 }}
+                          activeDot={{ r: 4 }}
                         />
                       </LineChart>
                     </ResponsiveContainer>

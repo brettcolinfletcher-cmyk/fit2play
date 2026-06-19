@@ -17,6 +17,13 @@ import { formatDisplayDate } from "@/lib/dateDisplay";
 import { lsiColorClass, SIDE_COLORS } from "@/lib/sideColors";
 import ChartTypeToggle, { type ChartType } from "./ChartTypeToggle";
 import SectionComment from "./SectionComment";
+import {
+  CHART_AXIS_LINE,
+  CHART_AXIS_TICK,
+  CHART_GRID,
+  CHART_TOOLTIP_STYLE,
+  ChartDefs,
+} from "./chartTheme";
 
 export type SLDJDataPoint = {
   date: string;
@@ -44,13 +51,8 @@ const SLDJ_METRICS: {
 
 const SLDJ_DEFAULT = new Set<string>(["rsi", "jh", "ct"]);
 
-const AXIS_TICK = { fill: "#64748b", fontSize: 10 };
-const TOOLTIP_STYLE = {
-  backgroundColor: "#0f172a",
-  border: "1px solid #1e293b",
-  borderRadius: "0.375rem",
-  fontSize: "11px",
-};
+const AXIS_TICK = CHART_AXIS_TICK;
+const TOOLTIP_STYLE = CHART_TOOLTIP_STYLE;
 
 function fieldFor(key: SLDJMetricKey, side: "left" | "right"): keyof SLDJDataPoint {
   return `${key}_${side}` as keyof SLDJDataPoint;
@@ -242,7 +244,7 @@ export default function ForcePlateSingleLegDJSection({
           />
         </div>
       </div>
-      <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
         {selectedMetrics.map((metric) => {
           const pts = chartRows
             .map((row) => {
@@ -275,27 +277,28 @@ export default function ForcePlateSingleLegDJSection({
               {!enough ? (
                 <p className="py-12 text-center text-xs text-slate-500">Not enough data</p>
               ) : (
-                <div className="h-[150px] w-full rounded border border-slate-800 bg-[#0f172a]">
+                <div className="h-[160px] w-full rounded border border-slate-800 bg-[#0f172a]">
                   <ResponsiveContainer width="100%" height="100%">
                     {chartType === "bar" ? (
-                      <BarChart data={pts} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                        <XAxis dataKey="date" tick={AXIS_TICK} />
-                        <YAxis tick={AXIS_TICK} width={36} />
+                      <BarChart data={pts} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                        {ChartDefs}
+                        <CartesianGrid {...CHART_GRID} />
+                        <XAxis dataKey="date" tick={AXIS_TICK} tickLine={false} axisLine={CHART_AXIS_LINE} />
+                        <YAxis tick={AXIS_TICK} width={48} tickLine={false} axisLine={false} />
                         <Tooltip
                           contentStyle={TOOLTIP_STYLE}
                           labelStyle={{ color: "#94a3b8" }}
                           formatter={tooltipFormatter}
                         />
                         <Legend wrapperStyle={{ fontSize: 10 }} />
-                        <Bar dataKey="left" name="Left" fill={SIDE_COLORS.left} radius={[3, 3, 0, 0]} />
-                        <Bar dataKey="right" name="Right" fill={SIDE_COLORS.right} radius={[3, 3, 0, 0]} />
+                        <Bar dataKey="left" name="Left" fill="url(#f2pBarLeft)" radius={[6, 6, 0, 0]} maxBarSize={26} />
+                        <Bar dataKey="right" name="Right" fill="url(#f2pBarRight)" radius={[6, 6, 0, 0]} maxBarSize={26} />
                       </BarChart>
                     ) : (
-                      <LineChart data={pts} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                        <XAxis dataKey="date" tick={AXIS_TICK} />
-                        <YAxis tick={AXIS_TICK} width={36} />
+                      <LineChart data={pts} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                        <CartesianGrid {...CHART_GRID} />
+                        <XAxis dataKey="date" tick={AXIS_TICK} tickLine={false} axisLine={CHART_AXIS_LINE} />
+                        <YAxis tick={AXIS_TICK} width={48} tickLine={false} axisLine={false} />
                         <Tooltip
                           contentStyle={TOOLTIP_STYLE}
                           labelStyle={{ color: "#94a3b8" }}
@@ -307,8 +310,11 @@ export default function ForcePlateSingleLegDJSection({
                           dataKey="left"
                           name="Left"
                           stroke={SIDE_COLORS.left}
-                          strokeWidth={2}
-                          dot={{ fill: SIDE_COLORS.left, r: 3 }}
+                          strokeWidth={2.25}
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          dot={{ fill: SIDE_COLORS.left, r: 2.5, strokeWidth: 0 }}
+                          activeDot={{ r: 4 }}
                           connectNulls
                         />
                         <Line
@@ -316,8 +322,11 @@ export default function ForcePlateSingleLegDJSection({
                           dataKey="right"
                           name="Right"
                           stroke={SIDE_COLORS.right}
-                          strokeWidth={2}
-                          dot={{ fill: SIDE_COLORS.right, r: 3 }}
+                          strokeWidth={2.25}
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          dot={{ fill: SIDE_COLORS.right, r: 2.5, strokeWidth: 0 }}
+                          activeDot={{ r: 4 }}
                           connectNulls
                         />
                       </LineChart>

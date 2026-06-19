@@ -18,6 +18,14 @@ import { formatDisplayDate } from "@/lib/dateDisplay";
 import { lsiColorClass, SIDE_COLORS } from "@/lib/sideColors";
 import ChartTypeToggle, { type ChartType } from "./ChartTypeToggle";
 import SectionComment from "./SectionComment";
+import {
+  CHART_AXIS_LINE,
+  CHART_AXIS_TICK,
+  CHART_GRID,
+  CHART_REFERENCE_STROKE,
+  CHART_TOOLTIP_STYLE,
+  ChartDefs,
+} from "./chartTheme";
 
 export type DJDataPoint = {
   date: string;
@@ -79,13 +87,8 @@ const DECIMALS: Record<string, number> = {
   peak_braking_force: 0,
 };
 
-const AXIS_TICK = { fill: "#64748b", fontSize: 10 };
-const TOOLTIP_STYLE = {
-  backgroundColor: "#0f172a",
-  border: "1px solid #1e293b",
-  borderRadius: "0.375rem",
-  fontSize: "11px",
-};
+const AXIS_TICK = CHART_AXIS_TICK;
+const TOOLTIP_STYLE = CHART_TOOLTIP_STYLE;
 
 function MetricPicker({
   metrics,
@@ -271,7 +274,7 @@ export default function ForcePlateDJSection({
           />
         </div>
       </div>
-      <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
         {selectedMetrics.map((metric) => {
           const field = metric.key as keyof DJDataPoint;
           const decimals = DECIMALS[metric.key] ?? 2;
@@ -292,13 +295,14 @@ export default function ForcePlateDJSection({
               {!enough ? (
                 <p className="py-12 text-center text-xs text-slate-500">Not enough data</p>
               ) : (
-                <div className="h-[130px] w-full rounded border border-slate-800 bg-[#0f172a]">
+                <div className="h-[160px] w-full rounded border border-slate-800 bg-[#0f172a]">
                   <ResponsiveContainer width="100%" height="100%">
                     {chartType === "bar" ? (
-                      <BarChart data={pts} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                        <XAxis dataKey="date" tick={AXIS_TICK} />
-                        <YAxis tick={AXIS_TICK} width={36} />
+                      <BarChart data={pts} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                        {ChartDefs}
+                        <CartesianGrid {...CHART_GRID} />
+                        <XAxis dataKey="date" tick={AXIS_TICK} tickLine={false} axisLine={CHART_AXIS_LINE} />
+                        <YAxis tick={AXIS_TICK} width={48} tickLine={false} axisLine={false} />
                         <Tooltip
                           contentStyle={TOOLTIP_STYLE}
                           labelStyle={{ color: "#94a3b8" }}
@@ -318,20 +322,20 @@ export default function ForcePlateDJSection({
                         />
                         <ReferenceLine
                           y={pts[0]!.v}
-                          stroke="#334155"
-                          strokeDasharray="4 3"
+                          stroke={CHART_REFERENCE_STROKE}
+                          strokeDasharray="4 4"
                         />
-                        <Bar dataKey="v" radius={[3, 3, 0, 0]}>
+                        <Bar dataKey="v" radius={[6, 6, 0, 0]} maxBarSize={44}>
                           {pts.map((_, i) => (
-                            <Cell key={i} fill="#a3e635" />
+                            <Cell key={i} fill="url(#f2pBar)" />
                           ))}
                         </Bar>
                       </BarChart>
                     ) : (
-                      <LineChart data={pts} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                        <XAxis dataKey="date" tick={AXIS_TICK} />
-                        <YAxis tick={AXIS_TICK} width={36} />
+                      <LineChart data={pts} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                        <CartesianGrid {...CHART_GRID} />
+                        <XAxis dataKey="date" tick={AXIS_TICK} tickLine={false} axisLine={CHART_AXIS_LINE} />
+                        <YAxis tick={AXIS_TICK} width={48} tickLine={false} axisLine={false} />
                         <Tooltip
                           contentStyle={TOOLTIP_STYLE}
                           labelStyle={{ color: "#94a3b8" }}
@@ -353,8 +357,11 @@ export default function ForcePlateDJSection({
                           type="monotone"
                           dataKey="v"
                           stroke="#a3e635"
-                          strokeWidth={2}
-                          dot={{ fill: "#a3e635", r: 3 }}
+                          strokeWidth={2.25}
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          dot={{ fill: "#a3e635", r: 2.5, strokeWidth: 0 }}
+                          activeDot={{ r: 4 }}
                           connectNulls
                         />
                       </LineChart>
