@@ -122,7 +122,7 @@ export async function runHawkinsSync(
     });
     const bodyText = await tokenRes.text();
     if (!tokenRes.ok) {
-      throw new Error(`Hawkins token failed [key=${process.env.HAWKINS_REFRESH_TOKEN?.slice(0,8)}] [url=${process.env.HAWKINS_TOKEN_URL}]: status ${tokenRes.status}, body: ${bodyText}`);
+      throw new Error(`Hawkins token failed [url=${process.env.HAWKINS_TOKEN_URL}]: status ${tokenRes.status}, body: ${bodyText}`);
     }
     let tokenJson: { access_token?: string };
     try {
@@ -171,16 +171,24 @@ export async function runHawkinsSync(
       }
     }
 
+    // Watermark = last SUCCESSFUL sync only (errors IS NULL). A failed run must
+    // never advance the window: otherwise one failure stamps sync_log with "now"
+    // and every subsequent run asks Hawkins for a near-empty recent window.
     const { data: lastLog } = await supabase
       .from("sync_log")
       .select("synced_at")
       .eq("source", "hawkins")
+      .is("errors", null)
       .order("synced_at", { ascending: false })
       .limit(1)
       .maybeSingle();
 
+    // Re-sync a small overlap so boundary tests are never missed; duplicates are
+    // idempotent via sync_dedupe_key (upsert onConflict).
+    const OVERLAP_SECONDS = 3600;
     const fromUnix = lastLog?.synced_at
-      ? Math.floor(new Date(lastLog.synced_at as string).getTime() / 1000)
+      ? Math.floor(new Date(lastLog.synced_at as string).getTime() / 1000) -
+        OVERLAP_SECONDS
       : Math.floor(Date.now() / 1000) - 86400 * 365;
 
     const testsUrl = `${apiBase}?syncFrom=${fromUnix}`;
