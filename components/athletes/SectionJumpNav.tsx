@@ -71,8 +71,8 @@ export default function SectionJumpNav({ sectionsWithData }: Props) {
   }, [sectionsWithData]);
 
   return (
-    <nav className="sticky top-0 z-30 -mx-4 border-b border-slate-800 bg-slate-950/95 px-4 py-2 backdrop-blur">
-      <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin">
+    <nav className="sticky top-0 z-30 border-b border-white/5 bg-white/[0.03] py-2 backdrop-blur-md">
+      <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {visibleItems.map((item) => {
           const on = active === item.id;
           return (

@@ -1,7 +1,14 @@
 import { Fragment } from "react";
-import { Svg, Rect, Line, Text, View } from "@react-pdf/renderer";
-
-const COL = { left: "#84cc16", right: "#38bdf8", axis: "#94a3b8" };
+import { Svg, Rect, Line, Text as SvgText, Text, View } from "@react-pdf/renderer";
+import {
+  PDF_CHART,
+  PDF_FONT,
+  GRAD,
+  PdfChartDefs,
+  niceCeil,
+  fmtTick,
+  pdfCardStyles,
+} from "./pdfChartTheme";
 
 type Group = {
   label: string;
@@ -25,81 +32,152 @@ export default function PdfGroupedBarChart({
   dateCaption,
   unit,
   groups,
-  widthPt = 500,
-  heightPt = 180,
+  widthPt = 480,
+  heightPt = 196,
 }: Props) {
   if (groups.length === 0) return null;
 
-  const padL = 40;
-  const padR = 16;
-  const padT = 28;
-  const padB = 36;
+  const padL = 38;
+  const padR = 14;
+  const padT = 16; // headroom for value labels / annotations
+  const padB = 40; // group labels
   const plotW = widthPt - padL - padR;
   const plotH = heightPt - padT - padB;
   const n = groups.length;
   const clusterW = plotW / n;
-  const barW = clusterW * 0.28;
+  const barW = Math.min(clusterW * 0.3, 18);
   const maxV = Math.max(
     1e-6,
     ...groups.flatMap((g) => [Math.abs(g.left), Math.abs(g.right)])
   );
+  const ceil = niceCeil(maxV);
+  const base = padT + plotH;
+  const ticks = 4;
 
   return (
-    <View style={{ marginBottom: 10 }}>
-      <Text style={{ fontSize: 9, fontWeight: 700, color: "#111827", marginBottom: 2 }}>{title}</Text>
-      <Text style={{ fontSize: 7, color: "#6b7280", marginBottom: 4 }}>{dateCaption}</Text>
+    <View style={pdfCardStyles.card} wrap={false}>
+      <Text style={pdfCardStyles.title}>{title}</Text>
+      <Text style={pdfCardStyles.caption}>{dateCaption}</Text>
       <Svg width={widthPt} height={heightPt}>
-        <Line
-          x1={padL}
-          y1={padT}
-          x2={padL}
-          y2={heightPt - padB}
-          stroke={COL.axis}
-          strokeWidth={0.5}
-        />
-        <Line
-          x1={padL}
-          y1={heightPt - padB}
-          x2={widthPt - padR}
-          y2={heightPt - padB}
-          stroke={COL.axis}
-          strokeWidth={0.5}
-        />
+        <PdfChartDefs />
+
+        {/* Horizontal dotted gridlines + left axis tick labels */}
+        {Array.from({ length: ticks + 1 }).map((_, i) => {
+          const v = (ceil / ticks) * i;
+          const y = base - (v / ceil) * plotH;
+          return (
+            <Fragment key={`grid-${i}`}>
+              <Line
+                x1={padL}
+                y1={y}
+                x2={padL + plotW}
+                y2={y}
+                stroke={PDF_CHART.grid}
+                strokeWidth={0.6}
+                strokeDasharray="2 5"
+              />
+              <SvgText
+                x={padL - 5}
+                y={y + 2.5}
+                fill={PDF_CHART.axisLabel}
+                textAnchor="end"
+                style={{ fontSize: 6.5, fontFamily: PDF_FONT }}
+              >
+                {fmtTick(v)}
+              </SvgText>
+            </Fragment>
+          );
+        })}
+
         {groups.map((g, i) => {
           const cx = padL + i * clusterW + clusterW / 2;
-          const hL = (g.left / maxV) * plotH;
-          const hR = (g.right / maxV) * plotH;
-          const base = heightPt - padB;
+          const hL = (Math.abs(g.left) / ceil) * plotH;
+          const hR = (Math.abs(g.right) / ceil) * plotH;
+          const xL = cx - barW - 2;
+          const xR = cx + 2;
           return (
             <Fragment key={g.label}>
+              {/* Left = blue */}
               <Rect
-                x={cx - barW - 2}
+                x={xL}
                 y={base - hL}
                 width={barW}
                 height={hL}
-                fill={COL.left}
+                rx={1.5}
+                fill={`url(#${GRAD.left})`}
               />
+              {/* Right = lime */}
               <Rect
-                x={cx + 2}
+                x={xR}
                 y={base - hR}
                 width={barW}
                 height={hR}
-                fill={COL.right}
+                rx={1.5}
+                fill={`url(#${GRAD.right})`}
               />
+              {/* Value labels above each bar */}
+              <SvgText
+                x={xL + barW / 2}
+                y={base - hL - 3}
+                fill={PDF_CHART.limbLeft}
+                textAnchor="middle"
+                style={{ fontSize: 6.5, fontFamily: PDF_FONT }}
+              >
+                {fmtTick(g.left)}
+              </SvgText>
+              <SvgText
+                x={xR + barW / 2}
+                y={base - hR - 3}
+                fill={PDF_CHART.limbRight}
+                textAnchor="middle"
+                style={{ fontSize: 6.5, fontFamily: PDF_FONT }}
+              >
+                {fmtTick(g.right)}
+              </SvgText>
+              {/* Group label below baseline */}
+              <SvgText
+                x={cx}
+                y={base + 12}
+                fill={PDF_CHART.title}
+                textAnchor="middle"
+                style={{ fontSize: 7, fontFamily: PDF_FONT }}
+              >
+                {g.label}
+              </SvgText>
+              {/* LSI / annotation under the group label */}
+              {g.annotation ? (
+                <SvgText
+                  x={cx}
+                  y={base + 22}
+                  fill={PDF_CHART.axisLabel}
+                  textAnchor="middle"
+                  style={{ fontSize: 6.5, fontFamily: PDF_FONT }}
+                >
+                  {g.annotation}
+                </SvgText>
+              ) : null}
             </Fragment>
           );
         })}
       </Svg>
-      <Text style={{ fontSize: 6, color: "#6b7280", marginTop: 2 }}>
-        Axis: 0 – {maxV.toFixed(1)} {unit} · Green = left, Blue = right
-      </Text>
-      <View style={{ marginTop: 4 }}>
-        {groups.map((g) => (
-          <Text key={g.label} style={{ fontSize: 7, color: "#374151", marginBottom: 2 }}>
-            {g.label}: L {g.left.toFixed(1)} / R {g.right.toFixed(1)} {unit}
-            {g.annotation ? ` · ${g.annotation}` : ""}
-          </Text>
-        ))}
+
+      {/* Legend */}
+      <View style={pdfCardStyles.legendRow}>
+        <View style={pdfCardStyles.legendItem}>
+          <View
+            style={[pdfCardStyles.legendSwatch, { backgroundColor: PDF_CHART.limbLeft }]}
+          />
+          <Text style={pdfCardStyles.legendText}>Left</Text>
+        </View>
+        <View style={pdfCardStyles.legendItem}>
+          <View
+            style={[pdfCardStyles.legendSwatch, { backgroundColor: PDF_CHART.limbRight }]}
+          />
+          <Text style={pdfCardStyles.legendText}>Right</Text>
+        </View>
+        <Text style={[pdfCardStyles.legendText, { marginLeft: "auto" }]}>
+          {unit}
+        </Text>
       </View>
     </View>
   );

@@ -1,4 +1,4 @@
-import { Document, Image, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
+import { Document, Font, Image, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 import PdfBarChart from "@/components/athletes/pdf/charts/PdfBarChart";
 import PdfGroupedBarChart from "@/components/athletes/pdf/charts/PdfGroupedBarChart";
 import PdfLineChart from "@/components/athletes/pdf/charts/PdfLineChart";
@@ -17,6 +17,24 @@ import type {
 } from "@/lib/pdfReportChartData";
 import type { AthleteSnapshot } from "@/lib/athleteSnapshot";
 import type { ReportVisibility } from "@/lib/reportSections";
+import { PDF_FONT } from "@/components/athletes/pdf/charts/pdfChartTheme";
+
+// ─── Fonts ───
+// Plus Jakarta Sans, self-hosted from /public/fonts so the emailed PDF matches
+// the dashboard typography. The four static weights must exist at
+// /public/fonts/*.ttf. PDF generation is client-side, so these same-origin
+// relative URLs resolve in the browser without CORS.
+Font.register({
+  family: PDF_FONT,
+  fonts: [
+    { src: "/fonts/PlusJakartaSans-Regular.ttf", fontWeight: 400 },
+    { src: "/fonts/PlusJakartaSans-Medium.ttf", fontWeight: 500 },
+    { src: "/fonts/PlusJakartaSans-SemiBold.ttf", fontWeight: 600 },
+    { src: "/fonts/PlusJakartaSans-Bold.ttf", fontWeight: 700 },
+  ],
+});
+// Clinical report text shouldn't hyphenate mid-word.
+Font.registerHyphenationCallback((word) => [word]);
 
 const styles = StyleSheet.create({
   page: {
@@ -24,7 +42,7 @@ const styles = StyleSheet.create({
     paddingBottom: 56,
     paddingHorizontal: 40,
     fontSize: 8,
-    fontFamily: "Helvetica",
+    fontFamily: PDF_FONT,
     color: "#374151",
     backgroundColor: "#ffffff",
   },
@@ -114,13 +132,13 @@ const styles = StyleSheet.create({
     fontWeight: 700,
     color: "#111827",
     marginTop: 6,
-    marginBottom: 6,
+    marginBottom: 3,
     paddingLeft: 9,
     borderLeftWidth: 5,
     borderLeftColor: "#84cc16",
   },
   modalitySection: {
-    marginTop: 18,
+    marginTop: 26,
   },
   h2: {
     fontSize: 9,
@@ -131,6 +149,28 @@ const styles = StyleSheet.create({
     paddingBottom: 3,
     borderBottomWidth: 0.5,
     borderBottomColor: "#e5e7eb",
+  },
+  // ─── Light table card ───
+  // Mirrors the dark chart card's shape (rounded, lime left-rail) so a section
+  // reads as a matched pair: dark chart card + light table card sharing a spine.
+  tableCard: {
+    marginTop: 2,
+    marginBottom: 6,
+    paddingTop: 8,
+    paddingBottom: 2,
+    paddingHorizontal: 12,
+    backgroundColor: "#ffffff",
+    borderRadius: 8,
+    borderWidth: 0.75,
+    borderColor: "#e5e7eb",
+    borderLeftWidth: 5,
+    borderLeftColor: "#84cc16",
+  },
+  tableCardTitle: {
+    fontSize: 9,
+    fontWeight: 700,
+    color: "#111827",
+    marginBottom: 5,
   },
   body: {
     fontSize: 8.5,
@@ -424,13 +464,16 @@ function DeltaArrow({ delta }: { delta: PdfDelta }) {
   const isImprovement = delta.lowerIsBetter
     ? delta.absoluteChange < 0
     : delta.absoluteChange > 0;
-  const symbol = isFlat ? "\u2014" : isImprovement ? "\u25B2" : "\u25BC";
   const color = isFlat ? "#9ca3af" : isImprovement ? "#059669" : "#dc2626";
-  const pct = Math.abs(delta.pctChange);
+  const pct = delta.pctChange;
+  // Signed magnitude (no ▲/▼ — built-in Helvetica lacks those glyphs).
+  // Number shows the actual change; colour shows whether it's good or bad.
+  const label = isFlat
+    ? "0.0%"
+    : `${pct > 0 ? "+" : "-"}${Math.abs(pct).toFixed(1)}%`;
   return (
     <View style={styles.delta}>
-      <Text style={[styles.deltaSymbol, { color }]}>{symbol}</Text>
-      <Text style={[styles.deltaPct, { color }]}>{pct.toFixed(1)}%</Text>
+      <Text style={[styles.deltaPct, { color }]}>{label}</Text>
       <Text style={styles.deltaPrev}>vs {delta.previousDateLabel}</Text>
     </View>
   );
@@ -457,7 +500,7 @@ function FindingTile({ finding }: { finding: PdfKeyFinding }) {
 function TestsIncludedTable({ tests }: { tests: PdfTestIncluded[] }) {
   if (tests.length === 0) return null;
   return (
-    <View style={{ marginBottom: 4 }}>
+    <View style={styles.tableCard}>
       <View style={styles.tableHeader}>
         <Text style={[styles.colTiModality, styles.th]}>Modality</Text>
         <Text style={[styles.colTiSessions, styles.th]}>Sessions</Text>
@@ -543,8 +586,8 @@ function BestTable({
 }) {
   if (rows.length === 0) return null;
   return (
-    <View style={{ marginBottom: 8 }}>
-      {title ? <Text style={styles.h2}>{title}</Text> : null}
+    <View style={styles.tableCard}>
+      {title ? <Text style={styles.tableCardTitle}>{title}</Text> : null}
       <View style={styles.tableHeader}>
         <Text style={[styles.colMetric, styles.th]}>{col1Header}</Text>
         <Text style={[styles.colBest, styles.th]}>{col2Header}</Text>
@@ -574,13 +617,13 @@ function CompareTable({
 }) {
   if (rows.length === 0) return null;
   return (
-    <View style={{ marginBottom: 8 }}>
-      <Text style={styles.h2}>{title}</Text>
+    <View style={styles.tableCard}>
+      <Text style={styles.tableCardTitle}>{title}</Text>
       <View style={styles.tableHeader}>
         <Text style={[styles.colMetric, styles.th]}>Metric</Text>
         <Text style={[styles.colA, styles.th]}>{labelA}</Text>
         <Text style={[styles.colB, styles.th]}>{labelB}</Text>
-        <Text style={[styles.colD, styles.th]}>Δ</Text>
+        <Text style={[styles.colD, styles.th]}>Chg</Text>
       </View>
       {rows.map((r, i) => (
         <View key={`${r.label}-${i}`} style={i % 2 === 0 ? styles.row : styles.rowAlt}>
@@ -758,7 +801,7 @@ export default function AthletePdfDocument({
           <>
             {ctx.tests.length > 0 ? (
               <View>
-                <Text style={styles.sectionBanner}>TESTS INCLUDED</Text>
+                <Text style={styles.sectionBanner} minPresenceAhead={110}>TESTS INCLUDED</Text>
                 <TestsIncludedTable tests={ctx.tests} />
               </View>
             ) : null}
@@ -818,7 +861,7 @@ export default function AthletePdfDocument({
             {showSection("linear") &&
             (pdfCharts?.sprint != null || linearBestRows.length > 0) ? (
               <View style={styles.modalitySection}>
-                <Text style={styles.sectionBanner}>LINEAR SPRINT</Text>
+                <Text style={styles.sectionBanner} minPresenceAhead={260}>LINEAR SPRINT</Text>
                 {pdfCharts?.sprint ? (
                   <PdfBarChart
                     title={pdfCharts.sprint.title}
@@ -838,7 +881,7 @@ export default function AthletePdfDocument({
 
             {showSection("cod") && pdfCharts?.cod != null ? (
               <View style={styles.modalitySection}>
-                <Text style={styles.sectionBanner}>
+                <Text style={styles.sectionBanner} minPresenceAhead={260}>
                   CHANGE OF DIRECTION (5-10-5)
                 </Text>
                 <PdfGroupedBarChart
@@ -868,7 +911,7 @@ export default function AthletePdfDocument({
               cmjBestRows.length > 0 ||
               djBestRows.length > 0) ? (
               <View style={styles.modalitySection}>
-                <Text style={styles.sectionBanner}>FORCE PLATE</Text>
+                <Text style={styles.sectionBanner} minPresenceAhead={260}>FORCE PLATE</Text>
                 {pdfCharts?.jump?.variant === "line" ? (
                   <PdfLineChart
                     title={pdfCharts.jump.title}
@@ -915,7 +958,7 @@ export default function AthletePdfDocument({
 
             {showSection("dynamometry") && pdfCharts?.strength != null ? (
               <View style={styles.modalitySection}>
-                <Text style={styles.sectionBanner}>STRENGTH (DYNAMOMETRY)</Text>
+                <Text style={styles.sectionBanner} minPresenceAhead={260}>STRENGTH (DYNAMOMETRY)</Text>
                 <PdfGroupedBarChart
                   title={pdfCharts.strength.title}
                   dateCaption={pdfCharts.strength.dateCaption}
@@ -939,7 +982,7 @@ export default function AthletePdfDocument({
             {showSection("hop_tests") &&
             (pdfCharts?.hop != null || hopBestRows.length > 0) ? (
               <View style={styles.modalitySection}>
-                <Text style={styles.sectionBanner}>HOP TESTS</Text>
+                <Text style={styles.sectionBanner} minPresenceAhead={260}>HOP TESTS</Text>
                 {pdfCharts?.hop ? (
                   <PdfGroupedBarChart
                     title={pdfCharts.hop.title}

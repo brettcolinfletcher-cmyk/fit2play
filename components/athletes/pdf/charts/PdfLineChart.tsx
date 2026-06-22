@@ -1,6 +1,18 @@
-import { Svg, Line, Polyline, Text, View, Rect } from "@react-pdf/renderer";
+import { Fragment } from "react";
+import {
+  Svg,
+  Line,
+  Polyline,
+  Circle,
+  Text,
+  View,
+} from "@react-pdf/renderer";
+import { PDF_CHART, PdfChartDefs, pdfCardStyles } from "./pdfChartTheme";
 
-const COL = { jh: "#84cc16", rsi: "#38bdf8", axis: "#94a3b8" };
+const COL = {
+  jh: PDF_CHART.lineJump, // lime
+  rsi: PDF_CHART.lineRsi, // blue
+};
 
 type Point = { t?: number; xLabel: string; jumpCm: number | null; rsi: number | null };
 
@@ -14,7 +26,7 @@ type Props = {
   heightPt?: number;
 };
 
-const DOT = 3;
+const DOT = 2.6;
 
 export default function PdfLineChart({
   title,
@@ -22,8 +34,8 @@ export default function PdfLineChart({
   leftAxisLabel,
   rightAxisLabel,
   points,
-  widthPt = 500,
-  heightPt = 180,
+  widthPt = 480,
+  heightPt = 190,
 }: Props) {
   const withAny = points.filter(
     (p) =>
@@ -32,10 +44,10 @@ export default function PdfLineChart({
   );
   if (withAny.length === 0) return null;
 
-  const padL = 44;
-  const padR = 44;
-  const padT = 28;
-  const padB = 28;
+  const padL = 40;
+  const padR = 40;
+  const padT = 14;
+  const padB = 24;
   const plotW = widthPt - padL - padR;
   const plotH = heightPt - padT - padB;
 
@@ -89,8 +101,8 @@ export default function PdfLineChart({
   for (const p of jhSeries) {
     const x = xFor(p, withAny.indexOf(p));
     const y = padT + (1 - (p.jumpCm! - minJ) / spanJ) * plotH;
+    dotsJ.push({ x, y });
     if (jhSeries.length >= 2) ptsJ.push(`${x},${y}`);
-    else dotsJ.push({ x, y });
   }
 
   const ptsR: string[] = [];
@@ -98,75 +110,76 @@ export default function PdfLineChart({
   for (const p of rsiSeries) {
     const x = xFor(p, withAny.indexOf(p));
     const y = padT + (1 - (p.rsi! - minR) / spanR) * plotH;
+    dotsR.push({ x, y });
     if (rsiSeries.length >= 2) ptsR.push(`${x},${y}`);
-    else dotsR.push({ x, y });
   }
 
-  const legendParts: string[] = [];
-  if (jhVals.length) {
-    legendParts.push(`${leftAxisLabel}: ${minJ.toFixed(1)} – ${maxJ.toFixed(1)} (green)`);
-  }
-  if (rsiVals.length) {
-    legendParts.push(`${rightAxisLabel}: ${minR.toFixed(3)} – ${maxR.toFixed(3)} (blue)`);
-  }
+  const gridLines = 4;
 
   return (
-    <View style={{ marginBottom: 10 }}>
-      <Text style={{ fontSize: 9, fontWeight: 700, color: "#111827", marginBottom: 2 }}>{title}</Text>
-      <Text style={{ fontSize: 7, color: "#6b7280", marginBottom: 4 }}>{dateCaption}</Text>
+    <View style={pdfCardStyles.card} wrap={false}>
+      <Text style={pdfCardStyles.title}>{title}</Text>
+      <Text style={pdfCardStyles.caption}>{dateCaption}</Text>
       <Svg width={widthPt} height={heightPt}>
-        <Line
-          x1={padL}
-          y1={padT}
-          x2={padL}
-          y2={heightPt - padB}
-          stroke={COL.axis}
-          strokeWidth={0.5}
-        />
-        <Line
-          x1={widthPt - padR}
-          y1={padT}
-          x2={widthPt - padR}
-          y2={heightPt - padB}
-          stroke={COL.axis}
-          strokeWidth={0.5}
-        />
-        <Line
-          x1={padL}
-          y1={heightPt - padB}
-          x2={widthPt - padR}
-          y2={heightPt - padB}
-          stroke={COL.axis}
-          strokeWidth={0.5}
-        />
+        <PdfChartDefs />
+
+        {/* Horizontal dotted gridlines */}
+        {Array.from({ length: gridLines + 1 }).map((_, i) => {
+          const y = padT + (plotH / gridLines) * i;
+          return (
+            <Line
+              key={`grid-${i}`}
+              x1={padL}
+              y1={y}
+              x2={padL + plotW}
+              y2={y}
+              stroke={PDF_CHART.grid}
+              strokeWidth={0.6}
+              strokeDasharray="2 5"
+            />
+          );
+        })}
+
+        {/* Series lines */}
         {ptsJ.length >= 2 ? (
-          <Polyline points={ptsJ.join(" ")} stroke={COL.jh} strokeWidth={1.2} fill="none" />
+          <Polyline points={ptsJ.join(" ")} stroke={COL.jh} strokeWidth={1.4} fill="none" />
         ) : null}
         {ptsR.length >= 2 ? (
-          <Polyline points={ptsR.join(" ")} stroke={COL.rsi} strokeWidth={1.2} fill="none" />
+          <Polyline points={ptsR.join(" ")} stroke={COL.rsi} strokeWidth={1.4} fill="none" />
         ) : null}
+
+        {/* Vertex / single-point markers */}
         {dotsJ.map((d, i) => (
-          <Rect
-            key={`jh-${i}`}
-            x={d.x - DOT}
-            y={d.y - DOT}
-            width={DOT * 2}
-            height={DOT * 2}
-            fill={COL.jh}
-          />
+          <Circle key={`jh-${i}`} cx={d.x} cy={d.y} r={DOT} fill={COL.jh} />
         ))}
         {dotsR.map((d, i) => (
-          <Rect
-            key={`rsi-${i}`}
-            x={d.x - DOT}
-            y={d.y - DOT}
-            width={DOT * 2}
-            height={DOT * 2}
-            fill={COL.rsi}
-          />
+          <Circle key={`rsi-${i}`} cx={d.x} cy={d.y} r={DOT} fill={COL.rsi} />
         ))}
       </Svg>
-      <Text style={{ fontSize: 6, color: "#6b7280", marginTop: 2 }}>{legendParts.join(" · ")}</Text>
+
+      {/* Legend with ranges */}
+      <View style={pdfCardStyles.legendRow}>
+        {jhVals.length ? (
+          <View style={pdfCardStyles.legendItem}>
+            <View
+              style={[pdfCardStyles.legendSwatch, { backgroundColor: COL.jh }]}
+            />
+            <Text style={pdfCardStyles.legendText}>
+              {`${leftAxisLabel}: ${minJ.toFixed(1)}–${maxJ.toFixed(1)}`}
+            </Text>
+          </View>
+        ) : null}
+        {rsiVals.length ? (
+          <View style={pdfCardStyles.legendItem}>
+            <View
+              style={[pdfCardStyles.legendSwatch, { backgroundColor: COL.rsi }]}
+            />
+            <Text style={pdfCardStyles.legendText}>
+              {`${rightAxisLabel}: ${minR.toFixed(3)}–${maxR.toFixed(3)}`}
+            </Text>
+          </View>
+        ) : null}
+      </View>
     </View>
   );
 }
