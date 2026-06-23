@@ -191,7 +191,13 @@ export async function runHawkinsSync(
         OVERLAP_SECONDS
       : Math.floor(Date.now() / 1000) - 86400 * 365;
 
-    const testsUrl = `${apiBase}?syncFrom=${fromUnix}`;
+    // Hawkins' documented query params are from/to/sync. `syncFrom` is NOT a
+    // real param — it gets ignored, so the endpoint returns the ENTIRE test
+    // database, which 500s (empty body) once that exceeds Hawkins' response-size
+    // limit. sync=true returns tests created OR updated since `from`, bounded by
+    // `to` — the correct incremental pull against our watermark.
+    const nowUnix = Math.floor(Date.now() / 1000);
+    const testsUrl = `${apiBase}?from=${fromUnix}&to=${nowUnix}&sync=true`;
     const testsRes = await fetch(testsUrl, { headers: authHeaders });
     if (!testsRes.ok) {
       const t = await testsRes.text();

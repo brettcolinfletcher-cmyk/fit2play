@@ -44,12 +44,13 @@ export async function GET(request: Request) {
     if (!accessToken) return NextResponse.json({ error: "no access token", tokenStatus: tokenRes.status, tokenText });
     const authHeaders = { Authorization: `Bearer ${accessToken}`, Accept: "application/json" };
     const fromUnix = Math.floor(Date.now() / 1000) - 86400 * 90;
-    // Probe multiple candidate endpoints to find where tests live
+    const nowUnix = Math.floor(Date.now() / 1000);
+    // Probe candidate param schemes. from/to/sync are Hawkins' documented
+    // params; syncFrom (ignored by the API) is kept for comparison.
     const probes = [
-      `${apiBase}/tests?syncFrom=${fromUnix}`,
+      `${apiBase}?from=${fromUnix}&to=${nowUnix}&sync=true`,
+      `${apiBase}?from=${fromUnix}&to=${nowUnix}`,
       `${apiBase}?syncFrom=${fromUnix}`,
-      `${apiBase}/trials?syncFrom=${fromUnix}`,
-      `${apiBase}/data?syncFrom=${fromUnix}`,
     ];
     const probeResults: Record<string, { status: number; body: string }> = {};
     for (const endpoint of probes) {
@@ -63,7 +64,7 @@ export async function GET(request: Request) {
     let firstTest: unknown = null;
     let fullStatus: number | null = null;
     try {
-      const fullRes = await fetch(`${apiBase}?syncFrom=${fromUnix}`, { headers: authHeaders });
+      const fullRes = await fetch(`${apiBase}?from=${fromUnix}&to=${nowUnix}&sync=true`, { headers: authHeaders });
       fullStatus = fullRes.status;
       const fullText = await fullRes.text();
       try {
