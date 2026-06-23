@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { requireAuthFromRequest } from "@/lib/supabase-server";
 import { normalizeSessionRow } from "@/lib/athleteDashboardData";
 import type { NormalizedSession } from "@/lib/athleteDashboardData";
 import {
@@ -20,33 +19,59 @@ export async function GET(
     return NextResponse.json({ error: "Missing athlete id" }, { status: 400 });
   }
 
-  const { supabase: authSupabase, user, profile } =
-    await requireAuthFromRequest(req);
-  if (!user) {
+  // The browser client stores the session in localStorage, not cookies, so
+  // server routes can't read it from the request. The client sends its access
+  // token explicitly as a Bearer header; validate it here.
+  const authHeader = req.headers.get("authorization") ?? "";
+  const token = authHeader.toLowerCase().startsWith("bearer ")
+    ? authHeader.slice(7).trim()
+    : "";
+
+  if (!token) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (profile?.role === "staff") {
-    // allowed — any athlete id
-  } else if (profile?.role === "athlete") {
-    const { data: ownAthlete, error: ownErr } = await authSupabase
-      .from("athletes")
-      .select("id")
-      .eq("id", id)
-      .eq("user_id", user.id)
-      .maybeSingle();
+  const authClient = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
 
-    if (ownErr || !ownAthlete) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-  } else {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const {
+    data: { user },
+    error: userError,
+  } = await authClient.auth.getUser(token);
+
+  if (userError || !user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (profile?.role === "staff") {
+    // allowed — any athlete id
+  } else if (profile?.role === "athlete") {
+    const { data: ownAthlete } = await supabase
+      .from("athletes")
+      .select("id")
+      .eq("id", id)
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (!ownAthlete) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+  } else {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const { data: athlete, error: athleteError } = await supabase
     .from("athletes")

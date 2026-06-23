@@ -168,7 +168,14 @@ export default function AthleteProfilePage() {
         }
       }
 
-      const res = await fetch(`/api/athlete-dashboard/${athleteId}`);
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const res = await fetch(`/api/athlete-dashboard/${athleteId}`, {
+        headers: session?.access_token
+          ? { Authorization: `Bearer ${session.access_token}` }
+          : {},
+      });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
         setLoadError(json?.error || "Failed to load athlete");
