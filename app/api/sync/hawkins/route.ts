@@ -56,11 +56,26 @@ export async function GET(request: Request) {
       const r = await fetch(endpoint, { headers: authHeaders });
       probeResults[endpoint] = { status: r.status, body: (await r.text()).slice(0, 500) };
     }
-    // Also return full first test object from the working endpoint
-    const fullRes = await fetch(`${apiBase}?syncFrom=${fromUnix}`, { headers: authHeaders });
-    const fullJson = await fullRes.json() as { data?: unknown[] };
-    const firstTest = Array.isArray(fullJson.data) ? fullJson.data[0] : fullJson;
-    return NextResponse.json({ apiBase, probeResults, firstTest });
+    // Also return the first test from the canonical endpoint. Guarded: this
+    // endpoint can return a 500 with an empty/non-JSON body, and an unguarded
+    // .json() parse would throw and crash the whole debug response before
+    // probeResults is ever returned.
+    let firstTest: unknown = null;
+    let fullStatus: number | null = null;
+    try {
+      const fullRes = await fetch(`${apiBase}?syncFrom=${fromUnix}`, { headers: authHeaders });
+      fullStatus = fullRes.status;
+      const fullText = await fullRes.text();
+      try {
+        const fullJson = JSON.parse(fullText) as { data?: unknown[] };
+        firstTest = Array.isArray(fullJson.data) ? fullJson.data[0] : fullJson;
+      } catch {
+        firstTest = { parseError: true, raw: fullText.slice(0, 500) };
+      }
+    } catch (e) {
+      firstTest = { fetchError: String(e) };
+    }
+    return NextResponse.json({ apiBase, fullStatus, probeResults, firstTest });
   }
 
   const supabase = serviceClient();
