@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import DashboardNav from "@/components/DashboardNav";
@@ -13,6 +13,7 @@ const supabase = createClient(
 
 export default function AthleteMePage() {
   const router = useRouter();
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function run() {
@@ -21,12 +22,25 @@ export default function AthleteMePage() {
       } = await supabase.auth.getUser();
 
       if (!user) {
-        router.push("/login"); // adjust if different
+        router.push("/login");
         return;
       }
 
-      // We assume athlete.profile.id === auth.user.id
-      router.replace(`/dashboard/athlete/${user.id}`);
+      // Resolve the athlete record linked to this auth user.
+      const { data: athlete, error: athleteErr } = await supabase
+        .from("athletes")
+        .select("id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (athleteErr || !athlete) {
+        setError(
+          "No athlete profile is linked to your account yet. Please contact your clinician."
+        );
+        return;
+      }
+
+      router.replace(`/dashboard/athlete/${athlete.id}`);
     }
 
     run();
@@ -34,7 +48,9 @@ export default function AthleteMePage() {
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_#111827_0,_#020617_55%)] text-slate-50 flex items-center justify-center">
-      <p className="text-xs text-slate-400">Loading your athlete dashboard…</p>
+      <p className={`text-xs ${error ? "text-rose-400" : "text-slate-400"}`}>
+        {error ?? "Loading your athlete dashboard…"}
+      </p>
     </main>
   );
 }

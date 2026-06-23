@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { requireAuth } from "@/lib/supabase-server";
+import { requireAuthFromRequest } from "@/lib/supabase-server";
 import { normalizeSessionRow } from "@/lib/athleteDashboardData";
 import type { NormalizedSession } from "@/lib/athleteDashboardData";
 import {
@@ -11,7 +11,7 @@ import {
 export const dynamic = "force-dynamic";
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   const { id } = await context.params;
@@ -20,7 +20,8 @@ export async function GET(
     return NextResponse.json({ error: "Missing athlete id" }, { status: 400 });
   }
 
-  const { supabase: authSupabase, user, profile } = await requireAuth();
+  const { supabase: authSupabase, user, profile } =
+    await requireAuthFromRequest(req);
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

@@ -155,9 +155,17 @@ export default function AthleteProfilePage() {
         .select("role")
         .eq("id", user.id)
         .single();
-      if (profile?.role === "athlete" && athleteId !== user.id) {
-        router.replace("/dashboard/athlete/me");
-        return;
+      if (profile?.role === "athlete") {
+        const { data: ownRecord } = await supabase
+          .from("athletes")
+          .select("id")
+          .eq("id", athleteId)
+          .eq("user_id", user.id)
+          .maybeSingle();
+        if (!ownRecord) {
+          router.replace("/dashboard/athlete/me");
+          return;
+        }
       }
 
       const res = await fetch(`/api/athlete-dashboard/${athleteId}`);
