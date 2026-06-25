@@ -35,7 +35,6 @@ import {
   pctChange,
   pctChangeLowerIsBetter,
   readinessBullets,
-  readinessComponents,
   readinessLabel,
   readinessRingColor,
 } from "@/lib/athleteDashboardData";
@@ -84,8 +83,8 @@ function keyResultsLine(s: NormalizedSession): string {
     if (s.peakSpeed != null) {
       parts.push(`Peak ${s.peakSpeed.toFixed(2)} m/s`);
     }
-    if (s.split10m != null) {
-      parts.push(`10m ${s.split10m.toFixed(2)} s`);
+    if (s.split05m != null) {
+      parts.push(`5m ${s.split05m.toFixed(2)} s`);
     }
     return parts.length ? parts.join(" · ") : "—";
   }
@@ -250,12 +249,8 @@ export default function AthleteProfilePage() {
     [sessions]
   );
 
-  const fpWithJumpHeight = useMemo(
-    () => fpChrono.filter((s) => s.jumpHeightCm != null),
-    [fpChrono]
-  );
-  const fpWithRsi = useMemo(
-    () => fpChrono.filter((s) => s.rsi != null),
+  const cmjChrono = useMemo(
+    () => fpChrono.filter((s) => s.testType === "force_plate_cmj"),
     [fpChrono]
   );
 
@@ -267,20 +262,30 @@ export default function AthleteProfilePage() {
     return new Date(t);
   }, [sessions]);
 
-  const latestSprint = sprintChrono[sprintChrono.length - 1];
+  // One sprint row per date (best peak speed) so "vs previous" compares dates,
+  // not two runs on the same day.
+  const sprintByDate = useMemo(() => {
+    const map = new Map<string, NormalizedSession>();
+    for (const s of sprintChrono) {
+      const d = (s.sessionDate ?? s.createdAt).slice(0, 10);
+      const cur = map.get(d);
+      if (!cur || (s.peakSpeed ?? -Infinity) > (cur.peakSpeed ?? -Infinity)) {
+        map.set(d, s);
+      }
+    }
+    return [...map.values()].sort(
+      (a, b) =>
+        new Date(a.sessionDate ?? a.createdAt).getTime() -
+        new Date(b.sessionDate ?? b.createdAt).getTime()
+    );
+  }, [sprintChrono]);
+
+  const latestSprint = sprintByDate[sprintByDate.length - 1] ?? null;
   const prevSprint =
-    sprintChrono.length >= 2 ? sprintChrono[sprintChrono.length - 2] : null;
+    sprintByDate.length >= 2 ? sprintByDate[sprintByDate.length - 2] : null;
 
-  const latestFpJump =
-    fpWithJumpHeight[fpWithJumpHeight.length - 1] ?? null;
-  const prevFpJump =
-    fpWithJumpHeight.length >= 2
-      ? fpWithJumpHeight[fpWithJumpHeight.length - 2]
-      : null;
-
-  const latestFpRsi = fpWithRsi[fpWithRsi.length - 1] ?? null;
-  const prevFpRsi =
-    fpWithRsi.length >= 2 ? fpWithRsi[fpWithRsi.length - 2] : null;
+  const latestCmj = cmjChrono[cmjChrono.length - 1] ?? null;
+  const prevCmj = cmjChrono.length >= 2 ? cmjChrono[cmjChrono.length - 2] : null;
 
   const lastSprintDomain = useMemo(() => {
     const arr = sessions.filter((s) => isSprintLikeType(s.testType));
@@ -307,71 +312,59 @@ export default function AthleteProfilePage() {
   }, [sessions]);
 
   const readiness = useMemo(() => {
-    if (!latestSprint) return null;
+    if (!latestSprint && !latestCmj) return null;
     return computeReadinessScore(
-      latestSprint.peakSpeed,
-      latestSprint.split20m,
-      null
+      latestSprint?.peakSpeed ?? null,
+      latestCmj?.jumpHeightCm ?? null,
+      latestCmj?.rsi ?? null
     );
-  }, [latestSprint]);
-
-  const components = useMemo(() => {
-    if (!latestSprint) return null;
-    return readinessComponents(
-      latestSprint.peakSpeed,
-      latestSprint.split20m,
-      null
-    );
-  }, [latestSprint]);
-
-  const hasFpMetrics = useMemo(
-    () =>
-      fpChrono.some(
-        (s) => s.jumpHeightCm != null || s.rsi != null
-      ),
-    [fpChrono]
-  );
+  }, [latestSprint, latestCmj]);
 
   const readinessExplain = useMemo(
-    () => readinessBullets(readiness, components, hasFpMetrics),
-    [readiness, components, hasFpMetrics]
+    () =>
+      readinessBullets(readiness, {
+        peakSpeed: latestSprint?.peakSpeed ?? null,
+        jumpHeightCm: latestCmj?.jumpHeightCm ?? null,
+        rsi: latestCmj?.rsi ?? null,
+      }),
+    [readiness, latestSprint, latestCmj]
   );
 
   const peakDelta = pctChange(
     latestSprint?.peakSpeed ?? null,
     prevSprint?.peakSpeed ?? null
   );
-  const split10Delta = pctChangeLowerIsBetter(
-    latestSprint?.split10m ?? null,
-    prevSprint?.split10m ?? null
+  const split5Delta = pctChangeLowerIsBetter(
+    latestSprint?.split05m ?? null,
+    prevSprint?.split05m ?? null
   );
   const jhDelta = pctChange(
-    latestFpJump?.jumpHeightCm ?? null,
-    prevFpJump?.jumpHeightCm ?? null
+    latestCmj?.jumpHeightCm ?? null,
+    prevCmj?.jumpHeightCm ?? null
   );
   const rsiDelta = pctChange(
-    latestFpRsi?.rsi ?? null,
-    prevFpRsi?.rsi ?? null
+    latestCmj?.rsi ?? null,
+    prevCmj?.rsi ?? null
   );
 
   const sprintChartData = useMemo(
     () =>
-      sprintChrono.map((s) => ({
+      sprintByDate.map((s) => ({
         label: formatDisplayDate(s.sessionDate ?? s.createdAt),
         peakSpeed: s.peakSpeed,
       })),
-    [sprintChrono]
+    [sprintByDate]
   );
 
   const jumpChartData = useMemo(
     () =>
-      fpChrono
+      cmjChrono
         .filter((s) => s.jumpHeightCm != null)
         .map((s) => ({
           label: formatDisplayDate(s.sessionDate ?? s.createdAt),
           jumpHeight: s.jumpHeightCm,
         })),
-    [fpChrono]
+    [cmjChrono]
   );
 
   const ringColor =
@@ -558,7 +551,7 @@ export default function AthleteProfilePage() {
                       <span
                         className="ml-2 text-sm font-normal text-slate-400"
                       >
-                        (latest 1080 sprint)
+                        (latest session)
                       </span>
                     )}
                   </p>
@@ -590,20 +583,20 @@ export default function AthleteProfilePage() {
                 )}
               />
               <MetricCard
-                title="10m split"
+                title="5m split"
                 value={
-                  latestSprint?.split10m != null
-                    ? latestSprint.split10m.toFixed(2)
+                  latestSprint?.split05m != null
+                    ? latestSprint.split05m.toFixed(2)
                     : "—"
                 }
                 unit="s"
-                delta={split10Delta}
+                delta={split5Delta}
                 deltaTone="lowerIsBetterRaw"
-                currentNumeric={latestSprint?.split10m ?? null}
-                previousNumeric={prevSprint?.split10m ?? null}
+                currentNumeric={latestSprint?.split05m ?? null}
+                previousNumeric={prevSprint?.split05m ?? null}
                 band={resolveBandForMetric(
-                  "split10m",
-                  latestSprint?.split10m ?? null,
+                  "split_5m_time",
+                  latestSprint?.split05m ?? null,
                   performanceBands,
                   latestSprint?.testType ?? null
                 )}
@@ -611,8 +604,8 @@ export default function AthleteProfilePage() {
               <MetricCard
                 title="Jump height"
                 value={
-                  latestFpJump?.jumpHeightCm != null
-                    ? latestFpJump.jumpHeightCm.toFixed(1)
+                  latestCmj?.jumpHeightCm != null
+                    ? latestCmj.jumpHeightCm.toFixed(1)
                     : "—"
                 }
                 unit="cm"
@@ -620,30 +613,30 @@ export default function AthleteProfilePage() {
                 band={
                   resolveBandForMetric(
                     "fp_jump_height_cm_best",
-                    latestFpJump?.jumpHeightCm ?? null,
+                    latestCmj?.jumpHeightCm ?? null,
                     performanceBands,
-                    latestFpJump?.testType ?? null
+                    latestCmj?.testType ?? null
                   ) ??
                   resolveBandForMetric(
                     "jump_height_cm",
-                    latestFpJump?.jumpHeightCm ?? null,
+                    latestCmj?.jumpHeightCm ?? null,
                     performanceBands,
-                    latestFpJump?.testType ?? null
+                    latestCmj?.testType ?? null
                   )
                 }
               />
               <MetricCard
                 title="RSI"
                 value={
-                  latestFpRsi?.rsi != null ? latestFpRsi.rsi.toFixed(2) : "—"
+                  latestCmj?.rsi != null ? latestCmj.rsi.toFixed(2) : "—"
                 }
                 unit=""
                 delta={rsiDelta}
                 band={resolveBandForMetric(
                   "fp_rsi_best",
-                  latestFpRsi?.rsi ?? null,
+                  latestCmj?.rsi ?? null,
                   performanceBands,
-                  latestFpRsi?.testType ?? null
+                  latestCmj?.testType ?? null
                 )}
               />
             </div>
@@ -659,7 +652,7 @@ export default function AthleteProfilePage() {
                 </p>
                 {sprintChartData.length === 0 ? (
                   <p className="mt-4 text-xs text-slate-400">
-                    No 1080 sprint sessions yet.
+                    No sprint sessions yet.
                   </p>
                 ) : (
                   <div className="mt-4 h-64">

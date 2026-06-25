@@ -151,28 +151,23 @@ export function normalizeSessionRow(raw: Record<string, unknown>): NormalizedSes
   };
 }
 
-/** RTS-style readiness from latest 1080 sprint summary metrics (0–100). */
+/**
+ * Interim readiness (0–100) composited from the metrics actually captured:
+ * sprint peak speed, CMJ jump height, and CMJ reactive strength. Each is scored
+ * against a rehab-appropriate target band and averaged over whatever is present.
+ * NOTE: interim — to be replaced by the norm-weighted per-test scoring.
+ */
 export function computeReadinessScore(
   peakSpeed: number | null,
-  split20m: number | null,
-  repPeakSpeeds: number[] | null
+  jumpHeightCm: number | null,
+  rsi: number | null
 ): number | null {
-  if (peakSpeed == null || split20m == null) return null;
-
-  const speedScore = clamp((peakSpeed - 5) / 4, 0, 1);
-  const splitScore = clamp((4.5 - split20m) / 1.5, 0, 1);
-
-  if (repPeakSpeeds && repPeakSpeeds.length >= 2) {
-    const sd = stdDev(repPeakSpeeds);
-    const m = mean(repPeakSpeeds);
-    const consistency = m > 0 ? clamp(1 - sd / m, 0, 1) : 0;
-    const combined =
-      0.4 * speedScore + 0.3 * splitScore + 0.3 * consistency;
-    return Math.round(combined * 100);
-  }
-
-  const combined = 0.55 * speedScore + 0.45 * splitScore;
-  return Math.round(combined * 100);
+  const parts: number[] = [];
+  if (peakSpeed != null) parts.push(clamp((peakSpeed - 5) / 2.5, 0, 1));
+  if (jumpHeightCm != null) parts.push(clamp((jumpHeightCm - 15) / 15, 0, 1));
+  if (rsi != null) parts.push(clamp((rsi - 0.2) / 0.3, 0, 1));
+  if (!parts.length) return null;
+  return Math.round((parts.reduce((a, b) => a + b, 0) / parts.length) * 100);
 }
 
 export function readinessLabel(score: number): "High" | "Moderate" | "Low" {
@@ -213,40 +208,35 @@ export function readinessComponents(
 /** 2–3 short bullets explaining drivers of the readiness score. */
 export function readinessBullets(
   score: number | null,
-  c: Components | null,
-  hasFpMetrics: boolean
+  v: { peakSpeed: number | null; jumpHeightCm: number | null; rsi: number | null }
 ): string[] {
+  if (score == null) {
+    return [
+      "No sprint or jump data yet — add a session to unlock readiness.",
+    ];
+  }
   const out: string[] = [];
-  if (score == null || !c) {
-    out.push("Add at least one 1080 sprint session with peak speed and 20m split to unlock readiness.");
-    if (!hasFpMetrics) out.push("Force plate data will strengthen jump and RSI tracking.");
-    return out.slice(0, 3);
+  if (v.peakSpeed != null) {
+    out.push(
+      v.peakSpeed >= 7
+        ? "Sprint speed is in a strong band."
+        : "Sprint speed is building toward target."
+    );
   }
-
-  if (c.speedScore >= 0.62) {
-    out.push("Peak speed is in a strong band relative to the model target.");
-  } else {
-    out.push("Peak speed is below the target band and is pulling the score down.");
+  if (v.jumpHeightCm != null) {
+    out.push(
+      v.jumpHeightCm >= 28
+        ? "Jump height is tracking well."
+        : "Jump height is still developing."
+    );
   }
-
-  if (c.splitScore >= 0.62) {
-    out.push("20m split indicates solid acceleration out of the start.");
-  } else {
-    out.push("20m split suggests acceleration is limiting overall readiness.");
+  if (v.rsi != null) {
+    out.push(
+      v.rsi >= 0.45
+        ? "Reactive strength is progressing nicely."
+        : "Reactive strength has room to build."
+    );
   }
-
-  if (c.consistency != null) {
-    if (c.consistency >= 0.62) {
-      out.push("Rep-to-rep sprint consistency is helping the score.");
-    } else {
-      out.push("Variable rep-to-rep sprint outputs are limiting consistency.");
-    }
-  } else if (hasFpMetrics) {
-    out.push("Force plate jumps are available to pair with sprint progress on return-to-play.");
-  } else {
-    out.push("Capture repeat sprints to measure rep consistency over time.");
-  }
-
   return out.slice(0, 3);
 }
 
@@ -343,8 +333,8 @@ export function isSprintLikeType(t: string | null): boolean {
 export function formatTestTypeLabel(t: string | null): string {
   if (!t) return "—";
   const map: Record<string, string> = {
-    "1080_sprint": "1080 Sprint",
-    cod_5_10_5: "1080 COD (5-10-5)",
+    "1080_sprint": "Sprint",
+    cod_5_10_5: "COD (5-10-5)",
     force_plate: "Force plate",
     force_plate_dj: "Force plate (DJ)",
     force_plate_cmj: "Force plate (CMJ)",
