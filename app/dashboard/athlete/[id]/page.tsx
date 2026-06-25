@@ -12,6 +12,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import DashboardNav from "@/components/DashboardNav";
+import AthleteRingPanel from "@/components/AthleteRingPanel";
 import {
   ResponsiveContainer,
   LineChart,
@@ -27,22 +28,11 @@ import { formatDisplayDate } from "@/lib/dateDisplay";
 import {
   BENCHMARK_JUMP_HEIGHT_CM,
   BENCHMARK_PEAK_SPEED_MS,
-  computeReadinessScore,
   formatTestTypeLabel,
   isDynamometerType,
   isForcePlateType,
   isSprintLikeType,
-  pctChange,
-  pctChangeLowerIsBetter,
-  readinessBullets,
-  readinessLabel,
-  readinessRingColor,
 } from "@/lib/athleteDashboardData";
-import PerformanceBandPill from "@/components/PerformanceBandPill";
-import {
-  resolveBandForMetric,
-  type NormalizedPerformanceBand,
-} from "@/lib/performanceBands";
 
 type AthleteRow = {
   id: string;
@@ -69,12 +59,6 @@ function createSupabaseBrowser() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
-}
-
-function formatPct(p: number | null): string {
-  if (p == null) return "—";
-  const sign = p >= 0 ? "+" : "";
-  return `${sign}${p.toFixed(1)}%`;
 }
 
 function keyResultsLine(s: NormalizedSession): string {
@@ -132,9 +116,8 @@ export default function AthleteProfilePage() {
   });
   const [injurySaving, setInjurySaving] = useState(false);
   const [injuryError, setInjuryError] = useState<string | null>(null);
-  const [performanceBands, setPerformanceBands] = useState<
-    NormalizedPerformanceBand[]
-  >([]);
+  const [metricLatest, setMetricLatest] = useState<Record<string, number>>({});
+  const [metricPrev, setMetricPrev] = useState<Record<string, number>>({});
 
   const loadData = useCallback(async () => {
     if (!athleteId) return;
@@ -181,19 +164,20 @@ export default function AthleteProfilePage() {
         setAthlete(null);
         setSessions([]);
         setInjuries([]);
-        setPerformanceBands([]);
+        setMetricLatest({});
+        setMetricPrev({});
         return;
       }
       setAthlete(json.athlete as AthleteRow);
       setSessions((json.sessions as NormalizedSession[]) ?? []);
       setInjuries((json.injuries as InjuryRow[]) ?? []);
-      setPerformanceBands(
-        (json.performanceBands as NormalizedPerformanceBand[]) ?? []
-      );
+      setMetricLatest((json.metricLatest as Record<string, number>) ?? {});
+      setMetricPrev((json.metricPrev as Record<string, number>) ?? {});
     } catch {
       setLoadError("Failed to load athlete");
       setAthlete(null);
-      setPerformanceBands([]);
+      setMetricLatest({});
+      setMetricPrev({});
     } finally {
       setLoading(false);
     }
@@ -280,13 +264,6 @@ export default function AthleteProfilePage() {
     );
   }, [sprintChrono]);
 
-  const latestSprint = sprintByDate[sprintByDate.length - 1] ?? null;
-  const prevSprint =
-    sprintByDate.length >= 2 ? sprintByDate[sprintByDate.length - 2] : null;
-
-  const latestCmj = cmjChrono[cmjChrono.length - 1] ?? null;
-  const prevCmj = cmjChrono.length >= 2 ? cmjChrono[cmjChrono.length - 2] : null;
-
   const lastSprintDomain = useMemo(() => {
     const arr = sessions.filter((s) => isSprintLikeType(s.testType));
     if (!arr.length) return null;
@@ -311,42 +288,6 @@ export default function AthleteProfilePage() {
     );
   }, [sessions]);
 
-  const readiness = useMemo(() => {
-    if (!latestSprint && !latestCmj) return null;
-    return computeReadinessScore(
-      latestSprint?.peakSpeed ?? null,
-      latestCmj?.jumpHeightCm ?? null,
-      latestCmj?.rsi ?? null
-    );
-  }, [latestSprint, latestCmj]);
-
-  const readinessExplain = useMemo(
-    () =>
-      readinessBullets(readiness, {
-        peakSpeed: latestSprint?.peakSpeed ?? null,
-        jumpHeightCm: latestCmj?.jumpHeightCm ?? null,
-        rsi: latestCmj?.rsi ?? null,
-      }),
-    [readiness, latestSprint, latestCmj]
-  );
-
-  const peakDelta = pctChange(
-    latestSprint?.peakSpeed ?? null,
-    prevSprint?.peakSpeed ?? null
-  );
-  const split5Delta = pctChangeLowerIsBetter(
-    latestSprint?.split05m ?? null,
-    prevSprint?.split05m ?? null
-  );
-  const jhDelta = pctChange(
-    latestCmj?.jumpHeightCm ?? null,
-    prevCmj?.jumpHeightCm ?? null
-  );
-  const rsiDelta = pctChange(
-    latestCmj?.rsi ?? null,
-    prevCmj?.rsi ?? null
-  );
-
   const sprintChartData = useMemo(
     () =>
       sprintByDate.map((s) => ({
@@ -366,13 +307,6 @@ export default function AthleteProfilePage() {
         })),
     [cmjChrono]
   );
-
-  const ringColor =
-    readiness != null ? readinessRingColor(readiness) : "#94a3b8";
-  const r = 52;
-  const c = 2 * Math.PI * r;
-  const dashOffset =
-    readiness != null ? c * (1 - readiness / 100) : c;
 
   async function handleAddInjury(e: FormEvent) {
     e.preventDefault();
@@ -503,141 +437,11 @@ export default function AthleteProfilePage() {
               </div>
             </header>
 
-            {/* Readiness */}
-            <div className="mt-6 rounded-xl border border-slate-800 bg-slate-900/40 p-5">
-              <h2 className="text-xs uppercase tracking-wide text-slate-500">
-                Readiness score
-              </h2>
-              <div className="mt-4 flex flex-col items-center gap-8 lg:flex-row lg:items-center">
-                <div className="relative flex h-36 w-36 shrink-0 items-center justify-center">
-                  <svg
-                    className="h-36 w-36 -rotate-90"
-                    viewBox="0 0 120 120"
-                    aria-hidden
-                  >
-                    <circle
-                      cx="60"
-                      cy="60"
-                      r={r}
-                      fill="none"
-                      stroke="#334155"
-                      strokeWidth="10"
-                    />
-                    <circle
-                      cx="60"
-                      cy="60"
-                      r={r}
-                      fill="none"
-                      stroke={ringColor}
-                      strokeWidth="10"
-                      strokeLinecap="round"
-                      strokeDasharray={c}
-                      strokeDashoffset={dashOffset}
-                    />
-                  </svg>
-                  <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                    <span className="text-2xl font-semibold tabular-nums text-slate-50">
-                      {readiness ?? "—"}
-                    </span>
-                    <span className="text-xs text-slate-400">/ 100</span>
-                  </div>
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-lg font-semibold text-slate-50">
-                    {readiness != null
-                      ? readinessLabel(readiness)
-                      : "Insufficient data"}
-                    {readiness != null && (
-                      <span
-                        className="ml-2 text-sm font-normal text-slate-400"
-                      >
-                        (latest session)
-                      </span>
-                    )}
-                  </p>
-                  <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-slate-300">
-                    {readinessExplain.map((line, i) => (
-                      <li key={`${i}-${line.slice(0, 24)}`}>{line}</li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            </div>
-
-            {/* Key metrics */}
-            <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              <MetricCard
-                title="Peak speed"
-                value={
-                  latestSprint?.peakSpeed != null
-                    ? latestSprint.peakSpeed.toFixed(2)
-                    : "—"
-                }
-                unit="m/s"
-                delta={peakDelta}
-                band={resolveBandForMetric(
-                  "peakSpeed",
-                  latestSprint?.peakSpeed ?? null,
-                  performanceBands,
-                  latestSprint?.testType ?? null
-                )}
-              />
-              <MetricCard
-                title="5m split"
-                value={
-                  latestSprint?.split05m != null
-                    ? latestSprint.split05m.toFixed(2)
-                    : "—"
-                }
-                unit="s"
-                delta={split5Delta}
-                deltaTone="lowerIsBetterRaw"
-                currentNumeric={latestSprint?.split05m ?? null}
-                previousNumeric={prevSprint?.split05m ?? null}
-                band={resolveBandForMetric(
-                  "split_5m_time",
-                  latestSprint?.split05m ?? null,
-                  performanceBands,
-                  latestSprint?.testType ?? null
-                )}
-              />
-              <MetricCard
-                title="Jump height"
-                value={
-                  latestCmj?.jumpHeightCm != null
-                    ? latestCmj.jumpHeightCm.toFixed(1)
-                    : "—"
-                }
-                unit="cm"
-                delta={jhDelta}
-                band={
-                  resolveBandForMetric(
-                    "fp_jump_height_cm_best",
-                    latestCmj?.jumpHeightCm ?? null,
-                    performanceBands,
-                    latestCmj?.testType ?? null
-                  ) ??
-                  resolveBandForMetric(
-                    "jump_height_cm",
-                    latestCmj?.jumpHeightCm ?? null,
-                    performanceBands,
-                    latestCmj?.testType ?? null
-                  )
-                }
-              />
-              <MetricCard
-                title="RSI"
-                value={
-                  latestCmj?.rsi != null ? latestCmj.rsi.toFixed(2) : "—"
-                }
-                unit=""
-                delta={rsiDelta}
-                band={resolveBandForMetric(
-                  "fp_rsi_best",
-                  latestCmj?.rsi ?? null,
-                  performanceBands,
-                  latestCmj?.testType ?? null
-                )}
+            {/* Performance rings */}
+            <div className="mt-6">
+              <AthleteRingPanel
+                metricLatest={metricLatest}
+                metricPrev={metricPrev}
               />
             </div>
 
@@ -979,94 +783,3 @@ export default function AthleteProfilePage() {
   );
 }
 
-function MetricCard({
-  title,
-  value,
-  unit,
-  delta,
-  deltaTone = "default",
-  currentNumeric,
-  previousNumeric,
-  band,
-}: {
-  title: string;
-  value: string;
-  unit: string;
-  delta: number | null;
-  deltaTone?: "default" | "lowerIsBetterRaw";
-  currentNumeric?: number | null;
-  previousNumeric?: number | null;
-  band?: ReturnType<typeof resolveBandForMetric>;
-}) {
-  let deltaColor = "text-slate-400";
-  if (deltaTone === "lowerIsBetterRaw") {
-    if (
-      currentNumeric != null &&
-      previousNumeric != null &&
-      !Number.isNaN(currentNumeric) &&
-      !Number.isNaN(previousNumeric)
-    ) {
-      if (Math.abs(currentNumeric - previousNumeric) < 1e-9) {
-        deltaColor = "text-slate-400";
-      } else if (currentNumeric < previousNumeric) {
-        deltaColor = "text-emerald-400";
-      } else {
-        deltaColor = "text-red-400";
-      }
-    } else if (delta != null) {
-      deltaColor =
-        delta > 0
-          ? "text-emerald-400"
-          : delta < 0
-            ? "text-red-400"
-            : "text-slate-400";
-    }
-  } else if (delta != null) {
-    deltaColor =
-      delta > 0
-        ? "text-emerald-400"
-        : delta < 0
-          ? "text-red-400"
-          : "text-slate-400";
-  }
-
-  const displayDelta =
-    deltaTone === "lowerIsBetterRaw" &&
-    currentNumeric != null &&
-    previousNumeric != null &&
-    !Number.isNaN(currentNumeric) &&
-    !Number.isNaN(previousNumeric)
-      ? pctChangeLowerIsBetter(currentNumeric, previousNumeric)
-      : delta;
-
-  return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5">
-      <p className="text-xs uppercase tracking-wide text-slate-500">
-        {title}
-      </p>
-      <div className="mt-2 flex flex-wrap items-end gap-2">
-        <div>
-          <p className="text-2xl font-semibold tabular-nums text-slate-50">
-            {value}
-          </p>
-          {unit ? (
-            <p className="text-xs text-slate-400">{unit}</p>
-          ) : null}
-        </div>
-        {band ? <PerformanceBandPill band={band} /> : null}
-      </div>
-      <p className="mt-2 text-xs text-slate-400">
-        {displayDelta != null ? (
-          <>
-            <span className={`font-medium tabular-nums ${deltaColor}`}>
-              {formatPct(displayDelta)}
-            </span>{" "}
-            vs previous session
-          </>
-        ) : (
-          "— vs previous session"
-        )}
-      </p>
-    </div>
-  );
-}

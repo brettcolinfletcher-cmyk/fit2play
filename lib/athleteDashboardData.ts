@@ -11,6 +11,7 @@ export type NormalizedSession = {
   split10m: number | null;
   split20m: number | null;
   split05m: number | null;
+  split40m: number | null;
   totalTime: number | null;
   maxAcceleration: number | null;
   maxDeceleration: number | null;
@@ -92,6 +93,7 @@ export function normalizeSessionRow(raw: Record<string, unknown>): NormalizedSes
     split10m: pickNum(raw, ["split10m", "split_10m"]),
     split20m: pickNum(raw, ["split20m", "split_20m"]),
     split05m: pickNum(raw, ["split05m", "split_0_5m", "split5m", "split_5m"]),
+    split40m: pickNum(raw, ["split40m", "split_40m"]),
     totalTime: pickNum(raw, ["total_time", "totalTime", "time_s", "Time [s]"]),
     maxAcceleration: pickNum(raw, [
       "max_acceleration",
@@ -262,6 +264,8 @@ export const LOWER_IS_BETTER_METRIC_KEYS = new Set([
   "split_10m",
   "split20m",
   "split_20m",
+  "split40m",
+  "split_40m",
   "split5m",
   "split_5m",
   "split05m",

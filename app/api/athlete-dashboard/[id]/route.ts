@@ -131,10 +131,28 @@ export async function GET(
     }
   }
 
+  const { data: qmRows } = await supabase.rpc("athlete_quality_metrics", {
+    p_athlete: id,
+  });
+  const metricLatest: Record<string, number> = {};
+  const metricPrev: Record<string, number> = {};
+  for (const row of (qmRows ?? []) as Array<{
+    test_type: string;
+    key: string;
+    latest: number | string | null;
+    prev: number | string | null;
+  }>) {
+    const k = `${row.test_type}:${row.key}`;
+    if (row.latest != null) metricLatest[k] = Number(row.latest);
+    if (row.prev != null) metricPrev[k] = Number(row.prev);
+  }
+
   return NextResponse.json({
     athlete,
     sessions,
     injuries: injuries ?? [],
     performanceBands,
+    metricLatest,
+    metricPrev,
   });
 }
