@@ -21,6 +21,7 @@ type HeadlineMetric = {
 type TestDef = {
   type: string;
   label: string;
+  icon: string;
   headline: HeadlineMetric[];
   symmetry?: { key: string; label: string; unit: string; digits: number };
 };
@@ -29,54 +30,41 @@ const TESTS: TestDef[] = [
   {
     type: "1080_sprint",
     label: "Sprint",
+    icon: "⚡",
     headline: [
       { key: "top_speed", label: "Top speed", unit: "m/s", digits: 2 },
-      {
-        key: "split_5m_time",
-        label: "5m split",
-        unit: "s",
-        digits: 2,
-        lowerIsBetter: true,
-      },
+      { key: "split_5m_time", label: "5m split", unit: "s", digits: 2, lowerIsBetter: true },
     ],
   },
   {
     type: "force_plate_cmj",
     label: "Counter-movement jump",
+    icon: "↑",
     headline: [
-      {
-        key: "fp_jump_height",
-        label: "Jump height",
-        unit: "cm",
-        digits: 1,
-        scale: 100,
-      },
+      { key: "fp_jump_height", label: "Jump height", unit: "cm", digits: 1, scale: 100 },
       { key: "fp_rsi_best", label: "mRSI", unit: "", digits: 2 },
     ],
   },
   {
     type: "force_plate_dj",
     label: "Drop jump",
+    icon: "▼",
     headline: [
       { key: "fp_rsi_best", label: "RSI", unit: "", digits: 2 },
-      {
-        key: "fp_jump_height",
-        label: "Jump height",
-        unit: "cm",
-        digits: 1,
-        scale: 100,
-      },
+      { key: "fp_jump_height", label: "Jump height", unit: "cm", digits: 1, scale: 100 },
     ],
   },
   {
     type: "force_plate_dj_single",
     label: "Single-leg drop jump",
+    icon: "◐",
     headline: [{ key: "fp_rsi_best", label: "RSI", unit: "", digits: 2 }],
     symmetry: { key: "fp_rsi_best", label: "RSI", unit: "", digits: 2 },
   },
   {
     type: "force_plate_isometric",
-    label: "Isometric (IMTP)",
+    label: "Isometric strength",
+    icon: "▮",
     headline: [{ key: "peak_force", label: "Peak force", unit: "N", digits: 0 }],
     symmetry: { key: "peak_force", label: "Peak force", unit: "N", digits: 0 },
   },
@@ -90,96 +78,69 @@ const SECTION_KEY: Record<string, string> = {
   force_plate_isometric: "dynamometry",
 };
 
-
 function feedsFor(testType: string): string[] {
   return QUALITY_MODEL.filter((q) =>
     q.contributors.some((c) => c.testType === testType)
   ).map((q) => q.label);
 }
 
-function fmtTrend(
-  latest: number | null,
-  prev: number | null,
-  lowerIsBetter: boolean
-) {
+function fmtTrend(latest: number | null, prev: number | null, lowerIsBetter: boolean) {
   if (latest == null || prev == null || prev === 0) return null;
   const pct = ((latest - prev) / Math.abs(prev)) * 100;
   if (Math.abs(pct) < 0.05) return { text: "—", better: null as boolean | null };
   const better = lowerIsBetter ? pct < 0 : pct > 0;
-  return {
-    text: `${better ? "↑" : "↓"} ${Math.abs(pct).toFixed(1)}%`,
-    better,
-  };
+  return { text: `${better ? "↑" : "↓"} ${Math.abs(pct).toFixed(1)}%`, better };
+}
+
+function lsiStatus(lsi: number): { color: string; glow: string; label: string } {
+  if (lsi >= 90) return { color: "text-emerald-400", glow: "#10b98122", label: "Symmetrical" };
+  if (lsi >= 80) return { color: "text-amber-400", glow: "#f59e0b22", label: "Monitoring" };
+  return { color: "text-rose-400", glow: "#f4375022", label: "Asymmetric" };
 }
 
 function SymmetryBars({
-  left,
-  right,
-  label,
-  unit,
-  digits,
+  left, right, label, unit, digits,
 }: {
-  left: number;
-  right: number;
-  label: string;
-  unit: string;
-  digits: number;
+  left: number; right: number; label: string; unit: string; digits: number;
 }) {
   const max = Math.max(left, right) || 1;
   const lsi = Math.round((Math.min(left, right) / max) * 100);
-  const lsiColor =
-    lsi >= 90
-      ? "text-emerald-400"
-      : lsi >= 80
-        ? "text-amber-400"
-        : "text-rose-400";
+  const status = lsiStatus(lsi);
+
   return (
-    <div className="mt-3 border-t border-slate-800 pt-3">
-      <div className="flex items-center justify-between">
-        <p className="text-xs uppercase tracking-wide text-slate-500">
-          {label} · L / R
-        </p>
-        <p className={`text-xs font-medium tabular-nums ${lsiColor}`}>
-          {lsi}% LSI
-        </p>
+    <div className="mt-4 border-t border-slate-800/80 pt-4">
+      <div className="mb-2 flex items-center justify-between">
+        <p className="text-[0.65rem] uppercase tracking-widest text-slate-500">{label} · L / R</p>
+        <div className="flex items-center gap-1.5">
+          <span className={`text-xs font-bold tabular-nums ${status.color}`}>{lsi}% LSI</span>
+          <span className={`text-[0.6rem] ${status.color} opacity-70`}>· {status.label}</span>
+        </div>
       </div>
-      <div className="mt-2 space-y-1.5">
-        <div className="flex items-center gap-2">
-          <span className="w-4 text-[0.65rem] text-slate-400">L</span>
-          <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-800">
-            <div
-              className="h-full rounded-full bg-[#60a5fa]"
-              style={{ width: `${(left / max) * 100}%` }}
-            />
+      <div className="space-y-2">
+        {[
+          { side: "L", val: left, color: "#60a5fa" },
+          { side: "R", val: right, color: "#a3e635" },
+        ].map(({ side, val, color }) => (
+          <div key={side} className="flex items-center gap-2">
+            <span className="w-3 text-[0.6rem] font-bold" style={{ color }}>{side}</span>
+            <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-800">
+              <div
+                className="h-full rounded-full transition-all duration-700"
+                style={{ width: `${(val / max) * 100}%`, background: color }}
+              />
+            </div>
+            <span className="w-14 text-right text-xs tabular-nums text-slate-300">
+              {val.toFixed(digits)}{unit ? ` ${unit}` : ""}
+            </span>
           </div>
-          <span className="w-12 text-right text-xs tabular-nums text-slate-300">
-            {left.toFixed(digits)}
-            {unit ? ` ${unit}` : ""}
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="w-4 text-[0.65rem] text-slate-400">R</span>
-          <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-800">
-            <div
-              className="h-full rounded-full bg-[#a3e635]"
-              style={{ width: `${(right / max) * 100}%` }}
-            />
-          </div>
-          <span className="w-12 text-right text-xs tabular-nums text-slate-300">
-            {right.toFixed(digits)}
-            {unit ? ` ${unit}` : ""}
-          </span>
-        </div>
+        ))}
       </div>
     </div>
   );
 }
 
 export default function AthleteTestSummary({
-  metricLatest,
-  metricPrev,
-  metricSides,
-  sectionComments = {},
+  metricLatest, metricPrev, metricSides, sectionComments = {},
 }: Props) {
   const cards = TESTS.map((t) => {
     const metrics = t.headline
@@ -188,17 +149,9 @@ export default function AthleteTestSummary({
         const rawPrev = metricPrev[`${t.type}:${h.key}`] ?? null;
         if (rawLatest == null) return null;
         const scale = h.scale ?? 1;
-        return {
-          h,
-          value: rawLatest * scale,
-          trend: fmtTrend(rawLatest, rawPrev, h.lowerIsBetter ?? false),
-        };
+        return { h, value: rawLatest * scale, trend: fmtTrend(rawLatest, rawPrev, h.lowerIsBetter ?? false) };
       })
-      .filter(Boolean) as {
-      h: HeadlineMetric;
-      value: number;
-      trend: ReturnType<typeof fmtTrend>;
-    }[];
+      .filter(Boolean) as { h: HeadlineMetric; value: number; trend: ReturnType<typeof fmtTrend> }[];
 
     if (!metrics.length) return null;
 
@@ -209,64 +162,69 @@ export default function AthleteTestSummary({
       if (l != null && r != null) sym = { left: l, right: r };
     }
 
-    return { t, metrics, sym, feeds: feedsFor(t.type) };
+    // Determine card glow based on LSI if symmetry data exists
+    let glowColor = "transparent";
+    if (sym) {
+      const max = Math.max(sym.left, sym.right) || 1;
+      const lsi = Math.round((Math.min(sym.left, sym.right) / max) * 100);
+      glowColor = lsiStatus(lsi).glow;
+    }
+
+    return { t, metrics, sym, feeds: feedsFor(t.type), glowColor };
   }).filter(Boolean) as {
     t: TestDef;
-    metrics: {
-      h: HeadlineMetric;
-      value: number;
-      trend: ReturnType<typeof fmtTrend>;
-    }[];
+    metrics: { h: HeadlineMetric; value: number; trend: ReturnType<typeof fmtTrend> }[];
     sym: { left: number; right: number } | null;
     feeds: string[];
+    glowColor: string;
   }[];
 
   if (!cards.length) return null;
 
   return (
-    <div className="mt-6">
-      <h2 className="text-xs uppercase tracking-wide text-slate-500">Tests</h2>
-      <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {cards.map(({ t, metrics, sym, feeds }) => (
+    <div className="mt-8">
+      <div className="mb-4 flex items-center gap-3">
+        <div className="h-px flex-1 bg-slate-800" />
+        <p className="text-[0.65rem] uppercase tracking-widest text-slate-500">Latest test results</p>
+        <div className="h-px flex-1 bg-slate-800" />
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {cards.map(({ t, metrics, sym, feeds, glowColor }) => (
           <div
             key={t.type}
-            className="rounded-xl border border-slate-800 bg-slate-900/40 p-4"
+            className="rounded-xl border border-slate-800 bg-slate-900/50 p-5 transition-all duration-200 hover:border-slate-700"
+            style={{ boxShadow: glowColor !== "transparent" ? `0 0 24px -4px ${glowColor}` : undefined }}
           >
-            <div className="flex items-start justify-between gap-2">
-              <p className="text-sm font-medium text-slate-100">{t.label}</p>
+            {/* Card header */}
+            <div className="mb-4 flex items-center gap-2">
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-800 text-sm">
+                {t.icon}
+              </span>
+              <p className="text-sm font-semibold text-slate-100">{t.label}</p>
             </div>
 
-            <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2">
+            {/* Headline metrics */}
+            <div className="flex flex-wrap gap-x-6 gap-y-3">
               {metrics.map(({ h, value, trend }) => (
                 <div key={h.key}>
-                  <p className="text-[0.7rem] uppercase tracking-wide text-slate-500">
-                    {h.label}
-                  </p>
-                  <p className="text-lg font-semibold tabular-nums text-slate-50">
+                  <p className="text-[0.62rem] uppercase tracking-widest text-slate-500">{h.label}</p>
+                  <p className="mt-0.5 text-2xl font-bold tabular-nums text-slate-50 leading-none">
                     {value.toFixed(h.digits)}
-                    {h.unit ? (
-                      <span className="ml-1 text-xs text-slate-400">
-                        {h.unit}
-                      </span>
-                    ) : null}
+                    {h.unit ? <span className="ml-1 text-sm font-normal text-slate-400">{h.unit}</span> : null}
                   </p>
                   {trend ? (
-                    <p
-                      className={`text-[0.7rem] tabular-nums ${
-                        trend.better == null
-                          ? "text-slate-400"
-                          : trend.better
-                            ? "text-emerald-400"
-                            : "text-rose-400"
-                      }`}
-                    >
-                      {trend.text}
+                    <p className={`mt-0.5 text-[0.7rem] font-medium tabular-nums ${
+                      trend.better == null ? "text-slate-500" : trend.better ? "text-emerald-400" : "text-rose-400"
+                    }`}>
+                      {trend.text} vs prev
                     </p>
                   ) : null}
                 </div>
               ))}
             </div>
 
+            {/* Symmetry bars */}
             {sym ? (
               <SymmetryBars
                 left={sym.left}
@@ -277,27 +235,25 @@ export default function AthleteTestSummary({
               />
             ) : null}
 
+            {/* Feeds pills */}
             {feeds.length ? (
-              <div className="mt-3 flex flex-wrap items-center gap-1.5">
-                <span className="text-[0.65rem] text-slate-500">Feeds</span>
+              <div className="mt-4 flex flex-wrap items-center gap-1.5">
+                <span className="text-[0.6rem] uppercase tracking-widest text-slate-600">Feeds</span>
                 {feeds.map((f) => (
-                  <span
-                    key={f}
-                    className="rounded-full border border-slate-800 bg-slate-950/60 px-2 py-0.5 text-[0.65rem] text-slate-300"
-                  >
+                  <span key={f} className="rounded-full border border-slate-700/60 bg-slate-800/60 px-2 py-0.5 text-[0.62rem] text-slate-400">
                     {f}
                   </span>
                 ))}
               </div>
             ) : null}
 
+            {/* Clinician comment */}
             {(() => {
-              const commentKey = SECTION_KEY[t.type];
-              const note = commentKey ? sectionComments[commentKey] : undefined;
+              const note = sectionComments[SECTION_KEY[t.type] ?? ""];
               if (!note) return null;
               return (
-                <div className="mt-3 flex gap-2 rounded-lg border border-slate-700/60 bg-slate-950/50 px-3 py-2.5">
-                  <span className="mt-0.5 shrink-0 text-[0.75rem] text-slate-500">💬</span>
+                <div className="mt-4 flex gap-2 rounded-lg border border-slate-700/40 bg-slate-950/60 px-3 py-2.5">
+                  <span className="mt-0.5 shrink-0 text-[0.75rem]">💬</span>
                   <p className="text-xs leading-relaxed text-slate-300">{note}</p>
                 </div>
               );

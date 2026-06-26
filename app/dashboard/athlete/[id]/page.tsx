@@ -465,73 +465,43 @@ export default function AthleteProfilePage() {
           <p className="text-sm text-rose-400">Athlete not found.</p>
         ) : (
           <>
-            {/* Header */}
-            <header className="rounded-xl border border-slate-800 bg-slate-900/40 p-5 shadow-xl shadow-lime-400/10">
-              <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            {/* ── Header ─────────────────────────────────────────────── */}
+            <header className="relative overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/60 px-6 py-5">
+              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,_#a3e63508_0%,_transparent_60%)]" />
+              <div className="relative flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div>
-                  <h1 className="text-xl font-semibold tracking-tight text-slate-50">
+                  <p className="text-[0.62rem] uppercase tracking-widest text-slate-500">Athlete profile</p>
+                  <h1 className="mt-1 text-3xl font-bold tracking-tight text-slate-50">
                     {athlete.first_name} {athlete.last_name}
                   </h1>
                   <p className="mt-1 text-sm text-slate-400">
-                    {[athlete.primary_sport, athlete.team]
-                      .filter(Boolean)
-                      .join(" · ")}
+                    {[athlete.primary_sport, athlete.team].filter(Boolean).join(" · ")}
                     {athlete.organisation ? ` · ${athlete.organisation}` : ""}
                   </p>
                 </div>
-                <dl className="flex flex-wrap gap-6 text-sm md:text-right">
-                  <div>
-                    <dt className="text-[0.7rem] font-medium uppercase tracking-widest text-slate-400">
-                      Last test (any)
-                    </dt>
-                    <dd className="font-medium text-slate-50">
-                      {lastTestDate ? formatDisplayDate(lastTestDate) : "—"}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-[0.7rem] font-medium uppercase tracking-widest text-slate-400">
-                      Sprint last
-                    </dt>
-                    <dd className="font-medium text-slate-50">
-                      {lastSprintDomain ? formatDisplayDate(lastSprintDomain) : "—"}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-[0.7rem] font-medium uppercase tracking-widest text-slate-400">
-                      Force plate last
-                    </dt>
-                    <dd className="font-medium text-slate-50">
-                      {lastForcePlateDomain ? formatDisplayDate(lastForcePlateDomain) : "—"}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-[0.7rem] font-medium uppercase tracking-widest text-slate-400">
-                      Dynamometer last
-                    </dt>
-                    <dd className="font-medium text-slate-50">
-                      {lastDynoDomain ? formatDisplayDate(lastDynoDomain) : "—"}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-[0.7rem] font-medium uppercase tracking-widest text-slate-400">
-                      Sessions
-                    </dt>
-                    <dd className="font-medium text-slate-50">
-                      {sessions.length}
-                    </dd>
-                  </div>
+                <dl className="flex flex-wrap gap-5 md:text-right">
+                  {[
+                    { label: "Last tested", value: lastTestDate ? formatDisplayDate(lastTestDate) : "—" },
+                    { label: "Sprint", value: lastSprintDomain ? formatDisplayDate(lastSprintDomain) : "—" },
+                    { label: "Force plate", value: lastForcePlateDomain ? formatDisplayDate(lastForcePlateDomain) : "—" },
+                    { label: "Strength", value: lastDynoDomain ? formatDisplayDate(lastDynoDomain) : "—" },
+                    { label: "Sessions", value: String(sessions.length) },
+                  ].map(({ label, value }) => (
+                    <div key={label}>
+                      <dt className="text-[0.62rem] uppercase tracking-widest text-slate-500">{label}</dt>
+                      <dd className="mt-0.5 text-sm font-semibold text-slate-100">{value}</dd>
+                    </div>
+                  ))}
                 </dl>
               </div>
             </header>
 
-            {/* Performance rings */}
+            {/* ── Performance score ───────────────────────────────────── */}
             <div className="mt-6">
-              <AthleteRingPanel
-                metricLatest={metricLatest}
-                metricPrev={metricPrev}
-              />
+              <AthleteRingPanel metricLatest={metricLatest} metricPrev={metricPrev} />
             </div>
 
+            {/* ── Latest results ──────────────────────────────────────── */}
             <AthleteTestSummary
               metricLatest={metricLatest}
               metricPrev={metricPrev}
@@ -539,253 +509,153 @@ export default function AthleteProfilePage() {
               sectionComments={sectionComments}
             />
 
-            {/* Sprint trend — chart + longitudinal table */}
-            <div className="mt-6">
+            {/* ── Trend data ──────────────────────────────────────────── */}
+            <div className="mt-12 space-y-10">
+              {/* Section eyebrow */}
+              <div className="flex items-center gap-4">
+                <div className="h-px flex-1 bg-slate-800" />
+                <p className="text-[0.62rem] uppercase tracking-widest text-slate-500">Longitudinal trends</p>
+                <div className="h-px flex-1 bg-slate-800" />
+              </div>
+
               <SprintTrendPanel rows={sprintReportRows} />
-            </div>
 
-            {/* CMJ trend */}
-            {cmjRows.length > 0 && (
-              <div className="mt-6">
-                <CmjTrendPanel rows={cmjRows} />
-              </div>
-            )}
-
-            {/* Bilateral drop-jump trend */}
-            {djRows.length > 0 && (
-              <div className="mt-6">
-                <DjTrendPanel rows={djRows} />
-              </div>
-            )}
-
-            {/* Single-leg drop-jump asymmetry — RTP centrepiece */}
-            {slDjRows.length > 0 && (
-              <div className="mt-6">
-                <SlDjTrendPanel rows={slDjRows} />
-              </div>
-            )}
-
-            {/* Dynamometry / isometric strength */}
-            <div className="mt-6">
+              {cmjRows.length > 0 && <CmjTrendPanel rows={cmjRows} />}
+              {djRows.length > 0 && <DjTrendPanel rows={djRows} />}
+              {slDjRows.length > 0 && <SlDjTrendPanel rows={slDjRows} />}
               <DynamometryTrendPanel rows={dynamometryRows} />
             </div>
 
-            {/* Session history */}
-            <div className="mt-6 overflow-hidden rounded-xl border border-slate-800 bg-slate-900/40">
-              <div className="flex items-center justify-between border-b border-slate-800 px-5 py-4">
-                <h2 className="text-xs uppercase tracking-wide text-slate-500">
-                  Session history
-                </h2>
-                <button
-                  type="button"
-                  onClick={() => setShowAllSessions((v) => !v)}
-                  className="text-xs font-medium text-slate-400 transition hover:text-lime-300"
-                >
-                  {showAllSessions
-                    ? "Hide"
-                    : `View all sessions (${sortedDesc.length})`}
-                </button>
+            {/* ── Admin (collapsed) ───────────────────────────────────── */}
+            <div className="mt-12 space-y-4">
+              <div className="flex items-center gap-4">
+                <div className="h-px flex-1 bg-slate-800" />
+                <p className="text-[0.62rem] uppercase tracking-widest text-slate-500">Admin</p>
+                <div className="h-px flex-1 bg-slate-800" />
               </div>
-              {showAllSessions && (
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-left">
-                  <thead>
-                    <tr className="border-b border-slate-800 text-[0.7rem] font-medium uppercase tracking-widest text-slate-400">
-                      <th className="px-5 py-3">Date</th>
-                      <th className="px-5 py-3">Test type</th>
-                      <th className="px-5 py-3">Key results</th>
-                      <th className="px-5 py-3">File</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800/60">
-                    {sortedDesc.length === 0 ? (
-                      <tr>
-                        <td
-                          colSpan={4}
-                          className="px-5 py-8 text-center text-xs text-slate-400"
-                        >
-                          No sessions recorded.
-                        </td>
-                      </tr>
-                    ) : (
-                      sortedDesc.map((s) => (
-                        <tr
-                          key={s.sessionId}
-                          tabIndex={0}
-                          role="link"
-                          aria-label={`Open session ${formatTestTypeLabel(s.testType)}`}
-                          className="cursor-pointer transition-colors hover:bg-slate-800/40"
-                          onClick={() =>
-                            router.push(`/dashboard/session/${s.sessionId}`)
-                          }
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" || e.key === " ") {
-                              e.preventDefault();
-                              router.push(`/dashboard/session/${s.sessionId}`);
-                            }
-                          }}
-                        >
-                          <td className="whitespace-nowrap px-5 py-3 text-xs text-slate-200">
-                            {formatDisplayDate(s.sessionDate ?? s.createdAt)}
-                          </td>
-                          <td className="px-5 py-3 text-xs text-slate-200">
-                            {formatTestTypeLabel(s.testType)}
-                          </td>
-                          <td className="px-5 py-3 text-xs text-slate-200">
-                            {keyResultsLine(s)}
-                          </td>
-                          <td className="max-w-[200px] truncate px-5 py-3 text-xs text-slate-400">
-                            {s.fileName ?? "—"}
-                          </td>
+
+              {/* Session history */}
+              <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900/40">
+                <div className="flex items-center justify-between border-b border-slate-800 px-5 py-4">
+                  <h2 className="text-xs font-medium text-slate-400">Session history</h2>
+                  <button
+                    type="button"
+                    onClick={() => setShowAllSessions((v) => !v)}
+                    className="text-xs text-slate-500 transition hover:text-lime-300"
+                  >
+                    {showAllSessions ? "Hide" : `View all (${sortedDesc.length})`}
+                  </button>
+                </div>
+                {showAllSessions && (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full text-left">
+                      <thead>
+                        <tr className="border-b border-slate-800 text-[0.7rem] font-medium uppercase tracking-widest text-slate-500">
+                          <th className="px-5 py-3">Date</th>
+                          <th className="px-5 py-3">Type</th>
+                          <th className="px-5 py-3">Key results</th>
+                          <th className="px-5 py-3">File</th>
                         </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/60">
+                        {sortedDesc.length === 0 ? (
+                          <tr>
+                            <td colSpan={4} className="px-5 py-8 text-center text-xs text-slate-400">
+                              No sessions recorded.
+                            </td>
+                          </tr>
+                        ) : (
+                          sortedDesc.map((s) => (
+                            <tr
+                              key={s.sessionId}
+                              tabIndex={0}
+                              role="link"
+                              aria-label={`Open session ${formatTestTypeLabel(s.testType)}`}
+                              className="cursor-pointer transition-colors hover:bg-slate-800/40"
+                              onClick={() => router.push(`/dashboard/session/${s.sessionId}`)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" || e.key === " ") {
+                                  e.preventDefault();
+                                  router.push(`/dashboard/session/${s.sessionId}`);
+                                }
+                              }}
+                            >
+                              <td className="whitespace-nowrap px-5 py-3 text-xs text-slate-200">
+                                {formatDisplayDate(s.sessionDate ?? s.createdAt)}
+                              </td>
+                              <td className="px-5 py-3 text-xs text-slate-200">
+                                {formatTestTypeLabel(s.testType)}
+                              </td>
+                              <td className="px-5 py-3 text-xs text-slate-200">
+                                {keyResultsLine(s)}
+                              </td>
+                              <td className="max-w-[200px] truncate px-5 py-3 text-xs text-slate-400">
+                                {s.fileName ?? "—"}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* Injury / rehab */}
+              <details className="group overflow-hidden rounded-xl border border-slate-800 bg-slate-900/40">
+                <summary className="flex cursor-pointer list-none items-center justify-between px-5 py-4 [&::-webkit-details-marker]:hidden">
+                  <h2 className="text-xs font-medium text-slate-400">Injury &amp; rehab</h2>
+                  <span className="text-xs text-slate-500 transition group-open:text-lime-300">
+                    {injuries.length > 0 ? `${injuries.length} record${injuries.length !== 1 ? "s" : ""}` : "Add record"} ▾
+                  </span>
+                </summary>
+                <div className="border-t border-slate-800 px-5 pb-5 pt-4">
+                  <div className="space-y-4">
+                    {injuries.length === 0 ? (
+                      <p className="text-sm text-slate-400">No injuries recorded.</p>
+                    ) : (
+                      injuries.map((inj) => (
+                        <div key={inj.id} className="rounded-xl border border-slate-800 bg-slate-950/40 p-4 text-sm">
+                          <p className="font-semibold text-slate-50">{inj.diagnosis}</p>
+                          <p className="mt-1 text-slate-300">
+                            {inj.body_region}{inj.side ? ` (${inj.side})` : ""}
+                          </p>
+                          <p className="mt-2 text-xs text-slate-400">
+                            Injured: {inj.date_injured ? formatDisplayDate(inj.date_injured) : "—"}
+                            {inj.date_rtp ? ` · RTP: ${formatDisplayDate(inj.date_rtp)}` : ""}
+                          </p>
+                          {inj.status && <p className="mt-1 text-xs text-emerald-400">Status: {inj.status}</p>}
+                          {inj.notes && <p className="mt-2 text-slate-300">{inj.notes}</p>}
+                        </div>
                       ))
                     )}
-                  </tbody>
-                </table>
-              </div>
-              )}
-            </div>
-
-            {/* Injury / rehab */}
-            <div className="mt-8 rounded-xl border border-slate-800 bg-slate-900/40 p-5">
-              <h2 className="text-xs uppercase tracking-wide text-slate-500">
-                Injury &amp; rehab
-              </h2>
-
-              <div className="mt-4 space-y-4">
-                {injuries.length === 0 ? (
-                  <p className="text-sm text-slate-400">
-                    No injuries recorded.
-                  </p>
-                ) : (
-                  injuries.map((inj) => (
-                    <div
-                      key={inj.id}
-                      className="rounded-xl border border-slate-800 bg-slate-950/40 p-4 text-sm"
-                    >
-                      <p className="font-semibold text-slate-50">
-                        {inj.diagnosis}
-                      </p>
-                      <p className="mt-1 text-slate-300">
-                        {inj.body_region}
-                        {inj.side ? ` (${inj.side})` : ""}
-                      </p>
-                      <p className="mt-2 text-xs text-slate-400">
-                        Injured:{" "}
-                        {inj.date_injured ? formatDisplayDate(inj.date_injured) : "—"}
-                        {inj.date_rtp ? ` · RTP: ${formatDisplayDate(inj.date_rtp)}` : ""}
-                      </p>
-                      {inj.status && (
-                        <p className="mt-1 text-xs text-emerald-400">
-                          Status: {inj.status}
-                        </p>
-                      )}
-                      {inj.notes && (
-                        <p className="mt-2 text-slate-300">{inj.notes}</p>
-                      )}
+                  </div>
+                  <form onSubmit={handleAddInjury} className="mt-6 space-y-3 border-t border-slate-800 pt-5">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Add record</p>
+                    <input className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-200 placeholder:text-slate-500 focus:border-lime-500 focus:outline-none" placeholder="Diagnosis" value={injuryForm.diagnosis} onChange={(e: ChangeEvent<HTMLInputElement>) => setInjuryForm((f) => ({ ...f, diagnosis: e.target.value }))} required />
+                    <div className="grid grid-cols-2 gap-3">
+                      <input className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-200 placeholder:text-slate-500 focus:border-lime-500 focus:outline-none" placeholder="Body region" value={injuryForm.body_region} onChange={(e) => setInjuryForm((f) => ({ ...f, body_region: e.target.value }))} />
+                      <input className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-200 placeholder:text-slate-500 focus:border-lime-500 focus:outline-none" placeholder="Side" value={injuryForm.side} onChange={(e) => setInjuryForm((f) => ({ ...f, side: e.target.value }))} />
                     </div>
-                  ))
-                )}
-              </div>
-
-              <form
-                onSubmit={handleAddInjury}
-                className="mt-8 space-y-3 border-t border-slate-800 pt-6"
-              >
-                <p className="text-sm font-medium text-slate-50">
-                  Add injury record
-                </p>
-                <input
-                  className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-200 placeholder:text-slate-500 focus:border-lime-500 focus:outline-none"
-                  placeholder="Diagnosis"
-                  value={injuryForm.diagnosis}
-                  onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                    setInjuryForm((f) => ({
-                      ...f,
-                      diagnosis: e.target.value,
-                    }))
-                  }
-                  required
-                />
-                <div className="grid grid-cols-2 gap-3">
-                  <input
-                    className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-200 placeholder:text-slate-500 focus:border-lime-500 focus:outline-none"
-                    placeholder="Body region"
-                    value={injuryForm.body_region}
-                    onChange={(e) =>
-                      setInjuryForm((f) => ({
-                        ...f,
-                        body_region: e.target.value,
-                      }))
-                    }
-                  />
-                  <input
-                    className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-200 placeholder:text-slate-500 focus:border-lime-500 focus:outline-none"
-                    placeholder="Side"
-                    value={injuryForm.side}
-                    onChange={(e) =>
-                      setInjuryForm((f) => ({ ...f, side: e.target.value }))
-                    }
-                  />
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <p className="mb-1 text-xs text-slate-500">Date injured</p>
+                        <input type="date" className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-200 focus:border-lime-500 focus:outline-none" value={injuryForm.date_injured} onChange={(e) => setInjuryForm((f) => ({ ...f, date_injured: e.target.value }))} required />
+                      </div>
+                      <div>
+                        <p className="mb-1 text-xs text-slate-500">RTP date</p>
+                        <input type="date" className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-200 focus:border-lime-500 focus:outline-none" value={injuryForm.date_rtp} onChange={(e) => setInjuryForm((f) => ({ ...f, date_rtp: e.target.value }))} />
+                      </div>
+                    </div>
+                    <input className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-200 placeholder:text-slate-500 focus:border-lime-500 focus:outline-none" placeholder="Status" value={injuryForm.status} onChange={(e) => setInjuryForm((f) => ({ ...f, status: e.target.value }))} />
+                    <textarea className="min-h-[72px] w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-200 placeholder:text-slate-500 focus:border-lime-500 focus:outline-none" placeholder="Notes" value={injuryForm.notes} onChange={(e) => setInjuryForm((f) => ({ ...f, notes: e.target.value }))} />
+                    {injuryError && <p className="text-xs text-rose-400">{injuryError}</p>}
+                    <button type="submit" disabled={injurySaving} className="rounded-full bg-lime-400 px-5 py-2 text-xs font-semibold text-slate-950 hover:brightness-110 disabled:opacity-50">
+                      {injurySaving ? "Saving…" : "Add injury"}
+                    </button>
+                  </form>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <p className="mb-1 text-xs text-slate-400">Date injured</p>
-                    <input
-                      type="date"
-                      className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-200 focus:border-lime-500 focus:outline-none"
-                      value={injuryForm.date_injured}
-                      onChange={(e) =>
-                        setInjuryForm((f) => ({
-                          ...f,
-                          date_injured: e.target.value,
-                        }))
-                      }
-                      required
-                    />
-                  </div>
-                  <div>
-                    <p className="mb-1 text-xs text-slate-400">RTP date</p>
-                    <input
-                      type="date"
-                      className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-200 focus:border-lime-500 focus:outline-none"
-                      value={injuryForm.date_rtp}
-                      onChange={(e) =>
-                        setInjuryForm((f) => ({
-                          ...f,
-                          date_rtp: e.target.value,
-                        }))
-                      }
-                    />
-                  </div>
-                </div>
-                <input
-                  className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-200 placeholder:text-slate-500 focus:border-lime-500 focus:outline-none"
-                  placeholder="Status"
-                  value={injuryForm.status}
-                  onChange={(e) =>
-                    setInjuryForm((f) => ({ ...f, status: e.target.value }))
-                  }
-                />
-                <textarea
-                  className="min-h-[72px] w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-200 placeholder:text-slate-500 focus:border-lime-500 focus:outline-none"
-                  placeholder="Notes"
-                  value={injuryForm.notes}
-                  onChange={(e) =>
-                    setInjuryForm((f) => ({ ...f, notes: e.target.value }))
-                  }
-                />
-                {injuryError && (
-                  <p className="text-xs text-rose-400">{injuryError}</p>
-                )}
-                <button
-                  type="submit"
-                  disabled={injurySaving}
-                  className="rounded-full bg-lime-400 px-5 py-2 text-xs font-semibold text-slate-950 hover:brightness-110 disabled:opacity-50"
-                >
-                  {injurySaving ? "Saving…" : "Add injury"}
-                </button>
-              </form>
+              </details>
             </div>
           </>
         )}

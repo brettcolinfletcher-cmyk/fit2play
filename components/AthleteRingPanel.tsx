@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import {
   QUALITY_MODEL,
   scoreQuality,
@@ -12,22 +13,35 @@ type Props = {
   metricPrev: Record<string, number>;
 };
 
-function ringColor(score: number | null): string {
-  return scoreBand(score)?.color ?? "#475569";
-}
-
+/** Animated SVG ring — draws from 0 to target on mount. */
 function Ring({
   score,
   size,
   stroke,
+  animate = false,
 }: {
   score: number | null;
   size: number;
   stroke: number;
+  animate?: boolean;
 }) {
+  const arcRef = useRef<SVGCircleElement>(null);
+  const color = scoreBand(score)?.color ?? "#475569";
   const r = size / 2 - stroke;
   const c = 2 * Math.PI * r;
-  const off = score == null ? c : c * (1 - score / 100);
+  const targetOffset = score == null ? c : c * (1 - score / 100);
+
+  useEffect(() => {
+    if (!animate || !arcRef.current || score == null) return;
+    const el = arcRef.current;
+    el.style.strokeDashoffset = String(c);
+    const raf = requestAnimationFrame(() => {
+      el.style.transition = "stroke-dashoffset 1.1s cubic-bezier(0.4,0,0.2,1)";
+      el.style.strokeDashoffset = String(targetOffset);
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [animate, c, targetOffset, score]);
+
   return (
     <svg
       width={size}
@@ -45,37 +59,29 @@ function Ring({
         strokeWidth={stroke}
       />
       <circle
+        ref={arcRef}
         cx={size / 2}
         cy={size / 2}
         r={r}
         fill="none"
-        stroke={ringColor(score)}
+        stroke={color}
         strokeWidth={stroke}
         strokeLinecap="round"
         strokeDasharray={c}
-        strokeDashoffset={off}
+        strokeDashoffset={animate ? c : targetOffset}
+        style={animate ? {} : undefined}
       />
     </svg>
   );
 }
 
-function ScoreTrend({
-  score,
-  prev,
-}: {
-  score: number | null;
-  prev: number | null;
-}) {
+function ScoreTrend({ score, prev }: { score: number | null; prev: number | null }) {
   if (score == null || prev == null) return null;
   const diff = score - prev;
-  if (diff === 0) return <span className="text-xs text-slate-400">—</span>;
+  if (diff === 0) return <span className="text-[0.7rem] text-slate-500">—</span>;
   const up = diff > 0;
   return (
-    <span
-      className={`text-xs tabular-nums ${
-        up ? "text-emerald-400" : "text-rose-400"
-      }`}
-    >
+    <span className={`text-[0.7rem] tabular-nums font-medium ${up ? "text-emerald-400" : "text-rose-400"}`}>
       {up ? "↑" : "↓"} {Math.abs(diff)} pts
     </span>
   );
@@ -93,59 +99,82 @@ export default function AthleteRingPanel({ metricLatest, metricPrev }: Props) {
     return { q, score, prevScore, count };
   });
   const overall = scoreOverall(qualityScores);
+  const band = scoreBand(overall);
 
   return (
-    <div className="space-y-4">
-      {/* Overall */}
-      <div className="flex items-center gap-5 rounded-xl border border-slate-800 bg-slate-900/40 p-5 shadow-xl shadow-lime-400/10">
-        <div className="relative h-28 w-28 shrink-0">
-          <Ring score={overall} size={112} stroke={10} />
-          <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-2xl font-semibold tabular-nums text-slate-50">
-              {overall ?? "—"}
-            </span>
-            <span className="text-[0.65rem] text-slate-400">/ 100</span>
-          </div>
-        </div>
-        <div>
-          <p className="text-xs uppercase tracking-wide text-slate-500">
-            Overall score
-          </p>
-          <p className="mt-1 text-lg font-semibold text-slate-50">
-            {overall == null ? "Not enough data" : scoreBand(overall)?.label}
-          </p>
-          <p className="mt-1 text-sm text-slate-400">
-            Composite of the six qualities below.
-          </p>
-        </div>
-      </div>
+    <div
+      className="relative overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/60 p-6 shadow-2xl"
+      style={{ boxShadow: `0 0 60px -12px ${band?.color ?? "#a3e635"}22` }}
+    >
+      {/* Subtle radial glow behind overall ring */}
+      <div
+        className="pointer-events-none absolute -left-8 -top-8 h-64 w-64 rounded-full opacity-10 blur-3xl"
+        style={{ background: band?.color ?? "#a3e635" }}
+      />
 
-      {/* Quality rings */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        {rows.map(({ q, score, prevScore, count }) => (
-          <div
-            key={q.key}
-            className="flex flex-col items-center rounded-xl border border-slate-800 bg-slate-900/40 p-4 text-center"
-          >
-            <div className="relative h-20 w-20">
-              <Ring score={score} size={80} stroke={8} />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-lg font-semibold tabular-nums text-slate-50">
-                  {score ?? "—"}
-                </span>
-              </div>
+      <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:gap-10">
+        {/* Overall score */}
+        <div className="flex shrink-0 items-center gap-5">
+          <div className="relative h-36 w-36 shrink-0">
+            <Ring score={overall} size={144} stroke={11} animate />
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className="text-4xl font-bold tabular-nums text-slate-50 leading-none">
+                {overall ?? "—"}
+              </span>
+              <span className="mt-1 text-[0.6rem] uppercase tracking-widest text-slate-500">/ 100</span>
             </div>
-            <p className="mt-2 text-sm font-medium text-slate-200">{q.label}</p>
-            <p className="mt-0.5 text-xs text-slate-400 tabular-nums">
-              {count} test{count === 1 ? "" : "s"}
+          </div>
+          <div>
+            <p className="text-[0.65rem] uppercase tracking-widest text-slate-500">Overall score</p>
+            <p
+              className="mt-1 text-2xl font-bold tracking-tight"
+              style={{ color: band?.color ?? "#e2e8f0" }}
+            >
+              {band?.label ?? "—"}
             </p>
-            <div className="mt-1">
-              <ScoreTrend score={score} prev={prevScore} />
-            </div>
+            <p className="mt-1.5 max-w-[180px] text-xs leading-relaxed text-slate-400">
+              Composite of six performance qualities
+            </p>
           </div>
-        ))}
-      </div>
+        </div>
 
+        {/* Divider */}
+        <div className="hidden h-28 w-px bg-slate-800 lg:block" />
+
+        {/* Six quality rings */}
+        <div className="grid flex-1 grid-cols-3 gap-3 sm:grid-cols-6 lg:grid-cols-6">
+          {rows.map(({ q, score, prevScore, count }) => {
+            const qBand = scoreBand(score);
+            return (
+              <div
+                key={q.key}
+                className="flex flex-col items-center rounded-xl border border-slate-800/80 bg-slate-950/40 px-2 py-3 text-center transition-colors hover:border-slate-700"
+              >
+                <div className="relative h-16 w-16">
+                  <Ring score={score} size={64} stroke={6} />
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span
+                      className="text-base font-bold tabular-nums"
+                      style={{ color: qBand?.color ?? "#475569" }}
+                    >
+                      {score ?? "—"}
+                    </span>
+                  </div>
+                </div>
+                <p className="mt-2 text-[0.72rem] font-semibold text-slate-200 leading-tight">
+                  {q.label}
+                </p>
+                <p className="mt-0.5 text-[0.62rem] text-slate-500">
+                  {count} test{count === 1 ? "" : "s"}
+                </p>
+                <div className="mt-1">
+                  <ScoreTrend score={score} prev={prevScore} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
