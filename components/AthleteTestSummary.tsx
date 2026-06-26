@@ -7,6 +7,11 @@ type Props = {
   metricPrev: Record<string, number>;
   metricSides: Record<string, number>;
   sectionComments?: Record<string, string>;
+  isoLatest?: {
+    kneeExtension: { left: number | null; right: number | null };
+    kneeFlexion: { left: number | null; right: number | null };
+    hipAbduction: { left: number | null; right: number | null };
+  };
 };
 
 type HeadlineMetric = {
@@ -61,13 +66,7 @@ const TESTS: TestDef[] = [
     headline: [{ key: "fp_rsi_best", label: "RSI", unit: "", digits: 2 }],
     symmetry: { key: "fp_rsi_best", label: "RSI", unit: "", digits: 2 },
   },
-  {
-    type: "force_plate_isometric",
-    label: "Isometric strength",
-    icon: "▮",
-    headline: [{ key: "peak_force", label: "Peak force", unit: "N", digits: 0 }],
-    symmetry: { key: "peak_force", label: "Peak force", unit: "N", digits: 0 },
-  },
+  // Isometric strength rendered separately via isoLatest prop
 ];
 
 const SECTION_KEY: Record<string, string> = {
@@ -140,7 +139,7 @@ function SymmetryBars({
 }
 
 export default function AthleteTestSummary({
-  metricLatest, metricPrev, metricSides, sectionComments = {},
+  metricLatest, metricPrev, metricSides, sectionComments = {}, isoLatest,
 }: Props) {
   const cards = TESTS.map((t) => {
     const metrics = t.headline
@@ -172,7 +171,15 @@ export default function AthleteTestSummary({
     feeds: string[];
   }[];
 
-  if (!cards.length) return null;
+  if (!cards.length && !isoLatest) return null;
+
+  const isoSubTests = isoLatest ? [
+    { label: "Knee Extension", ...isoLatest.kneeExtension },
+    { label: "Knee Flexion", ...isoLatest.kneeFlexion },
+    { label: "Hip Abduction", ...isoLatest.hipAbduction },
+  ] : [];
+
+  const isoHasData = isoSubTests.some((s) => s.left != null || s.right != null);
 
   return (
     <div className="mt-8">
@@ -252,6 +259,64 @@ export default function AthleteTestSummary({
             })()}
           </div>
         ))}
+
+        {/* Isometric strength card — stacked sub-tests */}
+        {isoHasData && (
+          <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-5 transition-all duration-200 hover:border-slate-700">
+            <div className="mb-4 flex items-center gap-2">
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-800 text-sm">▮</span>
+              <p className="text-sm font-semibold text-slate-100">Isometric strength</p>
+            </div>
+            <div className="space-y-4">
+              {isoSubTests.map(({ label, left, right }) => {
+                if (left == null && right == null) return null;
+                const max = Math.max(left ?? 0, right ?? 0) || 1;
+                const lsiPct = left != null && right != null
+                  ? Math.round((Math.min(left, right) / Math.max(left, right)) * 100)
+                  : null;
+                const lsiCol = lsiPct == null ? "text-slate-400"
+                  : lsiPct >= 90 ? "text-emerald-400"
+                  : lsiPct >= 80 ? "text-amber-400"
+                  : "text-rose-400";
+                return (
+                  <div key={label}>
+                    <div className="mb-1.5 flex items-center justify-between">
+                      <p className="text-[0.62rem] uppercase tracking-widest text-slate-500">{label}</p>
+                      {lsiPct != null && (
+                        <span className={`text-[0.7rem] font-bold tabular-nums ${lsiCol}`}>{lsiPct}% LSI</span>
+                      )}
+                    </div>
+                    <div className="space-y-1.5">
+                      {[{ side: "L", val: left, color: "#60a5fa" }, { side: "R", val: right, color: "#a3e635" }].map(({ side, val, color }) => (
+                        <div key={side} className="flex items-center gap-2">
+                          <span className="w-3 text-[0.6rem] font-bold" style={{ color }}>{side}</span>
+                          <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-800">
+                            <div className="h-full rounded-full transition-all duration-700"
+                              style={{ width: val != null ? `${(val / max) * 100}%` : "0%", background: color }} />
+                          </div>
+                          <span className="w-14 text-right text-xs tabular-nums text-slate-300">
+                            {val != null ? `${val.toFixed(0)} N` : "—"}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {/* Feeds */}
+            <div className="mt-4 flex flex-wrap items-center gap-1.5">
+              <span className="text-[0.6rem] uppercase tracking-widest text-slate-600">Feeds</span>
+              <span className="rounded-full border border-slate-700/60 bg-slate-800/60 px-2 py-0.5 text-[0.62rem] text-slate-400">Strength</span>
+            </div>
+            {sectionComments["dynamometry"] && (
+              <div className="mt-4 flex gap-2 rounded-lg border border-slate-700/40 bg-slate-950/60 px-3 py-2.5">
+                <span className="mt-0.5 shrink-0 text-[0.75rem]">💬</span>
+                <p className="text-xs leading-relaxed text-slate-300">{sectionComments["dynamometry"]}</p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

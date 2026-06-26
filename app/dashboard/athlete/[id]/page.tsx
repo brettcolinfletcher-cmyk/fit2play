@@ -395,6 +395,29 @@ export default function AthleteProfilePage() {
     };
   }, [fpTrendMetrics]);
 
+  const isoLatest = useMemo(() => {
+    const isoRows = fpTrendMetrics.filter((r) => r.test_type === "force_plate_isometric");
+    const latestDate = isoRows.length
+      ? [...new Set(isoRows.map((r) => r.session_date.slice(0, 10)))].sort().at(-1)
+      : null;
+    if (!latestDate) return undefined;
+    const day = isoRows.filter((r) => r.session_date.slice(0, 10) === latestDate);
+    function getSide(subKeyword: string, side: string): number | null {
+      const r = day.find(
+        (x) =>
+          (x.test_sub_type ?? "").toLowerCase().includes(subKeyword) &&
+          x.key === "peak_force" &&
+          x.side === side
+      );
+      return r ? Number(r.value) : null;
+    }
+    return {
+      kneeExtension: { left: getSide("knee extension", "left"), right: getSide("knee extension", "right") },
+      kneeFlexion: { left: getSide("knee flexion", "left"), right: getSide("knee flexion", "right") },
+      hipAbduction: { left: getSide("hip abduction", "left"), right: getSide("hip abduction", "right") },
+    };
+  }, [fpTrendMetrics]);
+
   async function handleAddInjury(e: FormEvent) {
     e.preventDefault();
     if (!athleteId) return;
@@ -507,6 +530,7 @@ export default function AthleteProfilePage() {
               metricPrev={metricPrev}
               metricSides={metricSides}
               sectionComments={sectionComments}
+              isoLatest={isoLatest}
             />
 
             {/* ── Trend data ──────────────────────────────────────────── */}
