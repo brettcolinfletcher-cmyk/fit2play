@@ -92,10 +92,10 @@ function fmtTrend(latest: number | null, prev: number | null, lowerIsBetter: boo
   return { text: `${better ? "↑" : "↓"} ${Math.abs(pct).toFixed(1)}%`, better };
 }
 
-function lsiStatus(lsi: number): { color: string; glow: string; label: string } {
-  if (lsi >= 90) return { color: "text-emerald-400", glow: "#10b98122", label: "Symmetrical" };
-  if (lsi >= 80) return { color: "text-amber-400", glow: "#f59e0b22", label: "Monitoring" };
-  return { color: "text-rose-400", glow: "#f4375022", label: "Asymmetric" };
+function lsiStatus(lsi: number): { color: string; label: string } {
+  if (lsi >= 90) return { color: "text-emerald-400", label: "Symmetrical" };
+  if (lsi >= 80) return { color: "text-amber-400", label: "Monitoring" };
+  return { color: "text-rose-400", label: "Asymmetric" };
 }
 
 function SymmetryBars({
@@ -162,21 +162,14 @@ export default function AthleteTestSummary({
       if (l != null && r != null) sym = { left: l, right: r };
     }
 
-    // Determine card glow based on LSI if symmetry data exists
-    let glowColor = "transparent";
-    if (sym) {
-      const max = Math.max(sym.left, sym.right) || 1;
-      const lsi = Math.round((Math.min(sym.left, sym.right) / max) * 100);
-      glowColor = lsiStatus(lsi).glow;
-    }
+    // No card-level glow — ring panel glow is the signature element
 
-    return { t, metrics, sym, feeds: feedsFor(t.type), glowColor };
+    return { t, metrics, sym, feeds: feedsFor(t.type) };
   }).filter(Boolean) as {
     t: TestDef;
     metrics: { h: HeadlineMetric; value: number; trend: ReturnType<typeof fmtTrend> }[];
     sym: { left: number; right: number } | null;
     feeds: string[];
-    glowColor: string;
   }[];
 
   if (!cards.length) return null;
@@ -190,11 +183,10 @@ export default function AthleteTestSummary({
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {cards.map(({ t, metrics, sym, feeds, glowColor }) => (
+        {cards.map(({ t, metrics, sym, feeds }) => (
           <div
             key={t.type}
             className="rounded-xl border border-slate-800 bg-slate-900/50 p-5 transition-all duration-200 hover:border-slate-700"
-            style={{ boxShadow: glowColor !== "transparent" ? `0 0 24px -4px ${glowColor}` : undefined }}
           >
             {/* Card header */}
             <div className="mb-4 flex items-center gap-2">
