@@ -83,15 +83,28 @@ function parseSport(raw: string | null): { sport: string; level: string } {
   return { sport: raw.trim(), level: "Unknown" };
 }
 
+/** Keys where the best rep = minimum value (times). */
+const MIN_KEYS = new Set(["total_time", "split_5m_time", "split_1m_time", "split_2m_time", "split_3m_time", "split_4m_time"]);
+
 function sessionMetricsMap(
   sessionId: string,
   metricRows: MetricRow[]
 ): Record<string, number> {
-  const mm: Record<string, number> = {};
+  const mm: Record<string, number[]> = {};
   for (const m of metricRows) {
-    if (m.session_id === sessionId) mm[m.key] = m.value;
+    if (m.session_id !== sessionId) continue;
+    if (!mm[m.key]) mm[m.key] = [];
+    mm[m.key]!.push(Number(m.value));
   }
-  return mm;
+  const out: Record<string, number> = {};
+  for (const [key, vals] of Object.entries(mm)) {
+    const finite = vals.filter(Number.isFinite);
+    if (!finite.length) continue;
+    out[key] = MIN_KEYS.has(key)
+      ? Math.min(...finite)
+      : Math.max(...finite);
+  }
+  return out;
 }
 
 function reportRowFromSession(s: SessionRow, mm: Record<string, number>): ReportRow {
@@ -297,13 +310,8 @@ export default function SprintReportPage() {
   }, [viewMode, benchmarkAthleteIds, loadAthletesSprintData]);
 
   const reportRows = useMemo<ReportRow[]>(() => {
-    const mm: Record<string, Record<string, number>> = {};
-    for (const m of metrics) {
-      if (!mm[m.session_id]) mm[m.session_id] = {};
-      mm[m.session_id][m.key] = m.value;
-    }
     return sessions.map((s) => {
-      const m = mm[s.id] ?? {};
+      const m = sessionMetricsMap(s.id, metrics);
       return reportRowFromSession(s, m);
     });
   }, [sessions, metrics]);
