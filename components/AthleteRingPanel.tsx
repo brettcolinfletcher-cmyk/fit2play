@@ -4,6 +4,7 @@ import {
   QUALITY_MODEL,
   scoreQuality,
   scoreOverall,
+  scoreBand,
 } from "@/lib/qualityModel";
 
 type Props = {
@@ -12,10 +13,7 @@ type Props = {
 };
 
 function ringColor(score: number | null): string {
-  if (score == null) return "#475569";
-  if (score >= 80) return "#4ade80";
-  if (score >= 65) return "#38bdf8";
-  return "#fbbf24";
+  return scoreBand(score)?.color ?? "#475569";
 }
 
 function Ring({
@@ -61,32 +59,6 @@ function Ring({
   );
 }
 
-function Trend({
-  latest,
-  prev,
-  lowerIsBetter = false,
-}: {
-  latest: number | null;
-  prev: number | null;
-  lowerIsBetter?: boolean;
-}) {
-  if (latest == null || prev == null || prev === 0) return null;
-  const pct = ((latest - prev) / Math.abs(prev)) * 100;
-  const better = lowerIsBetter ? pct < 0 : pct > 0;
-  if (Math.abs(pct) < 0.05) {
-    return <span className="text-xs text-slate-400">—</span>;
-  }
-  return (
-    <span
-      className={`text-xs tabular-nums ${
-        better ? "text-emerald-400" : "text-rose-400"
-      }`}
-    >
-      {better ? "↑" : "↓"} {Math.abs(pct).toFixed(1)}%
-    </span>
-  );
-}
-
 function ScoreTrend({
   score,
   prev,
@@ -122,14 +94,6 @@ export default function AthleteRingPanel({ metricLatest, metricPrev }: Props) {
   });
   const overall = scoreOverall(qualityScores);
 
-  const sprint5 = metricLatest["1080_sprint:split_5m_time"] ?? null;
-  const sprint5p = metricPrev["1080_sprint:split_5m_time"] ?? null;
-  const sprint20 = metricLatest["1080_sprint:split_20m_time"] ?? null;
-  const sprint40 = metricLatest["1080_sprint:split_40m_time"] ?? null;
-
-  const jumpM = metricLatest["force_plate_cmj:fp_jump_height"] ?? null;
-  const jumpMp = metricPrev["force_plate_cmj:fp_jump_height"] ?? null;
-
   return (
     <div className="space-y-4">
       {/* Overall */}
@@ -148,13 +112,7 @@ export default function AthleteRingPanel({ metricLatest, metricPrev }: Props) {
             Overall score
           </p>
           <p className="mt-1 text-lg font-semibold text-slate-50">
-            {overall == null
-              ? "Not enough data"
-              : overall >= 80
-                ? "Strong all-round"
-                : overall >= 65
-                  ? "Building well"
-                  : "Developing"}
+            {overall == null ? "Not enough data" : scoreBand(overall)?.label}
           </p>
           <p className="mt-1 text-sm text-slate-400">
             Composite of the six qualities below.
@@ -188,57 +146,6 @@ export default function AthleteRingPanel({ metricLatest, metricPrev }: Props) {
         ))}
       </div>
 
-      {/* Output tiles: jump height + sprint times */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-4">
-          <p className="text-xs uppercase tracking-wide text-slate-500">
-            Jump height
-          </p>
-          <p className="mt-2 text-2xl font-semibold tabular-nums text-slate-50">
-            {jumpM != null ? (jumpM * 100).toFixed(1) : "—"}
-            <span className="ml-1 text-xs text-slate-400">cm</span>
-          </p>
-          <div className="mt-1">
-            <Trend latest={jumpM} prev={jumpMp} />
-          </div>
-        </div>
-
-        <SprintTile label="5m sprint" time={sprint5} prev={sprint5p} />
-        <SprintTile label="20m sprint" time={sprint20} prev={null} />
-        <SprintTile label="40m sprint" time={sprint40} prev={null} />
-      </div>
-    </div>
-  );
-}
-
-function SprintTile({
-  label,
-  time,
-  prev,
-}: {
-  label: string;
-  time: number | null;
-  prev: number | null;
-}) {
-  return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-4">
-      <p className="text-xs uppercase tracking-wide text-slate-500">{label}</p>
-      {time != null ? (
-        <>
-          <p className="mt-2 text-2xl font-semibold tabular-nums text-slate-50">
-            {time.toFixed(2)}
-            <span className="ml-1 text-xs text-slate-400">s</span>
-          </p>
-          <div className="mt-1">
-            <Trend latest={time} prev={prev} lowerIsBetter />
-          </div>
-        </>
-      ) : (
-        <>
-          <p className="mt-2 text-2xl font-semibold text-slate-600">—</p>
-          <p className="mt-1 text-xs text-slate-500">awaiting longer sprint</p>
-        </>
-      )}
     </div>
   );
 }

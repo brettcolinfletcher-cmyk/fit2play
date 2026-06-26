@@ -14,6 +14,9 @@ import { createClient } from "@supabase/supabase-js";
 import DashboardNav from "@/components/DashboardNav";
 import AthleteRingPanel from "@/components/AthleteRingPanel";
 import AthleteTestSummary from "@/components/AthleteTestSummary";
+import SprintTrendPanel, {
+  type SprintReportRow,
+} from "@/components/SprintTrendPanel";
 import {
   ResponsiveContainer,
   LineChart,
@@ -28,7 +31,6 @@ import type { NormalizedSession } from "@/lib/athleteDashboardData";
 import { formatDisplayDate } from "@/lib/dateDisplay";
 import {
   BENCHMARK_JUMP_HEIGHT_CM,
-  BENCHMARK_PEAK_SPEED_MS,
   formatTestTypeLabel,
   isDynamometerType,
   isForcePlateType,
@@ -294,11 +296,15 @@ export default function AthleteProfilePage() {
     );
   }, [sessions]);
 
-  const sprintChartData = useMemo(
+  const sprintReportRows = useMemo<SprintReportRow[]>(
     () =>
       sprintByDate.map((s) => ({
-        label: formatDisplayDate(s.sessionDate ?? s.createdAt),
-        peakSpeed: s.peakSpeed,
+        date: formatDisplayDate(s.sessionDate ?? s.createdAt),
+        rawDate: s.sessionDate ?? s.createdAt,
+        topSpeed: s.peakSpeed,
+        totalTime: s.totalTime,
+        split5m: s.split05m,
+        maxAcceleration: s.maxAcceleration,
       })),
     [sprintByDate]
   );
@@ -457,57 +463,13 @@ export default function AthleteProfilePage() {
               metricSides={metricSides}
             />
 
-            {/* Charts */}
-            <div className="mt-6 grid gap-6 lg:grid-cols-2">
-              <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5">
-                <h2 className="text-xs uppercase tracking-wide text-slate-500">
-                  Sprint — peak speed
-                </h2>
-                <p className="mt-1 text-xs text-slate-400">
-                  Benchmark {BENCHMARK_PEAK_SPEED_MS} m/s (dashed)
-                </p>
-                {sprintChartData.length === 0 ? (
-                  <p className="mt-4 text-xs text-slate-400">
-                    No sprint sessions yet.
-                  </p>
-                ) : (
-                  <div className="mt-4 h-64">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={sprintChartData}>
-                        <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
-                        <XAxis
-                          dataKey="label"
-                          tick={{ fontSize: 10, fill: "#94a3b8" }}
-                        />
-                        <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} />
-                        <Tooltip
-                          contentStyle={{
-                            backgroundColor: "#0f172a",
-                            border: "1px solid #334155",
-                            borderRadius: 10,
-                            fontSize: 12,
-                            color: "#e2e8f0",
-                          }}
-                        />
-                        <ReferenceLine
-                          y={BENCHMARK_PEAK_SPEED_MS}
-                          stroke="#94a3b8"
-                          strokeDasharray="6 4"
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="peakSpeed"
-                          name="Peak speed"
-                          stroke="#0ea5e9"
-                          strokeWidth={2}
-                          dot={{ r: 3 }}
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-                )}
-              </div>
+            {/* Sprint trend — chart + longitudinal table */}
+            <div className="mt-6">
+              <SprintTrendPanel rows={sprintReportRows} />
+            </div>
 
+            {/* Jump height trend */}
+            <div className="mt-6">
               <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5">
                 <h2 className="text-xs uppercase tracking-wide text-slate-500">
                   Force plate — jump height
