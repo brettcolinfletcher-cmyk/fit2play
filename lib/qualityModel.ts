@@ -391,3 +391,36 @@ export function scoreOverall(
   if (weightSum === 0) return null;
   return Math.round(weighted / weightSum);
 }
+
+export type ScoreBand = {
+  key: string;
+  /** athlete-facing label */
+  label: string;
+  /** ring / score colour */
+  color: string;
+  /** inclusive lower bound on the 0-100 scale */
+  min: number;
+};
+
+/**
+ * Five athlete-facing bands, ordered high → low. Single source of truth for
+ * both ring colour and the headline label so they can never drift apart.
+ * Cutpoints are interim (placeholder, like the interim scores) — retune
+ * alongside the norm dataset.
+ */
+export const SCORE_BANDS: ScoreBand[] = [
+  { key: "elite", label: "Elite", color: "#34d399", min: 85 },
+  { key: "strong", label: "Strong", color: "#a3e635", min: 70 },
+  { key: "solid", label: "Solid", color: "#38bdf8", min: 55 },
+  { key: "building", label: "Building", color: "#fbbf24", min: 40 },
+  { key: "developing", label: "Developing", color: "#fb923c", min: 0 },
+];
+
+/** Resolve a 0-100 score to its band. Returns null only for null/NaN input. Exported for ring panel + overall label. */
+export function scoreBand(score: number | null): ScoreBand | null {
+  if (score == null || Number.isNaN(score)) return null;
+  return (
+    SCORE_BANDS.find((b) => score >= b.min) ??
+    SCORE_BANDS[SCORE_BANDS.length - 1]
+  );
+}
