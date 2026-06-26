@@ -28,6 +28,7 @@ type SessionRow = {
   created_at: string;
   session_date: string | null;
   test_type: string | null;
+  test_sub_type: string | null;
 };
 type MetricRow = { session_id: string; key: string; value: number };
 type ReportRow = {
@@ -74,6 +75,16 @@ function fmt(v: number | null, decimals = 2) {
 function isSprintType(t: string | null) {
   if (!t) return false;
   return t === "1080_sprint" || t.startsWith("1080") || t.includes("sprint");
+}
+
+/** Sub-types that are linear sprint efforts (not COD or gait protocols). */
+function isLinearSubType(sub: string | null): boolean {
+  if (!sub) return true; // no sub-type = treat as linear
+  const s = sub.toLowerCase();
+  // Exclude COD drills and running gait protocols
+  if (s.includes("5-10-5") || s.includes("5-0-5") || s.includes("shuttle")) return false;
+  if (s.includes("running (lr)") || s.includes("running(lr)")) return false;
+  return true;
 }
 
 function parseSport(raw: string | null): { sport: string; level: string } {
@@ -236,11 +247,11 @@ export default function SprintReportPage() {
       athleteIds.map(async (aid) => {
         const { data: sessData } = await supabase
           .from("sessions")
-          .select("id, athlete_id, created_at, session_date, test_type")
+          .select("id, athlete_id, created_at, session_date, test_type, test_sub_type")
           .eq("athlete_id", aid)
           .order("session_date", { ascending: true });
-        const sprintSessions = ((sessData ?? []) as SessionRow[]).filter((s) =>
-          isSprintType(s.test_type)
+        const sprintSessions = ((sessData ?? []) as SessionRow[]).filter(
+          (s) => isSprintType(s.test_type) && isLinearSubType(s.test_sub_type)
         );
         newSessions[aid] = sprintSessions;
         if (sprintSessions.length > 0) {
@@ -275,11 +286,11 @@ export default function SprintReportPage() {
     async function load() {
       const { data: sessData } = await supabase
         .from("sessions")
-        .select("id, athlete_id, created_at, session_date, test_type")
+        .select("id, athlete_id, created_at, session_date, test_type, test_sub_type")
         .eq("athlete_id", selectedId)
         .order("session_date", { ascending: true });
-      const sprintSessions = ((sessData ?? []) as SessionRow[]).filter((s) =>
-        isSprintType(s.test_type)
+      const sprintSessions = ((sessData ?? []) as SessionRow[]).filter(
+        (s) => isSprintType(s.test_type) && isLinearSubType(s.test_sub_type)
       );
       setSessions(sprintSessions);
       if (!sprintSessions.length) {
@@ -310,11 +321,43 @@ export default function SprintReportPage() {
   }, [viewMode, benchmarkAthleteIds, loadAthletesSprintData]);
 
   const reportRows = useMemo<ReportRow[]>(() => {
-    return sessions.map((s) => {
+    // Collapse multiple sessions on the same date to one row (best values per metric)
+    const byDate = new Map<string, ReportRow>();
+    const chronological = [...sessions].sort((a, b) =>
+      (a.session_date ?? a.created_at).localeCompare(b.session_date ?? b.created_at)
+    );
+    for (const s of chronological) {
+      const d = (s.session_date ?? s.created_at).slice(0, 10);
       const m = sessionMetricsMap(s.id, metrics);
-      return reportRowFromSession(s, m);
-    });
+      const row = reportRowFromSession(s, m);
+      const existing = byDate.get(d);
+      if (!existing) {
+        byDate.set(d, row);
+      } else {
+        // Merge: take best value per metric
+        byDate.set(d, {
+          ...existing,
+          topSpeed: best(existing.topSpeed, row.topSpeed, false),
+          totalTime: best(existing.totalTime, row.totalTime, true),
+          split5m: best(existing.split5m, row.split5m, true),
+          maxAcceleration: best(existing.maxAcceleration, row.maxAcceleration, false),
+          peakForce: best(existing.peakForce, row.peakForce, false),
+          peakPower: best(existing.peakPower, row.peakPower, false),
+        });
+      }
+    }
+    return [...byDate.values()];
   }, [sessions, metrics]);
+
+  function best(
+    a: number | null,
+    b: number | null,
+    lowerIsBetter: boolean
+  ): number | null {
+    if (a == null) return b;
+    if (b == null) return a;
+    return lowerIsBetter ? Math.min(a, b) : Math.max(a, b);
+  }
 
   const avg = useMemo(() => {
     const cols = [
