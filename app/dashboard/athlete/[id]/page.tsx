@@ -13,6 +13,7 @@ import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import DashboardNav from "@/components/DashboardNav";
 import AthleteRingPanel from "@/components/AthleteRingPanel";
+import AthleteTestSummary from "@/components/AthleteTestSummary";
 import {
   ResponsiveContainer,
   LineChart,
@@ -118,6 +119,8 @@ export default function AthleteProfilePage() {
   const [injuryError, setInjuryError] = useState<string | null>(null);
   const [metricLatest, setMetricLatest] = useState<Record<string, number>>({});
   const [metricPrev, setMetricPrev] = useState<Record<string, number>>({});
+  const [metricSides, setMetricSides] = useState<Record<string, number>>({});
+  const [showAllSessions, setShowAllSessions] = useState(false);
 
   const loadData = useCallback(async () => {
     if (!athleteId) return;
@@ -166,6 +169,7 @@ export default function AthleteProfilePage() {
         setInjuries([]);
         setMetricLatest({});
         setMetricPrev({});
+        setMetricSides({});
         return;
       }
       setAthlete(json.athlete as AthleteRow);
@@ -173,11 +177,13 @@ export default function AthleteProfilePage() {
       setInjuries((json.injuries as InjuryRow[]) ?? []);
       setMetricLatest((json.metricLatest as Record<string, number>) ?? {});
       setMetricPrev((json.metricPrev as Record<string, number>) ?? {});
+      setMetricSides((json.metricSides as Record<string, number>) ?? {});
     } catch {
       setLoadError("Failed to load athlete");
       setAthlete(null);
       setMetricLatest({});
       setMetricPrev({});
+      setMetricSides({});
     } finally {
       setLoading(false);
     }
@@ -445,6 +451,12 @@ export default function AthleteProfilePage() {
               />
             </div>
 
+            <AthleteTestSummary
+              metricLatest={metricLatest}
+              metricPrev={metricPrev}
+              metricSides={metricSides}
+            />
+
             {/* Charts */}
             <div className="mt-6 grid gap-6 lg:grid-cols-2">
               <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5">
@@ -572,11 +584,21 @@ export default function AthleteProfilePage() {
 
             {/* Session history */}
             <div className="mt-6 overflow-hidden rounded-xl border border-slate-800 bg-slate-900/40">
-              <div className="border-b border-slate-800 px-5 py-4">
+              <div className="flex items-center justify-between border-b border-slate-800 px-5 py-4">
                 <h2 className="text-xs uppercase tracking-wide text-slate-500">
                   Session history
                 </h2>
+                <button
+                  type="button"
+                  onClick={() => setShowAllSessions((v) => !v)}
+                  className="text-xs font-medium text-slate-400 transition hover:text-lime-300"
+                >
+                  {showAllSessions
+                    ? "Hide"
+                    : `View all sessions (${sortedDesc.length})`}
+                </button>
               </div>
+              {showAllSessions && (
               <div className="overflow-x-auto">
                 <table className="min-w-full text-left">
                   <thead>
@@ -633,6 +655,7 @@ export default function AthleteProfilePage() {
                   </tbody>
                 </table>
               </div>
+              )}
             </div>
 
             {/* Injury / rehab */}

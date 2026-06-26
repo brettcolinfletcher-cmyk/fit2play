@@ -147,6 +147,23 @@ export async function GET(
     if (row.prev != null) metricPrev[k] = Number(row.prev);
   }
 
+  const { data: sideRows } = await supabase.rpc("athlete_test_sides", {
+    p_athlete: id,
+  });
+  const metricSides: Record<string, number> = {};
+  for (const row of (sideRows ?? []) as Array<{
+    test_type: string;
+    key: string;
+    side: string;
+    latest: number | string | null;
+  }>) {
+    if (row.latest != null) {
+      metricSides[`${row.test_type}:${row.key}:${row.side}`] = Number(
+        row.latest
+      );
+    }
+  }
+
   return NextResponse.json({
     athlete,
     sessions,
@@ -154,5 +171,6 @@ export async function GET(
     performanceBands,
     metricLatest,
     metricPrev,
+    metricSides,
   });
 }

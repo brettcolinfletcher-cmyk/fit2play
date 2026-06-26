@@ -11,32 +11,6 @@ type Props = {
   metricPrev: Record<string, number>;
 };
 
-/** Headline metric shown under each ring (representative live value). */
-const HEADLINE: Record<
-  string,
-  { mapKey: string; unit: string; digits: number; magnitude?: boolean }
-> = {
-  speed: { mapKey: "1080_sprint:top_speed", unit: "m/s", digits: 2 },
-  acceleration: { mapKey: "1080_sprint:accel_max", unit: "m/s\u00b2", digits: 2 },
-  deceleration: {
-    mapKey: "1080_sprint:decel_max",
-    unit: "m/s\u00b2",
-    digits: 2,
-    magnitude: true,
-  },
-  power: { mapKey: "1080_sprint:peak_power", unit: "W", digits: 0 },
-  reactive_strength: {
-    mapKey: "force_plate_dj:fp_rsi_best",
-    unit: "RSI",
-    digits: 2,
-  },
-  strength: {
-    mapKey: "force_plate_isometric:peak_force",
-    unit: "N",
-    digits: 0,
-  },
-};
-
 function ringColor(score: number | null): string {
   if (score == null) return "#475569";
   if (score >= 80) return "#4ade80";
@@ -113,17 +87,38 @@ function Trend({
   );
 }
 
+function ScoreTrend({
+  score,
+  prev,
+}: {
+  score: number | null;
+  prev: number | null;
+}) {
+  if (score == null || prev == null) return null;
+  const diff = score - prev;
+  if (diff === 0) return <span className="text-xs text-slate-400">—</span>;
+  const up = diff > 0;
+  return (
+    <span
+      className={`text-xs tabular-nums ${
+        up ? "text-emerald-400" : "text-rose-400"
+      }`}
+    >
+      {up ? "↑" : "↓"} {Math.abs(diff)} pts
+    </span>
+  );
+}
+
 export default function AthleteRingPanel({ metricLatest, metricPrev }: Props) {
   const qualityScores: Record<string, number | null> = {};
   const rows = QUALITY_MODEL.map((q) => {
     const score = scoreQuality(q, metricLatest);
+    const prevScore = scoreQuality(q, metricPrev);
     qualityScores[q.key] = score;
-    const h = HEADLINE[q.key];
-    const rawLatest = h ? metricLatest[h.mapKey] ?? null : null;
-    const rawPrev = h ? metricPrev[h.mapKey] ?? null : null;
-    const val =
-      rawLatest != null && h?.magnitude ? Math.abs(rawLatest) : rawLatest;
-    return { q, score, val, rawLatest, rawPrev, h };
+    const count = q.contributors.filter(
+      (c) => metricLatest[`${c.testType}:${c.metricKey}`] != null
+    ).length;
+    return { q, score, prevScore, count };
   });
   const overall = scoreOverall(qualityScores);
 
@@ -169,7 +164,7 @@ export default function AthleteRingPanel({ metricLatest, metricPrev }: Props) {
 
       {/* Quality rings */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        {rows.map(({ q, score, val, rawLatest, rawPrev, h }) => (
+        {rows.map(({ q, score, prevScore, count }) => (
           <div
             key={q.key}
             className="flex flex-col items-center rounded-xl border border-slate-800 bg-slate-900/40 p-4 text-center"
@@ -184,10 +179,10 @@ export default function AthleteRingPanel({ metricLatest, metricPrev }: Props) {
             </div>
             <p className="mt-2 text-sm font-medium text-slate-200">{q.label}</p>
             <p className="mt-0.5 text-xs text-slate-400 tabular-nums">
-              {val != null ? `${val.toFixed(h?.digits ?? 1)} ${h?.unit ?? ""}` : "—"}
+              {count} test{count === 1 ? "" : "s"}
             </p>
             <div className="mt-1">
-              <Trend latest={rawLatest} prev={rawPrev} />
+              <ScoreTrend score={score} prev={prevScore} />
             </div>
           </div>
         ))}
