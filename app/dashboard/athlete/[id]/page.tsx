@@ -20,13 +20,15 @@ import SprintTrendPanel, {
 import CmjTrendPanel, { type CmjRow } from "@/components/CmjTrendPanel";
 import DjTrendPanel, { type DjRow } from "@/components/DjTrendPanel";
 import SlDjTrendPanel, { type SlDjRow } from "@/components/SlDjTrendPanel";
+import DynamometryTrendPanel, {
+  type DynamometryRows,
+} from "@/components/DynamometryTrendPanel";
 import type { NormalizedSession } from "@/lib/athleteDashboardData";
 import { formatDisplayDate } from "@/lib/dateDisplay";
 import {
   formatTestTypeLabel,
-  isDynamometerType,
-  isForcePlateType,
   isSprintLikeType,
+  isForcePlateType,
 } from "@/lib/athleteDashboardData";
 
 type AthleteRow = {
@@ -59,32 +61,14 @@ function createSupabaseBrowser() {
 function keyResultsLine(s: NormalizedSession): string {
   if (isSprintLikeType(s.testType)) {
     const parts: string[] = [];
-    if (s.peakSpeed != null) {
-      parts.push(`Peak ${s.peakSpeed.toFixed(2)} m/s`);
-    }
-    if (s.split05m != null) {
-      parts.push(`5m ${s.split05m.toFixed(2)} s`);
-    }
+    if (s.peakSpeed != null) parts.push(`Peak ${s.peakSpeed.toFixed(2)} m/s`);
+    if (s.split05m != null) parts.push(`5m ${s.split05m.toFixed(2)} s`);
     return parts.length ? parts.join(" · ") : "—";
   }
   if (isForcePlateType(s.testType)) {
     const parts: string[] = [];
-    if (s.jumpHeightCm != null) {
-      parts.push(`Jump ${s.jumpHeightCm.toFixed(1)} cm`);
-    }
-    if (s.rsi != null) {
-      parts.push(`RSI ${s.rsi.toFixed(2)}`);
-    }
-    return parts.length ? parts.join(" · ") : "—";
-  }
-  if (isDynamometerType(s.testType)) {
-    const parts: string[] = [];
-    if (s.dynoPeakForce != null) {
-      parts.push(`PF ${s.dynoPeakForce.toFixed(0)} N`);
-    }
-    if (s.dynoRfd != null) {
-      parts.push(`RFD ${s.dynoRfd.toFixed(0)}`);
-    }
+    if (s.jumpHeightCm != null) parts.push(`Jump ${s.jumpHeightCm.toFixed(1)} cm`);
+    if (s.rsi != null) parts.push(`RSI ${s.rsi.toFixed(2)}`);
     return parts.length ? parts.join(" · ") : "—";
   }
   return "—";
@@ -118,6 +102,7 @@ export default function AthleteProfilePage() {
   const [fpTrendMetrics, setFpTrendMetrics] = useState<{
     session_date: string;
     test_type: string;
+    test_sub_type: string | null;
     key: string;
     value: string;
     side: string | null;
@@ -222,7 +207,7 @@ export default function AthleteProfilePage() {
   const dynoChrono = useMemo(
     () =>
       sessions
-        .filter((s) => isDynamometerType(s.testType))
+        .filter((s) => s.testType === "force_plate_isometric")
         .sort(
           (a, b) =>
             new Date(a.sessionDate ?? a.createdAt).getTime() -
@@ -274,7 +259,7 @@ export default function AthleteProfilePage() {
   }, [sessions]);
 
   const lastDynoDomain = useMemo(() => {
-    const arr = sessions.filter((s) => isDynamometerType(s.testType));
+    const arr = sessions.filter((s) => s.testType === "force_plate_isometric");
     if (!arr.length) return null;
     return new Date(
       Math.max(...arr.map((s) => new Date(s.sessionDate ?? s.createdAt).getTime()))
@@ -371,6 +356,43 @@ export default function AthleteProfilePage() {
         jumpRight: jumpR != null ? Math.round(jumpR * 1000) / 10 : null,
       };
     });
+  }, [fpTrendMetrics]);
+
+  const dynamometryRows = useMemo<DynamometryRows>(() => {
+    const isoRows = fpTrendMetrics.filter(
+      (r) => r.test_type === "force_plate_isometric"
+    );
+    const dates = [...new Set(isoRows.map((r) => r.session_date.slice(0, 10)))].sort();
+
+    function buildSubTest(
+      subKeyword: string
+    ): import("@/components/DynamometryTrendPanel").IsoTestRow[] {
+      return dates.map((d) => {
+        const dayRows = isoRows.filter(
+          (r) =>
+            r.session_date.slice(0, 10) === d &&
+            (r.test_sub_type ?? "").toLowerCase().includes(subKeyword)
+        );
+        const get = (key: string, side: string) => {
+          const r = dayRows.find((x) => x.key === key && x.side === side);
+          return r ? Number(r.value) : null;
+        };
+        return {
+          date: formatDisplayDate(d),
+          rawDate: d,
+          leftForce: get("peak_force", "left"),
+          rightForce: get("peak_force", "right"),
+          leftRfd: get("peak_rfd", "left"),
+          rightRfd: get("peak_rfd", "right"),
+        };
+      }).filter((r) => r.leftForce != null || r.rightForce != null);
+    }
+
+    return {
+      kneeExtension: buildSubTest("knee extension"),
+      kneeFlexion: buildSubTest("knee flexion"),
+      hipAbduction: buildSubTest("hip abduction"),
+    };
   }, [fpTrendMetrics]);
 
   async function handleAddInjury(e: FormEvent) {
@@ -543,28 +565,9 @@ export default function AthleteProfilePage() {
               </div>
             )}
 
-            <div className="mt-6 rounded-xl border border-slate-800 bg-slate-900/40 p-5">
-              <h2 className="text-xs uppercase tracking-wide text-slate-500">
-                Dynamometer
-              </h2>
-              <p className="mt-1 text-xs text-slate-400">
-                Last tested:{" "}
-                {lastDynoDomain ? formatDisplayDate(lastDynoDomain) : "—"}
-              </p>
-              {dynoChrono.length === 0 ? (
-                <p className="mt-3 text-sm text-slate-400">
-                  No dynamometer sessions yet.
-                </p>
-              ) : (
-                <div className="mt-3 text-xs text-slate-200">
-                  <p>
-                    Latest session:{" "}
-                    <span className="font-semibold tabular-nums text-slate-50">
-                      {keyResultsLine(dynoChrono[dynoChrono.length - 1])}
-                    </span>
-                  </p>
-                </div>
-              )}
+            {/* Dynamometry / isometric strength */}
+            <div className="mt-6">
+              <DynamometryTrendPanel rows={dynamometryRows} />
             </div>
 
             {/* Session history */}
