@@ -77,13 +77,12 @@ function isSprintType(t: string | null) {
   return t === "1080_sprint" || t.startsWith("1080") || t.includes("sprint");
 }
 
-/** Sub-types that are linear sprint efforts (not COD or gait protocols). */
+/** Sub-types to exclude — non-sprint protocols with no meaningful sprint metrics. */
 function isLinearSubType(sub: string | null): boolean {
-  if (!sub) return true; // no sub-type = treat as linear
+  if (!sub) return true;
   const s = sub.toLowerCase();
-  // Exclude COD drills and running gait protocols
-  if (s.includes("5-10-5") || s.includes("5-0-5") || s.includes("shuttle")) return false;
-  if (s.includes("running (lr)") || s.includes("running(lr)")) return false;
+  // Exclude only pure non-sprint protocols
+  if (s.includes("broad jump") || s.includes("unilat foot") || s.includes("jump - power")) return false;
   return true;
 }
 
