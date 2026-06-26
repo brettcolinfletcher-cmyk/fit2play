@@ -17,20 +17,12 @@ import AthleteTestSummary from "@/components/AthleteTestSummary";
 import SprintTrendPanel, {
   type SprintReportRow,
 } from "@/components/SprintTrendPanel";
-import {
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ReferenceLine,
-} from "recharts";
+import CmjTrendPanel, { type CmjRow } from "@/components/CmjTrendPanel";
+import DjTrendPanel, { type DjRow } from "@/components/DjTrendPanel";
+import SlDjTrendPanel, { type SlDjRow } from "@/components/SlDjTrendPanel";
 import type { NormalizedSession } from "@/lib/athleteDashboardData";
 import { formatDisplayDate } from "@/lib/dateDisplay";
 import {
-  BENCHMARK_JUMP_HEIGHT_CM,
   formatTestTypeLabel,
   isDynamometerType,
   isForcePlateType,
@@ -219,18 +211,6 @@ export default function AthleteProfilePage() {
     [sessions]
   );
 
-  const fpChrono = useMemo(
-    () =>
-      sessions
-        .filter((s) => isForcePlateType(s.testType))
-        .sort(
-          (a, b) =>
-            new Date(a.sessionDate ?? a.createdAt).getTime() -
-            new Date(b.sessionDate ?? b.createdAt).getTime()
-        ),
-    [sessions]
-  );
-
   const dynoChrono = useMemo(
     () =>
       sessions
@@ -244,8 +224,39 @@ export default function AthleteProfilePage() {
   );
 
   const cmjChrono = useMemo(
-    () => fpChrono.filter((s) => s.testType === "force_plate_cmj"),
-    [fpChrono]
+    () =>
+      sessions
+        .filter((s) => s.testType === "force_plate_cmj")
+        .sort(
+          (a, b) =>
+            new Date(a.sessionDate ?? a.createdAt).getTime() -
+            new Date(b.sessionDate ?? b.createdAt).getTime()
+        ),
+    [sessions]
+  );
+
+  const djChrono = useMemo(
+    () =>
+      sessions
+        .filter((s) => s.testType === "force_plate_dj")
+        .sort(
+          (a, b) =>
+            new Date(a.sessionDate ?? a.createdAt).getTime() -
+            new Date(b.sessionDate ?? b.createdAt).getTime()
+        ),
+    [sessions]
+  );
+
+  const slDjChrono = useMemo(
+    () =>
+      sessions
+        .filter((s) => s.testType === "force_plate_dj_single")
+        .sort(
+          (a, b) =>
+            new Date(a.sessionDate ?? a.createdAt).getTime() -
+            new Date(b.sessionDate ?? b.createdAt).getTime()
+        ),
+    [sessions]
   );
 
   const lastTestDate = useMemo(() => {
@@ -311,16 +322,56 @@ export default function AthleteProfilePage() {
     [sprintByDate]
   );
 
-  const jumpChartData = useMemo(
+  const cmjRows = useMemo<CmjRow[]>(
     () =>
-      cmjChrono
-        .filter((s) => s.jumpHeightCm != null)
-        .map((s) => ({
-          label: formatDisplayDate(s.sessionDate ?? s.createdAt),
-          jumpHeight: s.jumpHeightCm,
-        })),
+      cmjChrono.map((s) => ({
+        date: formatDisplayDate(s.sessionDate ?? s.createdAt),
+        rawDate: s.sessionDate ?? s.createdAt,
+        jumpHeightCm: s.jumpHeightCm,
+        mrsi: s.rsi,
+        peakPropulsiveForce: s.fpPeakPropulsiveForce,
+        lrAsymmetryPct: null, // fp_lr_peak_propulsive_force not in NormalizedSession yet
+      })),
     [cmjChrono]
   );
+
+  const djRows = useMemo<DjRow[]>(
+    () =>
+      djChrono.map((s) => ({
+        date: formatDisplayDate(s.sessionDate ?? s.createdAt),
+        rawDate: s.sessionDate ?? s.createdAt,
+        rsi: s.rsi,
+        jumpHeightCm: s.jumpHeightCm,
+        contactTime: null, // not in NormalizedSession — carried in metrics EAV only
+        flightTime: null,
+      })),
+    [djChrono]
+  );
+
+  const slDjRows = useMemo<SlDjRow[]>(() => {
+    // Group by date — single-leg sessions share a date, L and R are separate rows
+    const byDate = new Map<string, { left: NormalizedSession | null; right: NormalizedSession | null }>();
+    for (const s of slDjChrono) {
+      const d = (s.sessionDate ?? s.createdAt).slice(0, 10);
+      const entry = byDate.get(d) ?? { left: null, right: null };
+      // side stored in session testSubType or we use rsi directly per side
+      // The API returns one row per session; side info lives in metrics EAV.
+      // Use the rsi field as-is — for now map two sessions same date to L/R by index.
+      if (!entry.left) entry.left = s;
+      else entry.right = s;
+      byDate.set(d, entry);
+    }
+    return [...byDate.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, { left, right }]) => ({
+        date: formatDisplayDate(date),
+        rawDate: date,
+        rsiLeft: left?.rsi ?? null,
+        rsiRight: right?.rsi ?? null,
+        jumpLeft: left?.jumpHeightCm ?? null,
+        jumpRight: right?.jumpHeightCm ?? null,
+      }));
+  }, [slDjChrono]);
 
   async function handleAddInjury(e: FormEvent) {
     e.preventDefault();
@@ -471,57 +522,26 @@ export default function AthleteProfilePage() {
               <SprintTrendPanel rows={sprintReportRows} />
             </div>
 
-            {/* Jump height trend */}
-            <div className="mt-6">
-              <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5">
-                <h2 className="text-xs uppercase tracking-wide text-slate-500">
-                  Force plate — jump height
-                </h2>
-                <p className="mt-1 text-xs text-slate-400">
-                  Benchmark {BENCHMARK_JUMP_HEIGHT_CM} cm (dashed)
-                </p>
-                {jumpChartData.length === 0 ? (
-                  <p className="mt-4 text-xs text-slate-400">
-                    No jump height data in force plate sessions yet.
-                  </p>
-                ) : (
-                  <div className="mt-4 h-64">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={jumpChartData}>
-                        <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
-                        <XAxis
-                          dataKey="label"
-                          tick={{ fontSize: 10, fill: "#94a3b8" }}
-                        />
-                        <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} />
-                        <Tooltip
-                          contentStyle={{
-                            backgroundColor: "#0f172a",
-                            border: "1px solid #334155",
-                            borderRadius: 10,
-                            fontSize: 12,
-                            color: "#e2e8f0",
-                          }}
-                        />
-                        <ReferenceLine
-                          y={BENCHMARK_JUMP_HEIGHT_CM}
-                          stroke="#94a3b8"
-                          strokeDasharray="6 4"
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="jumpHeight"
-                          name="Jump height"
-                          stroke="#84cc16"
-                          strokeWidth={2}
-                          dot={{ r: 3 }}
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-                )}
+            {/* CMJ trend */}
+            {cmjRows.length > 0 && (
+              <div className="mt-6">
+                <CmjTrendPanel rows={cmjRows} />
               </div>
-            </div>
+            )}
+
+            {/* Bilateral drop-jump trend */}
+            {djRows.length > 0 && (
+              <div className="mt-6">
+                <DjTrendPanel rows={djRows} />
+              </div>
+            )}
+
+            {/* Single-leg drop-jump asymmetry — RTP centrepiece */}
+            {slDjRows.length > 0 && (
+              <div className="mt-6">
+                <SlDjTrendPanel rows={slDjRows} />
+              </div>
+            )}
 
             <div className="mt-6 rounded-xl border border-slate-800 bg-slate-900/40 p-5">
               <h2 className="text-xs uppercase tracking-wide text-slate-500">

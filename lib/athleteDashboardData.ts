@@ -304,8 +304,10 @@ export const BENCHMARK_JUMP_HEIGHT_CM = 30;
 const FP_TYPES = new Set([
   "force_plate",
   "force_plate_dj",
+  "force_plate_dj_single",
   "force_plate_cmj",
   "force_plate_imtp",
+  "force_plate_isometric",
   "force_plate_calf",
 ]);
 
