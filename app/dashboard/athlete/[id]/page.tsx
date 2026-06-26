@@ -115,6 +115,13 @@ export default function AthleteProfilePage() {
   const [metricPrev, setMetricPrev] = useState<Record<string, number>>({});
   const [metricSides, setMetricSides] = useState<Record<string, number>>({});
   const [sectionComments, setSectionComments] = useState<Record<string, string>>({});
+  const [fpTrendMetrics, setFpTrendMetrics] = useState<{
+    session_date: string;
+    test_type: string;
+    key: string;
+    value: string;
+    side: string | null;
+  }[]>([]);
   const [showAllSessions, setShowAllSessions] = useState(false);
 
   const loadData = useCallback(async () => {
@@ -174,6 +181,7 @@ export default function AthleteProfilePage() {
       setMetricPrev((json.metricPrev as Record<string, number>) ?? {});
       setMetricSides((json.metricSides as Record<string, number>) ?? {});
       setSectionComments((json.sectionComments as Record<string, string>) ?? {});
+      setFpTrendMetrics((json.fpTrendMetrics as typeof fpTrendMetrics) ?? []);
     } catch {
       setLoadError("Failed to load athlete");
       setAthlete(null);
@@ -215,42 +223,6 @@ export default function AthleteProfilePage() {
     () =>
       sessions
         .filter((s) => isDynamometerType(s.testType))
-        .sort(
-          (a, b) =>
-            new Date(a.sessionDate ?? a.createdAt).getTime() -
-            new Date(b.sessionDate ?? b.createdAt).getTime()
-        ),
-    [sessions]
-  );
-
-  const cmjChrono = useMemo(
-    () =>
-      sessions
-        .filter((s) => s.testType === "force_plate_cmj")
-        .sort(
-          (a, b) =>
-            new Date(a.sessionDate ?? a.createdAt).getTime() -
-            new Date(b.sessionDate ?? b.createdAt).getTime()
-        ),
-    [sessions]
-  );
-
-  const djChrono = useMemo(
-    () =>
-      sessions
-        .filter((s) => s.testType === "force_plate_dj")
-        .sort(
-          (a, b) =>
-            new Date(a.sessionDate ?? a.createdAt).getTime() -
-            new Date(b.sessionDate ?? b.createdAt).getTime()
-        ),
-    [sessions]
-  );
-
-  const slDjChrono = useMemo(
-    () =>
-      sessions
-        .filter((s) => s.testType === "force_plate_dj_single")
         .sort(
           (a, b) =>
             new Date(a.sessionDate ?? a.createdAt).getTime() -
@@ -322,56 +294,84 @@ export default function AthleteProfilePage() {
     [sprintByDate]
   );
 
-  const cmjRows = useMemo<CmjRow[]>(
-    () =>
-      cmjChrono.map((s) => ({
-        date: formatDisplayDate(s.sessionDate ?? s.createdAt),
-        rawDate: s.sessionDate ?? s.createdAt,
-        jumpHeightCm: s.jumpHeightCm,
-        mrsi: s.rsi,
-        peakPropulsiveForce: s.fpPeakPropulsiveForce,
-        lrAsymmetryPct: null, // fp_lr_peak_propulsive_force not in NormalizedSession yet
-      })),
-    [cmjChrono]
-  );
+  const cmjRows = useMemo<CmjRow[]>(() => {
+    const dates = [...new Set(
+      fpTrendMetrics
+        .filter((r) => r.test_type === "force_plate_cmj")
+        .map((r) => r.session_date.slice(0, 10))
+    )].sort();
+    return dates.map((d) => {
+      const rows = fpTrendMetrics.filter(
+        (r) => r.test_type === "force_plate_cmj" && r.session_date.slice(0, 10) === d
+      );
+      const get = (key: string) => {
+        const r = rows.find((x) => x.key === key);
+        return r ? Number(r.value) : null;
+      };
+      const jumpM = get("fp_jump_height");
+      return {
+        date: formatDisplayDate(d),
+        rawDate: d,
+        jumpHeightCm: jumpM != null ? Math.round(jumpM * 1000) / 10 : null,
+        mrsi: get("fp_mrsi"),
+        peakPropulsiveForce: get("fp_peak_propulsive_force"),
+        lrAsymmetryPct: get("fp_lr_peak_propulsive_force"),
+      };
+    });
+  }, [fpTrendMetrics]);
 
-  const djRows = useMemo<DjRow[]>(
-    () =>
-      djChrono.map((s) => ({
-        date: formatDisplayDate(s.sessionDate ?? s.createdAt),
-        rawDate: s.sessionDate ?? s.createdAt,
-        rsi: s.rsi,
-        jumpHeightCm: s.jumpHeightCm,
-        contactTime: null, // not in NormalizedSession — carried in metrics EAV only
-        flightTime: null,
-      })),
-    [djChrono]
-  );
+  const djRows = useMemo<DjRow[]>(() => {
+    const dates = [...new Set(
+      fpTrendMetrics
+        .filter((r) => r.test_type === "force_plate_dj")
+        .map((r) => r.session_date.slice(0, 10))
+    )].sort();
+    return dates.map((d) => {
+      const rows = fpTrendMetrics.filter(
+        (r) => r.test_type === "force_plate_dj" && r.session_date.slice(0, 10) === d
+      );
+      const get = (key: string) => {
+        const r = rows.find((x) => x.key === key);
+        return r ? Number(r.value) : null;
+      };
+      const jumpM = get("fp_jump_height");
+      return {
+        date: formatDisplayDate(d),
+        rawDate: d,
+        rsi: get("fp_rsi_best"),
+        jumpHeightCm: jumpM != null ? Math.round(jumpM * 1000) / 10 : null,
+        contactTime: get("fp_contact_time"),
+        flightTime: get("fp_flight_time"),
+      };
+    });
+  }, [fpTrendMetrics]);
 
   const slDjRows = useMemo<SlDjRow[]>(() => {
-    // Group by date — single-leg sessions share a date, L and R are separate rows
-    const byDate = new Map<string, { left: NormalizedSession | null; right: NormalizedSession | null }>();
-    for (const s of slDjChrono) {
-      const d = (s.sessionDate ?? s.createdAt).slice(0, 10);
-      const entry = byDate.get(d) ?? { left: null, right: null };
-      // side stored in session testSubType or we use rsi directly per side
-      // The API returns one row per session; side info lives in metrics EAV.
-      // Use the rsi field as-is — for now map two sessions same date to L/R by index.
-      if (!entry.left) entry.left = s;
-      else entry.right = s;
-      byDate.set(d, entry);
-    }
-    return [...byDate.entries()]
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([date, { left, right }]) => ({
-        date: formatDisplayDate(date),
-        rawDate: date,
-        rsiLeft: left?.rsi ?? null,
-        rsiRight: right?.rsi ?? null,
-        jumpLeft: left?.jumpHeightCm ?? null,
-        jumpRight: right?.jumpHeightCm ?? null,
-      }));
-  }, [slDjChrono]);
+    const dates = [...new Set(
+      fpTrendMetrics
+        .filter((r) => r.test_type === "force_plate_dj_single")
+        .map((r) => r.session_date.slice(0, 10))
+    )].sort();
+    return dates.map((d) => {
+      const rows = fpTrendMetrics.filter(
+        (r) => r.test_type === "force_plate_dj_single" && r.session_date.slice(0, 10) === d
+      );
+      const getSide = (key: string, side: string) => {
+        const r = rows.find((x) => x.key === key && x.side === side);
+        return r ? Number(r.value) : null;
+      };
+      const jumpL = getSide("fp_jump_height", "left");
+      const jumpR = getSide("fp_jump_height", "right");
+      return {
+        date: formatDisplayDate(d),
+        rawDate: d,
+        rsiLeft: getSide("fp_rsi_best", "left"),
+        rsiRight: getSide("fp_rsi_best", "right"),
+        jumpLeft: jumpL != null ? Math.round(jumpL * 1000) / 10 : null,
+        jumpRight: jumpR != null ? Math.round(jumpR * 1000) / 10 : null,
+      };
+    });
+  }, [fpTrendMetrics]);
 
   async function handleAddInjury(e: FormEvent) {
     e.preventDefault();

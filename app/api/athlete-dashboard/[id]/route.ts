@@ -159,6 +159,10 @@ export async function GET(
     }
   }
 
+  const { data: fpRows } = await supabase.rpc("athlete_fp_trend_metrics", {
+    p_athlete: id,
+  });
+
   return NextResponse.json({
     athlete,
     sessions,
@@ -167,5 +171,6 @@ export async function GET(
     metricPrev,
     metricSides,
     sectionComments,
+    fpTrendMetrics: fpRows ?? [],
   });
 }
