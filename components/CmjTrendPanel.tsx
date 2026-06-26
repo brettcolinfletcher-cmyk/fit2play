@@ -82,8 +82,8 @@ export default function CmjTrendPanel({
           <LineChart data={rows} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
             <XAxis dataKey="date" tick={{ fill: "#94a3b8", fontSize: 11 }} axisLine={false} tickLine={false} />
-            <YAxis yAxisId="jump" orientation="left" tick={{ fill: "#94a3b8", fontSize: 11 }} axisLine={false} tickLine={false} width={36} label={{ value: "cm", angle: -90, position: "insideLeft", fill: "#475569", fontSize: 10 }} />
-            <YAxis yAxisId="rsi" orientation="right" tick={{ fill: "#94a3b8", fontSize: 11 }} axisLine={false} tickLine={false} width={36} label={{ value: "mRSI", angle: 90, position: "insideRight", fill: "#475569", fontSize: 10 }} />
+            <YAxis yAxisId="jump" orientation="left" tick={{ fill: "#94a3b8", fontSize: 11 }} axisLine={false} tickLine={false} width={36} />
+            <YAxis yAxisId="rsi" orientation="right" tick={{ fill: "#94a3b8", fontSize: 11 }} axisLine={false} tickLine={false} width={36} />
             <Tooltip contentStyle={TOOLTIP_STYLE} labelStyle={{ color: "#a3e635", fontWeight: 600 }} />
             <Legend wrapperStyle={{ fontSize: 11, color: "#94a3b8" }} />
             {/* benchmark 30cm */}

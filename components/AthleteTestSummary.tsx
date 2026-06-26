@@ -109,12 +109,12 @@ function SymmetryBars({
 
   return (
     <div className="mt-4 border-t border-slate-800/80 pt-4">
-      <div className="mb-2 flex items-center justify-between">
+      <div className="mb-2 flex items-center justify-between gap-2">
         <p className="text-[0.65rem] uppercase tracking-widest text-slate-500">{label} · L / R</p>
-        <div className="flex items-center gap-1.5">
-          <span className={`text-xs font-bold tabular-nums ${status.color}`}>{lsi}% LSI</span>
-          <span className={`text-[0.6rem] ${status.color} opacity-70`}>· {status.label}</span>
-        </div>
+        <span className={`shrink-0 text-xs font-bold tabular-nums ${status.color}`}>
+          {lsi}% LSI
+          <span className="ml-1 font-normal opacity-60">· {status.label}</span>
+        </span>
       </div>
       <div className="space-y-2">
         {[
