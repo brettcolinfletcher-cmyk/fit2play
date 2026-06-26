@@ -2,10 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { normalizeSessionRow } from "@/lib/athleteDashboardData";
 import type { NormalizedSession } from "@/lib/athleteDashboardData";
-import {
-  normalizePerformanceBandRow,
-  type NormalizedPerformanceBand,
-} from "@/lib/performanceBands";
 
 export const dynamic = "force-dynamic";
 
@@ -119,16 +115,15 @@ export async function GET(
     return NextResponse.json({ error: injError.message }, { status: 500 });
   }
 
-  const { data: bandRows, error: bandError } = await supabase
-    .from("performance_bands")
-    .select("*");
+  const { data: commentRows } = await supabase
+    .from("athlete_section_comments")
+    .select("section, comment")
+    .eq("athlete_id", id);
 
-  const performanceBands: NormalizedPerformanceBand[] = [];
-  if (!bandError && bandRows) {
-    for (const row of bandRows) {
-      const n = normalizePerformanceBandRow(row as Record<string, unknown>);
-      if (n) performanceBands.push(n);
-    }
+  const sectionComments: Record<string, string> = {};
+  for (const row of commentRows ?? []) {
+    const r = row as { section: string; comment: string | null };
+    if (r.comment) sectionComments[r.section] = r.comment;
   }
 
   const { data: qmRows } = await supabase.rpc("athlete_quality_metrics", {
@@ -168,9 +163,9 @@ export async function GET(
     athlete,
     sessions,
     injuries: injuries ?? [],
-    performanceBands,
     metricLatest,
     metricPrev,
     metricSides,
+    sectionComments,
   });
 }

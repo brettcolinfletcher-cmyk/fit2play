@@ -6,6 +6,7 @@ type Props = {
   metricLatest: Record<string, number>;
   metricPrev: Record<string, number>;
   metricSides: Record<string, number>;
+  sectionComments?: Record<string, string>;
 };
 
 type HeadlineMetric = {
@@ -81,7 +82,15 @@ const TESTS: TestDef[] = [
   },
 ];
 
-/** Which quality rings a given test feeds, derived from the model so they stay in sync. */
+const SECTION_KEY: Record<string, string> = {
+  "1080_sprint": "linear",
+  force_plate_cmj: "cmj",
+  force_plate_dj: "drop_jump",
+  force_plate_dj_single: "drop_jump_single",
+  force_plate_isometric: "dynamometry",
+};
+
+
 function feedsFor(testType: string): string[] {
   return QUALITY_MODEL.filter((q) =>
     q.contributors.some((c) => c.testType === testType)
@@ -170,6 +179,7 @@ export default function AthleteTestSummary({
   metricLatest,
   metricPrev,
   metricSides,
+  sectionComments = {},
 }: Props) {
   const cards = TESTS.map((t) => {
     const metrics = t.headline
@@ -280,6 +290,18 @@ export default function AthleteTestSummary({
                 ))}
               </div>
             ) : null}
+
+            {(() => {
+              const commentKey = SECTION_KEY[t.type];
+              const note = commentKey ? sectionComments[commentKey] : undefined;
+              if (!note) return null;
+              return (
+                <div className="mt-3 flex gap-2 rounded-lg border border-slate-700/60 bg-slate-950/50 px-3 py-2.5">
+                  <span className="mt-0.5 shrink-0 text-[0.75rem] text-slate-500">💬</span>
+                  <p className="text-xs leading-relaxed text-slate-300">{note}</p>
+                </div>
+              );
+            })()}
           </div>
         ))}
       </div>

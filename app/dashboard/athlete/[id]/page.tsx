@@ -122,6 +122,7 @@ export default function AthleteProfilePage() {
   const [metricLatest, setMetricLatest] = useState<Record<string, number>>({});
   const [metricPrev, setMetricPrev] = useState<Record<string, number>>({});
   const [metricSides, setMetricSides] = useState<Record<string, number>>({});
+  const [sectionComments, setSectionComments] = useState<Record<string, string>>({});
   const [showAllSessions, setShowAllSessions] = useState(false);
 
   const loadData = useCallback(async () => {
@@ -180,6 +181,7 @@ export default function AthleteProfilePage() {
       setMetricLatest((json.metricLatest as Record<string, number>) ?? {});
       setMetricPrev((json.metricPrev as Record<string, number>) ?? {});
       setMetricSides((json.metricSides as Record<string, number>) ?? {});
+      setSectionComments((json.sectionComments as Record<string, string>) ?? {});
     } catch {
       setLoadError("Failed to load athlete");
       setAthlete(null);
@@ -461,6 +463,7 @@ export default function AthleteProfilePage() {
               metricLatest={metricLatest}
               metricPrev={metricPrev}
               metricSides={metricSides}
+              sectionComments={sectionComments}
             />
 
             {/* Sprint trend — chart + longitudinal table */}
