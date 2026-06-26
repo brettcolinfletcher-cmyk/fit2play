@@ -20,6 +20,7 @@ import type {
   ReportSessionRow,
 } from "@/lib/athleteReportData";
 import type { CriteriaResolver, ReportVisibility } from "@/lib/reportSections";
+import AthleteAvatar from "@/components/AthleteAvatar";
 
 type AthleteIdentity = {
   first_name: string | null;
@@ -32,6 +33,7 @@ type AthleteIdentity = {
   height_cm?: number | null;
   weight_kg?: number | null;
   dominant_hand?: string | null;
+  profile_image_url?: string | null;
 };
 
 type Props = {
@@ -170,9 +172,12 @@ export default function SnapshotHeader({
     <section id="snapshot" className="scroll-mt-28 mt-6 space-y-4">
       <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-5">
         <div className="flex flex-wrap items-start gap-4">
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-lime-500/30 bg-lime-500/10 text-lg font-semibold text-lime-300">
-            {initials(athlete)}
-          </div>
+          <AthleteAvatar
+            url={athlete?.profile_image_url}
+            firstName={athlete?.first_name}
+            lastName={athlete?.last_name}
+            size={56}
+          />
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-xl font-semibold text-slate-50">{displayName(athlete)}</h2>

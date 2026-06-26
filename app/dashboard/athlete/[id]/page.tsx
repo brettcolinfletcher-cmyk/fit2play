@@ -20,9 +20,8 @@ import SprintTrendPanel, {
 import CmjTrendPanel, { type CmjRow } from "@/components/CmjTrendPanel";
 import DjTrendPanel, { type DjRow } from "@/components/DjTrendPanel";
 import SlDjTrendPanel, { type SlDjRow } from "@/components/SlDjTrendPanel";
-import DynamometryTrendPanel, {
-  type DynamometryRows,
-} from "@/components/DynamometryTrendPanel";
+import AthleteAvatar from "@/components/AthleteAvatar";
+import DynamometryTrendPanel, { type DynamometryRows } from "@/components/DynamometryTrendPanel";
 import type { NormalizedSession } from "@/lib/athleteDashboardData";
 import { formatDisplayDate } from "@/lib/dateDisplay";
 import {
@@ -38,6 +37,7 @@ type AthleteRow = {
   primary_sport: string | null;
   team: string | null;
   organisation: string | null;
+  profile_image_url: string | null;
 };
 
 type InjuryRow = {
@@ -492,15 +492,23 @@ export default function AthleteProfilePage() {
             <header className="relative overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/60 px-6 py-5">
               <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,_#a3e63508_0%,_transparent_60%)]" />
               <div className="relative flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <p className="text-[0.62rem] uppercase tracking-widest text-slate-500">Athlete profile</p>
-                  <h1 className="mt-1 text-3xl font-bold tracking-tight text-slate-50">
-                    {athlete.first_name} {athlete.last_name}
-                  </h1>
-                  <p className="mt-1 text-sm text-slate-400">
-                    {[athlete.primary_sport, athlete.team].filter(Boolean).join(" · ")}
-                    {athlete.organisation ? ` · ${athlete.organisation}` : ""}
-                  </p>
+                <div className="flex items-center gap-4">
+                  <AthleteAvatar
+                    url={athlete.profile_image_url}
+                    firstName={athlete.first_name}
+                    lastName={athlete.last_name}
+                    size={72}
+                  />
+                  <div>
+                    <p className="text-[0.62rem] uppercase tracking-widest text-slate-500">Athlete profile</p>
+                    <h1 className="mt-1 text-3xl font-bold tracking-tight text-slate-50">
+                      {athlete.first_name} {athlete.last_name}
+                    </h1>
+                    <p className="mt-1 text-sm text-slate-400">
+                      {[athlete.primary_sport, athlete.team].filter(Boolean).join(" · ")}
+                      {athlete.organisation ? ` · ${athlete.organisation}` : ""}
+                    </p>
+                  </div>
                 </div>
                 <dl className="flex flex-wrap gap-5 md:text-right">
                   {[

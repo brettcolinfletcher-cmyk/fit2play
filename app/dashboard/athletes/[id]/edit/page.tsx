@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import DashboardNav from "@/components/DashboardNav";
+import AthleteAvatar from "@/components/AthleteAvatar";
 import { useRequireDashboardStaff } from "@/lib/useRequireDashboardStaff";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -56,6 +57,9 @@ export default function EditAthletePage() {
   const [error, setError] = useState<string | null>(null);
   const [showDelete, setShowDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!staffOk || !id) return;
@@ -99,12 +103,54 @@ export default function EditAthletePage() {
         dominant_hand: String(a.dominant_hand ?? ""),
         notes: String(a.notes ?? ""),
       });
+      setPhotoUrl(a.profile_image_url ? String(a.profile_image_url) : null);
       setLoading(false);
     })();
     return () => {
       cancelled = true;
     };
   }, [staffOk, id]);
+
+  async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !id) return;
+    if (file.size > 5 * 1024 * 1024) {
+      setPhotoError("Photo must be under 5 MB");
+      return;
+    }
+    setPhotoUploading(true);
+    setPhotoError(null);
+    const ext = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
+    const path = `${id}.${ext}`;
+    const { error: upErr } = await supabase.storage
+      .from("athlete-avatars")
+      .upload(path, file, { upsert: true, contentType: file.type });
+    if (upErr) {
+      setPhotoError(upErr.message);
+      setPhotoUploading(false);
+      return;
+    }
+    const { data: urlData } = supabase.storage
+      .from("athlete-avatars")
+      .getPublicUrl(path);
+    const publicUrl = `${urlData.publicUrl}?t=${Date.now()}`;
+    const { error: dbErr } = await supabase
+      .from("athletes")
+      .update({ profile_image_url: urlData.publicUrl })
+      .eq("id", id);
+    if (dbErr) {
+      setPhotoError(dbErr.message);
+    } else {
+      setPhotoUrl(publicUrl);
+    }
+    setPhotoUploading(false);
+  }
+
+  async function handleRemovePhoto() {
+    if (!id) return;
+    await supabase.from("athletes").update({ profile_image_url: null }).eq("id", id);
+    setPhotoUrl(null);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -201,6 +247,36 @@ export default function EditAthletePage() {
           <p className="mt-6 text-sm text-slate-500">Loading…</p>
         ) : (
           <form onSubmit={handleSubmit} className="mt-8 space-y-4 rounded-2xl border border-slate-800 bg-slate-900/40 p-6 text-sm shadow-xl shadow-lime-400/10">
+            {/* Photo upload */}
+            <div className="flex items-center gap-4 border-b border-slate-800 pb-5">
+              <AthleteAvatar url={photoUrl} firstName={form.first_name} lastName={form.last_name} size={72} />
+              <div>
+                <p className="text-xs font-medium text-slate-300">Profile photo</p>
+                <p className="mt-0.5 text-[0.68rem] text-slate-500">JPG or PNG · max 5 MB</p>
+                <div className="mt-2 flex items-center gap-3">
+                  <label className="cursor-pointer rounded-full border border-slate-700 bg-slate-800 px-3 py-1.5 text-[0.72rem] font-medium text-slate-300 hover:border-slate-600 hover:text-slate-100">
+                    {photoUploading ? "Uploading…" : photoUrl ? "Change" : "Upload"}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="sr-only"
+                      disabled={photoUploading}
+                      onChange={handlePhotoUpload}
+                    />
+                  </label>
+                  {photoUrl && (
+                    <button
+                      type="button"
+                      onClick={handleRemovePhoto}
+                      className="text-[0.72rem] text-slate-500 hover:text-rose-400"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+                {photoError && <p className="mt-1 text-[0.68rem] text-rose-400">{photoError}</p>}
+              </div>
+            </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <label className="mb-1 block text-xs text-slate-400">
