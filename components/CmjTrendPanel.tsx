@@ -86,54 +86,15 @@ export default function CmjTrendPanel({
             <YAxis yAxisId="rsi" orientation="right" tick={{ fill: "#94a3b8", fontSize: 11 }} axisLine={false} tickLine={false} width={36} />
             <Tooltip contentStyle={TOOLTIP_STYLE} labelStyle={{ color: "#a3e635", fontWeight: 600 }} />
             <Legend wrapperStyle={{ fontSize: 11, color: "#94a3b8" }} />
-            {/* benchmark 30cm */}
             <ReferenceLine yAxisId="jump" y={30} stroke="#475569" strokeDasharray="6 4" />
             <Line yAxisId="jump" type="monotone" dataKey="jumpHeightCm" name="Jump height (cm)" stroke="#a3e635" strokeWidth={2} dot={{ fill: "#a3e635", r: 4 }} activeDot={{ r: 6 }} connectNulls />
             <Line yAxisId="rsi" type="monotone" dataKey="mrsi" name="mRSI" stroke="#38bdf8" strokeWidth={2} dot={{ fill: "#38bdf8", r: 4 }} activeDot={{ r: 6 }} connectNulls />
           </LineChart>
         </ResponsiveContainer>
       </div>
-
-      <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/40">
-        <table className="min-w-full text-left">
-          <thead>
-            <tr className="border-b border-slate-800 text-[0.7rem] font-medium uppercase tracking-widest text-slate-500">
-              <th className="py-3 pl-5 pr-4">Date</th>
-              <th className="py-3 px-4">Jump height (cm)</th>
-              <th className="py-3 px-4">mRSI</th>
-              <th className="py-3 px-4">Peak prop. force (N)</th>
-              <th className="py-3 pr-5 pl-4">L:R asymmetry %</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-800/60">
-            {rows.map((row, i) => (
-              <tr key={i} className="transition-colors hover:bg-slate-800/40">
-                <td className="py-3 pl-5 pr-4 text-xs font-medium text-slate-200">{row.date}</td>
-                <MC value={row.jumpHeightCm} avg={avgs.jumpHeightCm} lb={false} dp={1} />
-                <MC value={row.mrsi} avg={avgs.mrsi} lb={false} dp={3} />
-                <MC value={row.peakPropulsiveForce} avg={avgs.peakPropulsiveForce} lb={false} dp={0} />
-                {/* asymmetry: lower is better */}
-                <MC value={row.lrAsymmetryPct} avg={avgs.lrAsymmetryPct} lb={true} dp={1} suffix="%" />
-              </tr>
-            ))}
-          </tbody>
-          <tfoot>
-            <tr className="border-t-2 border-slate-700 bg-slate-900/60 text-[0.72rem] font-semibold text-slate-300">
-              <td className="py-3 pl-5 pr-4 text-slate-400">Average</td>
-              <td className="py-3 px-4 text-lime-300">{fmt(avgs.jumpHeightCm, 1)}</td>
-              <td className="py-3 px-4">{fmt(avgs.mrsi, 3)}</td>
-              <td className="py-3 px-4">{fmt(avgs.peakPropulsiveForce, 0)}</td>
-              <td className="py-3 pr-5 pl-4">{fmt(avgs.lrAsymmetryPct, 1)}{avgs.lrAsymmetryPct != null ? "%" : ""}</td>
-            </tr>
-          </tfoot>
-        </table>
-      </div>
-
       <p className="text-[0.68rem] text-slate-500">
-        <span className="mr-2 inline-block rounded bg-emerald-500/15 px-1.5 py-0.5 text-emerald-400">Green</span>
-        better than average ·{" "}
-        <span className="mr-2 inline-block rounded bg-red-500/15 px-1.5 py-0.5 text-red-400">Red</span>
-        below average · dashed line = 30 cm benchmark
+        <span className="mr-2 inline-block rounded bg-slate-800 px-1.5 py-0.5 text-slate-400">- - -</span>
+        30 cm benchmark
       </p>
     </div>
   );

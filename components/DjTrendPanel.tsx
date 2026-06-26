@@ -89,48 +89,6 @@ export default function DjTrendPanel({
           </LineChart>
         </ResponsiveContainer>
       </div>
-
-      <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/40">
-        <table className="min-w-full text-left">
-          <thead>
-            <tr className="border-b border-slate-800 text-[0.7rem] font-medium uppercase tracking-widest text-slate-500">
-              <th className="py-3 pl-5 pr-4">Date</th>
-              <th className="py-3 px-4">RSI</th>
-              <th className="py-3 px-4">Jump height (cm)</th>
-              <th className="py-3 px-4">Contact time (s)</th>
-              <th className="py-3 pr-5 pl-4">Flight time (s)</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-800/60">
-            {rows.map((row, i) => (
-              <tr key={i} className="transition-colors hover:bg-slate-800/40">
-                <td className="py-3 pl-5 pr-4 text-xs font-medium text-slate-200">{row.date}</td>
-                <MC value={row.rsi} avg={avgs.rsi} lb={false} dp={3} />
-                <MC value={row.jumpHeightCm} avg={avgs.jumpHeightCm} lb={false} dp={1} />
-                {/* contact time: lower is better (stiffer = faster SSC) */}
-                <MC value={row.contactTime} avg={avgs.contactTime} lb={true} dp={3} />
-                <MC value={row.flightTime} avg={avgs.flightTime} lb={false} dp={3} />
-              </tr>
-            ))}
-          </tbody>
-          <tfoot>
-            <tr className="border-t-2 border-slate-700 bg-slate-900/60 text-[0.72rem] font-semibold text-slate-300">
-              <td className="py-3 pl-5 pr-4 text-slate-400">Average</td>
-              <td className="py-3 px-4 text-lime-300">{fmt(avgs.rsi, 3)}</td>
-              <td className="py-3 px-4">{fmt(avgs.jumpHeightCm, 1)}</td>
-              <td className="py-3 px-4">{fmt(avgs.contactTime, 3)}</td>
-              <td className="py-3 pr-5 pl-4">{fmt(avgs.flightTime, 3)}</td>
-            </tr>
-          </tfoot>
-        </table>
-      </div>
-
-      <p className="text-[0.68rem] text-slate-500">
-        <span className="mr-2 inline-block rounded bg-emerald-500/15 px-1.5 py-0.5 text-emerald-400">Green</span>
-        better than average ·{" "}
-        <span className="mr-2 inline-block rounded bg-red-500/15 px-1.5 py-0.5 text-red-400">Red</span>
-        below average · contact time: lower = stiffer SSC strategy
-      </p>
     </div>
   );
 }

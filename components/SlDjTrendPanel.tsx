@@ -118,52 +118,8 @@ export default function SlDjTrendPanel({
         </ResponsiveContainer>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/40">
-        <table className="min-w-full text-left">
-          <thead>
-            <tr className="border-b border-slate-800 text-[0.7rem] font-medium uppercase tracking-widest text-slate-500">
-              <th className="py-3 pl-5 pr-4">Date</th>
-              <th className="py-3 px-4 text-[#60a5fa]">L RSI</th>
-              <th className="py-3 px-4 text-[#a3e635]">R RSI</th>
-              <th className="py-3 px-4">LSI %</th>
-              <th className="py-3 px-4 text-[#60a5fa]">L jump (cm)</th>
-              <th className="py-3 pr-5 pl-4 text-[#a3e635]">R jump (cm)</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-800/60">
-            {rows.map((row, i) => {
-              const rowLsi = lsi(row.rsiLeft, row.rsiRight);
-              return (
-                <tr key={i} className="transition-colors hover:bg-slate-800/40">
-                  <td className="py-3 pl-5 pr-4 text-xs font-medium text-slate-200">{row.date}</td>
-                  <td className="py-3 px-4 text-xs tabular-nums font-medium text-[#60a5fa]">
-                    {fmt(row.rsiLeft, 3)}
-                  </td>
-                  <td className="py-3 px-4 text-xs tabular-nums font-medium text-[#a3e635]">
-                    {fmt(row.rsiRight, 3)}
-                  </td>
-                  <td className={`py-3 px-4 text-xs tabular-nums font-semibold ${lsiColor(rowLsi)}`}>
-                    {rowLsi != null ? `${rowLsi}%` : "—"}
-                  </td>
-                  <td className="py-3 px-4 text-xs tabular-nums text-slate-300">
-                    {fmt(row.jumpLeft, 1)}
-                  </td>
-                  <td className="py-3 pr-5 pl-4 text-xs tabular-nums text-slate-300">
-                    {fmt(row.jumpRight, 1)}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-
       <p className="text-[0.68rem] text-slate-500">
-        LSI:{" "}
-        <span className="text-emerald-400">≥90%</span> symmetrical ·{" "}
-        <span className="text-amber-400">80–89%</span> monitoring ·{" "}
-        <span className="text-rose-400">&lt;80%</span> asymmetric ·{" "}
-        <span className="text-[#60a5fa]">Blue = Left</span> ·{" "}
+        <span className="text-[#60a5fa]">Blue = Left</span>{" · "}
         <span className="text-[#a3e635]">Lime = Right</span>
       </p>
     </div>

@@ -121,88 +121,14 @@ function IsoSubPanel({
         <ResponsiveContainer width="100%" height={240}>
           <LineChart data={rows} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
-            <XAxis
-              dataKey="date"
-              tick={{ fill: "#94a3b8", fontSize: 11 }}
-              axisLine={false}
-              tickLine={false}
-            />
-            <YAxis
-              tick={{ fill: "#94a3b8", fontSize: 11 }}
-              axisLine={false}
-              tickLine={false}
-              width={40}
-              label={{ value: "N", angle: -90, position: "insideLeft", fill: "#475569", fontSize: 10 }}
-            />
-            <Tooltip
-              contentStyle={TOOLTIP_STYLE}
-              labelStyle={{ color: "#a3e635", fontWeight: 600 }}
-            />
+            <XAxis dataKey="date" tick={{ fill: "#94a3b8", fontSize: 11 }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fill: "#94a3b8", fontSize: 11 }} axisLine={false} tickLine={false} width={40} />
+            <Tooltip contentStyle={TOOLTIP_STYLE} labelStyle={{ color: "#a3e635", fontWeight: 600 }} />
             <Legend wrapperStyle={{ fontSize: 11, color: "#94a3b8" }} />
-            <Line
-              type="monotone"
-              dataKey="leftForce"
-              name="Left (N)"
-              stroke="#60a5fa"
-              strokeWidth={2.5}
-              dot={{ fill: "#60a5fa", r: 5, strokeWidth: 0 }}
-              activeDot={{ r: 7 }}
-              connectNulls
-            />
-            <Line
-              type="monotone"
-              dataKey="rightForce"
-              name="Right (N)"
-              stroke="#a3e635"
-              strokeWidth={2.5}
-              dot={{ fill: "#a3e635", r: 5, strokeWidth: 0 }}
-              activeDot={{ r: 7 }}
-              connectNulls
-            />
+            <Line type="monotone" dataKey="leftForce" name="Left (N)" stroke="#60a5fa" strokeWidth={2.5} dot={{ fill: "#60a5fa", r: 5, strokeWidth: 0 }} activeDot={{ r: 7 }} connectNulls />
+            <Line type="monotone" dataKey="rightForce" name="Right (N)" stroke="#a3e635" strokeWidth={2.5} dot={{ fill: "#a3e635", r: 5, strokeWidth: 0 }} activeDot={{ r: 7 }} connectNulls />
           </LineChart>
         </ResponsiveContainer>
-      </div>
-
-      <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/40">
-        <table className="min-w-full text-left">
-          <thead>
-            <tr className="border-b border-slate-800 text-[0.7rem] font-medium uppercase tracking-widest text-slate-500">
-              <th className="py-3 pl-5 pr-4">Date</th>
-              <th className="py-3 px-4 text-[#60a5fa]">L Force (N)</th>
-              <th className="py-3 px-4 text-[#a3e635]">R Force (N)</th>
-              <th className="py-3 px-4">LSI %</th>
-              <th className="py-3 px-4 text-[#60a5fa]">L RFD</th>
-              <th className="py-3 pr-5 pl-4 text-[#a3e635]">R RFD</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-800/60">
-            {rows.map((row, i) => {
-              const rowLsi = lsi(row.leftForce, row.rightForce);
-              return (
-                <tr key={i} className="transition-colors hover:bg-slate-800/40">
-                  <td className="py-3 pl-5 pr-4 text-xs font-medium text-slate-200">
-                    {row.date}
-                  </td>
-                  <td className="py-3 px-4 text-xs tabular-nums font-medium text-[#60a5fa]">
-                    {fmt(row.leftForce)}
-                  </td>
-                  <td className="py-3 px-4 text-xs tabular-nums font-medium text-[#a3e635]">
-                    {fmt(row.rightForce)}
-                  </td>
-                  <td className={`py-3 px-4 text-xs tabular-nums font-semibold ${lsiColor(rowLsi)}`}>
-                    {rowLsi != null ? `${rowLsi}%` : "—"}
-                  </td>
-                  <td className="py-3 px-4 text-xs tabular-nums text-slate-300">
-                    {fmt(row.leftRfd)}
-                  </td>
-                  <td className="py-3 pr-5 pl-4 text-xs tabular-nums text-slate-300">
-                    {fmt(row.rightRfd)}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
       </div>
     </div>
   );
@@ -246,13 +172,8 @@ export default function DynamometryTrendPanel({
       )}
 
       <p className="text-[0.68rem] text-slate-500">
-        LSI:{" "}
-        <span className="text-emerald-400">≥90%</span> symmetrical ·{" "}
-        <span className="text-amber-400">80–89%</span> monitoring ·{" "}
-        <span className="text-rose-400">&lt;80%</span> asymmetric ·{" "}
-        <span className="text-[#60a5fa]">Blue = Left</span> ·{" "}
-        <span className="text-[#a3e635]">Lime = Right</span> ·{" "}
-        RFD = rate of force development (N/s)
+        <span className="text-[#60a5fa]">Blue = Left</span>{" · "}
+        <span className="text-[#a3e635]">Lime = Right</span>
       </p>
     </div>
   );
