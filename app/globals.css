@@ -25,7 +25,49 @@ body {
   font-family: var(--font-sans), system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
-/* App-wide page background gradient used across dashboard pages and homepage hero */
+/* Light theme overrides — applied via data-theme attribute on main wrapper */
+[data-theme="light"] .bg-slate-900\/40,
+[data-theme="light"] .bg-slate-900\/60,
+[data-theme="light"] .bg-slate-900\/50 { background-color: rgba(255,255,255,0.95) !important; }
+[data-theme="light"] .bg-slate-950\/60,
+[data-theme="light"] .bg-slate-950\/40 { background-color: rgba(248,250,252,0.9) !important; }
+[data-theme="light"] .bg-slate-950 { background-color: #f8fafc !important; }
+[data-theme="light"] .bg-slate-900 { background-color: #ffffff !important; }
+[data-theme="light"] .bg-slate-800\/60,
+[data-theme="light"] .bg-slate-800\/40 { background-color: rgba(241,245,249,0.8) !important; }
+[data-theme="light"] .bg-slate-800 { background-color: #f1f5f9 !important; }
+[data-theme="light"] .border-slate-800 { border-color: #e2e8f0 !important; }
+[data-theme="light"] .border-slate-800\/60 { border-color: rgba(226,232,240,0.6) !important; }
+[data-theme="light"] .border-slate-700 { border-color: #cbd5e1 !important; }
+[data-theme="light"] .border-slate-700\/60 { border-color: rgba(203,213,225,0.6) !important; }
+[data-theme="light"] .border-slate-700\/40 { border-color: rgba(203,213,225,0.4) !important; }
+[data-theme="light"] .text-slate-50 { color: #0f172a !important; }
+[data-theme="light"] .text-slate-100 { color: #1e293b !important; }
+[data-theme="light"] .text-slate-200 { color: #334155 !important; }
+[data-theme="light"] .text-slate-300 { color: #475569 !important; }
+[data-theme="light"] .text-slate-400 { color: #64748b !important; }
+[data-theme="light"] .text-slate-500 { color: #94a3b8 !important; }
+[data-theme="light"] .divide-slate-800\/60 > * + * { border-color: rgba(226,232,240,0.6) !important; }
+/* Keep accent colours as-is — lime, emerald, blue, rose still work on light */
+/* Keep chart tooltips dark */
+[data-theme="light"] .recharts-tooltip-wrapper .recharts-default-tooltip { background: #1e293b !important; border-color: #334155 !important; }
+
+/* Bordered variant — lime borders on all cards */
+[data-theme="bordered"] .border-slate-800,
+[data-theme="bordered"] .border-slate-700 { border-color: #a3e635 !important; border-width: 1.5px !important; }
+[data-theme="bordered"] .border-slate-800\/60,
+[data-theme="bordered"] .border-slate-700\/60 { border-color: rgba(163,230,53,0.5) !important; }
+
+/* Tinted variant — warm tint on card backgrounds */
+[data-theme="tinted"] .bg-slate-900\/40,
+[data-theme="tinted"] .bg-slate-900\/60,
+[data-theme="tinted"] .bg-slate-900\/50 { background-color: rgba(240,253,244,0.95) !important; }
+[data-theme="tinted"] .bg-slate-950\/60,
+[data-theme="tinted"] .bg-slate-950\/40 { background-color: rgba(220,252,231,0.7) !important; }
+[data-theme="tinted"] .border-slate-800 { border-color: #86efac !important; }
+[data-theme="tinted"] .border-slate-700 { border-color: #4ade80 !important; }
+
+/* App-wide page background gradient */
 .bg-app-gradient {
   background: radial-gradient(circle at top, #111827 0, #020617 55%);
 }
