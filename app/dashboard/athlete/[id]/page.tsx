@@ -116,6 +116,7 @@ export default function AthleteProfilePage() {
     side: string | null;
   }[]>([]);
   const [showAllSessions, setShowAllSessions] = useState(false);
+  const [lightMode, setLightMode] = useState(false);
 
   const loadData = useCallback(async () => {
     if (!athleteId) return;
@@ -498,7 +499,7 @@ export default function AthleteProfilePage() {
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_#111827_0,_#020617_55%)] text-slate-50">
+    <main className={lightMode ? "min-h-screen bg-gray-50 text-slate-900" : "min-h-screen bg-[radial-gradient(circle_at_top,_#111827_0,_#020617_55%)] text-slate-50"}>
       <DashboardNav />
 
       <section className="mx-auto max-w-7xl px-4 pt-8 pb-20">
@@ -510,12 +511,25 @@ export default function AthleteProfilePage() {
           >
             ← Back to dashboard
           </button>
-          <Link
-            href={`/dashboard/athlete/${athleteId}/compare`}
-            className="rounded-full border border-slate-800 bg-slate-900/40 px-4 py-1.5 text-xs font-medium text-slate-200 transition hover:border-lime-400/40 hover:text-lime-300"
-          >
-            Compare pre / post
-          </Link>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setLightMode((v) => !v)}
+              className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${
+                lightMode
+                  ? "border-slate-300 bg-white text-slate-600 hover:border-slate-400"
+                  : "border-slate-700 bg-slate-800/60 text-slate-300 hover:border-slate-600"
+              }`}
+            >
+              {lightMode ? "🌙 Dark" : "☀️ Light"}
+            </button>
+            <Link
+              href={`/dashboard/athlete/${athleteId}/compare`}
+              className="rounded-full border border-slate-800 bg-slate-900/40 px-4 py-1.5 text-xs font-medium text-slate-200 transition hover:border-lime-400/40 hover:text-lime-300"
+            >
+              Compare pre / post
+            </Link>
+          </div>
         </div>
 
         {loading ? (
