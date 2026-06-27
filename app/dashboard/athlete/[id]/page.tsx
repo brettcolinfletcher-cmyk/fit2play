@@ -119,12 +119,12 @@ export default function AthleteProfilePage() {
   const [theme, setTheme] = useState<"navy" | "slate" | "frosted" | "bordered" | "tinted" | "zinc">("navy");
 
   const THEMES = {
-    navy:    { bg: "bg-[radial-gradient(circle_at_top,_#111827_0,_#020617_55%)]", card: "bg-slate-900/40",  border: "border-slate-800",      text: "text-slate-50",  dataTheme: "navy",     label: "Current" },
-    slate:   { bg: "bg-[#1a2535]",  card: "bg-[#243447]",   border: "border-[#2d4057]",     text: "text-slate-100", dataTheme: "navy",     label: "Slate" },
-    frosted: { bg: "bg-gray-100",   card: "bg-white",       border: "border-gray-200",      text: "text-slate-900", dataTheme: "light",    label: "Frosted" },
-    bordered:{ bg: "bg-gray-100",   card: "bg-white",       border: "border-lime-400",      text: "text-slate-900", dataTheme: "bordered", label: "2A — Borders" },
-    tinted:  { bg: "bg-[#f0fdf4]", card: "bg-emerald-50",   border: "border-emerald-200",   text: "text-slate-900", dataTheme: "tinted",   label: "2B — Tinted" },
-    zinc:    { bg: "bg-[#18181b]",  card: "bg-[#27272a]",   border: "border-[#3f3f46]",     text: "text-slate-50",  dataTheme: "navy",     label: "Charcoal" },
+    navy:    { bg: "bg-[radial-gradient(circle_at_top,_#111827_0,_#020617_55%)]", card: "bg-slate-900/40",  border: "border-slate-800",    text: "text-slate-50",  dataTheme: "navy",     label: "Current" },
+    slate:   { bg: "bg-[#1a2535]",  card: "bg-[#243447]",   border: "border-[#2d4057]",   text: "text-slate-100", dataTheme: "navy",     label: "Slate" },
+    frosted: { bg: "bg-[#f1f5f9]",  card: "bg-white",       border: "border-gray-200",    text: "text-slate-900", dataTheme: "light",    label: "Frosted" },
+    bordered:{ bg: "bg-[#f1f5f9]",  card: "bg-white",       border: "border-lime-400",    text: "text-slate-900", dataTheme: "bordered", label: "2A — Borders" },
+    tinted:  { bg: "bg-[#dcfce7]",  card: "bg-white",       border: "border-emerald-300", text: "text-slate-900", dataTheme: "tinted",   label: "2B — Tinted" },
+    zinc:    { bg: "bg-[#18181b]",  card: "bg-[#27272a]",   border: "border-[#3f3f46]",   text: "text-slate-50",  dataTheme: "navy",     label: "Charcoal" },
   } as const;
   const t = THEMES[theme];
 
