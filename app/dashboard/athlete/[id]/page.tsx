@@ -116,6 +116,15 @@ export default function AthleteProfilePage() {
     side: string | null;
   }[]>([]);
   const [showAllSessions, setShowAllSessions] = useState(false);
+  const [theme, setTheme] = useState<"navy" | "slate" | "frosted" | "zinc">("navy");
+
+  const THEMES = {
+    navy:    { bg: "bg-[radial-gradient(circle_at_top,_#111827_0,_#020617_55%)]", card: "bg-slate-900/40", border: "border-slate-800", text: "text-slate-50",  sub: "text-slate-400", label: "Current" },
+    slate:   { bg: "bg-[#1a2535]",  card: "bg-[#243447]", border: "border-[#2d4057]", text: "text-slate-100", sub: "text-slate-400", label: "Deep slate" },
+    frosted: { bg: "bg-gray-100",   card: "bg-white",     border: "border-gray-200", text: "text-slate-900", sub: "text-slate-500", label: "Frosted" },
+    zinc:    { bg: "bg-[#18181b]",  card: "bg-[#27272a]", border: "border-[#3f3f46]", text: "text-slate-50",  sub: "text-slate-400", label: "Charcoal" },
+  } as const;
+  const t = THEMES[theme];
 
   const loadData = useCallback(async () => {
     if (!athleteId) return;
@@ -498,7 +507,7 @@ export default function AthleteProfilePage() {
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_#111827_0,_#020617_55%)] text-slate-50">
+    <main className={`min-h-screen ${t.bg} ${t.text}`}>
       <DashboardNav />
 
       <section className="mx-auto max-w-7xl px-4 pt-8 pb-20">
@@ -510,12 +519,31 @@ export default function AthleteProfilePage() {
           >
             ← Back to dashboard
           </button>
-          <Link
-            href={`/dashboard/athlete/${athleteId}/compare`}
-            className="rounded-full border border-slate-800 bg-slate-900/40 px-4 py-1.5 text-xs font-medium text-slate-200 transition hover:border-lime-400/40 hover:text-lime-300"
-          >
-            Compare pre / post
-          </Link>
+          <div className="flex items-center gap-2">
+            {/* Theme switcher */}
+            <div className="flex items-center gap-1 rounded-full border border-slate-700 bg-slate-900/40 p-1">
+              {(Object.keys(THEMES) as (keyof typeof THEMES)[]).map((key) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setTheme(key)}
+                  className={`rounded-full px-3 py-1 text-[0.65rem] font-medium transition ${
+                    theme === key
+                      ? "bg-lime-400 text-slate-950"
+                      : "text-slate-400 hover:text-slate-200"
+                  }`}
+                >
+                  {THEMES[key].label}
+                </button>
+              ))}
+            </div>
+            <Link
+              href={`/dashboard/athlete/${athleteId}/compare`}
+              className="rounded-full border border-slate-800 bg-slate-900/40 px-4 py-1.5 text-xs font-medium text-slate-200 transition hover:border-lime-400/40 hover:text-lime-300"
+            >
+              Compare pre / post
+            </Link>
+          </div>
         </div>
 
         {loading ? (
@@ -527,7 +555,7 @@ export default function AthleteProfilePage() {
         ) : (
           <>
             {/* ── Header ─────────────────────────────────────────────── */}
-            <header className="relative overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/60 px-6 py-5">
+            <header className={`relative overflow-hidden rounded-2xl border ${t.border} ${t.card} px-6 py-5`}>
               <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,_#a3e63508_0%,_transparent_60%)]" />
               <div className="relative flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div className="flex items-center gap-4">
