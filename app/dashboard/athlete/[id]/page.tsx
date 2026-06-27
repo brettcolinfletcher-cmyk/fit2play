@@ -22,6 +22,7 @@ import DjTrendPanel, { type DjRow } from "@/components/DjTrendPanel";
 import SlDjTrendPanel, { type SlDjRow } from "@/components/SlDjTrendPanel";
 import AthleteAvatar from "@/components/AthleteAvatar";
 import DynamometryTrendPanel, { type DynamometryRows } from "@/components/DynamometryTrendPanel";
+import HopJumpTrendPanel, { type HopJumpRows } from "@/components/HopJumpTrendPanel";
 import type { NormalizedSession } from "@/lib/athleteDashboardData";
 import { formatDisplayDate } from "@/lib/dateDisplay";
 import {
@@ -107,6 +108,13 @@ export default function AthleteProfilePage() {
     value: string;
     side: string | null;
   }[]>([]);
+  const [hopJumpMetrics, setHopJumpMetrics] = useState<{
+    session_date: string;
+    test_sub_type: string;
+    key: string;
+    value: string;
+    side: string | null;
+  }[]>([]);
   const [showAllSessions, setShowAllSessions] = useState(false);
 
   const loadData = useCallback(async () => {
@@ -167,6 +175,7 @@ export default function AthleteProfilePage() {
       setMetricSides((json.metricSides as Record<string, number>) ?? {});
       setSectionComments((json.sectionComments as Record<string, string>) ?? {});
       setFpTrendMetrics((json.fpTrendMetrics as typeof fpTrendMetrics) ?? []);
+      setHopJumpMetrics((json.hopJumpMetrics as typeof hopJumpMetrics) ?? []);
     } catch {
       setLoadError("Failed to load athlete");
       setAthlete(null);
@@ -395,6 +404,32 @@ export default function AthleteProfilePage() {
     };
   }, [fpTrendMetrics]);
 
+  const hopJumpRows = useMemo<HopJumpRows>(() => {
+    function buildRows(subType: string, bilateral: boolean): import("@/components/HopJumpTrendPanel").HopJumpRow[] {
+      const rows = hopJumpMetrics.filter((r) => r.test_sub_type === subType);
+      const dates = [...new Set(rows.map((r) => r.session_date.slice(0, 10)))].sort();
+      return dates.map((d) => {
+        const day = rows.filter((r) => r.session_date.slice(0, 10) === d);
+        const get = (key: string, side: string | null) => {
+          const r = day.find((x) => x.key === key && x.side === side);
+          return r ? Number(r.value) : null;
+        };
+        return {
+          date: formatDisplayDate(d),
+          rawDate: d,
+          distLeft: bilateral ? get("total_distance", null) : get("total_distance", "left"),
+          distRight: bilateral ? null : get("total_distance", "right"),
+          peakForce: bilateral ? get("peak_force", null) : null,
+        };
+      });
+    }
+    return {
+      broadJump: buildRows("Broad Jump", true),
+      slHop: buildRows("Single Leg Hop", false),
+      tripleHop: buildRows("Triple Hop", false),
+    };
+  }, [hopJumpMetrics]);
+
   const isoLatest = useMemo(() => {
     const isoRows = fpTrendMetrics.filter((r) => r.test_type === "force_plate_isometric");
     const latestDate = isoRows.length
@@ -556,6 +591,7 @@ export default function AthleteProfilePage() {
               {djRows.length > 0 && <DjTrendPanel rows={djRows} />}
               {slDjRows.length > 0 && <SlDjTrendPanel rows={slDjRows} />}
               <DynamometryTrendPanel rows={dynamometryRows} />
+              <HopJumpTrendPanel rows={hopJumpRows} />
             </div>
 
             {/* ── Admin (collapsed) ───────────────────────────────────── */}

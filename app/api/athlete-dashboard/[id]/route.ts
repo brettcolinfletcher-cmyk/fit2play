@@ -163,6 +163,10 @@ export async function GET(
     p_athlete: id,
   });
 
+  const { data: hopRows } = await supabase.rpc("athlete_hop_jump_metrics", {
+    p_athlete: id,
+  });
+
   return NextResponse.json({
     athlete,
     sessions,
@@ -172,5 +176,6 @@ export async function GET(
     metricSides,
     sectionComments,
     fpTrendMetrics: fpRows ?? [],
+    hopJumpMetrics: hopRows ?? [],
   });
 }

@@ -81,8 +81,8 @@ function isSprintType(t: string | null) {
 function isLinearSubType(sub: string | null): boolean {
   if (!sub) return true;
   const s = sub.toLowerCase();
-  // Exclude only pure non-sprint protocols
   if (s.includes("broad jump") || s.includes("unilat foot") || s.includes("jump - power")) return false;
+  if (s.includes("single leg hop") || s.includes("triple hop")) return false;
   return true;
 }
 
