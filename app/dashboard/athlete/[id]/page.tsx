@@ -405,7 +405,10 @@ export default function AthleteProfilePage() {
   }, [fpTrendMetrics]);
 
   const hopJumpRows = useMemo<HopJumpRows>(() => {
-    function buildRows(subType: string, bilateral: boolean): import("@/components/HopJumpTrendPanel").HopJumpRow[] {
+    function buildRows(
+      subType: string,
+      bilateral: boolean
+    ): import("@/components/HopJumpTrendPanel").HopJumpRow[] {
       const rows = hopJumpMetrics.filter((r) => r.test_sub_type === subType);
       const dates = [...new Set(rows.map((r) => r.session_date.slice(0, 10)))].sort();
       return dates.map((d) => {
@@ -419,7 +422,7 @@ export default function AthleteProfilePage() {
           rawDate: d,
           distLeft: bilateral ? get("total_distance", null) : get("total_distance", "left"),
           distRight: bilateral ? null : get("total_distance", "right"),
-          peakForce: bilateral ? get("peak_force", null) : null,
+          peakForce: get("peak_force", bilateral ? null : null),
         };
       });
     }
