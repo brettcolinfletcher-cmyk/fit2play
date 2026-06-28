@@ -203,16 +203,65 @@ body {
 [data-theme="bordered"] .shadow-2xl .bg-slate-900\/40,
 [data-theme="tinted"] .shadow-2xl .bg-slate-900\/40 { background-color: rgba(15,23,42,0.5) !important; }
 
-/* ── Dashboard nav — white bar with border on light themes ── */
-[data-theme="light"] nav,
-[data-theme="bordered"] nav,
-[data-theme="tinted"] nav { background-color: #ffffff !important; border-bottom: 1px solid #e2e8f0 !important; }
-[data-theme="light"] nav .text-slate-50,
-[data-theme="bordered"] nav .text-slate-50,
-[data-theme="tinted"] nav .text-slate-50 { color: #0f172a !important; }
-[data-theme="light"] nav .bg-slate-900\/40,
-[data-theme="bordered"] nav .bg-slate-900\/40,
-[data-theme="tinted"] nav .bg-slate-900\/40 { background-color: transparent !important; }
+/* ── Dashboard nav — targets the sticky header element ── */
+/* DashboardNav uses <header class="sticky top-0 z-40 border-b border-slate-800 bg-slate-950/95 backdrop-blur"> */
+[data-theme="light"] .sticky.top-0.z-40,
+[data-theme="bordered"] .sticky.top-0.z-40,
+[data-theme="tinted"] .sticky.top-0.z-40 {
+  background-color: rgba(255,255,255,0.96) !important;
+  border-bottom-color: #e2e8f0 !important;
+  backdrop-filter: blur(12px) !important;
+}
+/* Nav text and link colours */
+[data-theme="light"] .sticky.top-0 .text-slate-400,
+[data-theme="bordered"] .sticky.top-0 .text-slate-400,
+[data-theme="tinted"] .sticky.top-0 .text-slate-400 { color: #64748b !important; }
+[data-theme="light"] .sticky.top-0 .text-slate-300,
+[data-theme="bordered"] .sticky.top-0 .text-slate-300,
+[data-theme="tinted"] .sticky.top-0 .text-slate-300 { color: #475569 !important; }
+[data-theme="light"] .sticky.top-0 .text-slate-200,
+[data-theme="bordered"] .sticky.top-0 .text-slate-200,
+[data-theme="tinted"] .sticky.top-0 .text-slate-200 { color: #334155 !important; }
+[data-theme="light"] .sticky.top-0 .border-slate-700,
+[data-theme="bordered"] .sticky.top-0 .border-slate-700,
+[data-theme="tinted"] .sticky.top-0 .border-slate-700 { border-color: #e2e8f0 !important; }
+[data-theme="light"] .sticky.top-0 .border-slate-800,
+[data-theme="bordered"] .sticky.top-0 .border-slate-800,
+[data-theme="tinted"] .sticky.top-0 .border-slate-800 { border-color: #e2e8f0 !important; }
+[data-theme="light"] .sticky.top-0 .bg-slate-950,
+[data-theme="bordered"] .sticky.top-0 .bg-slate-950,
+[data-theme="tinted"] .sticky.top-0 .bg-slate-950 { background-color: rgba(255,255,255,0.96) !important; }
+
+/* ── Ring panel inner cards — no box-shadow (they're inside the dark zone) ── */
+[data-theme="light"] .shadow-2xl .rounded-xl,
+[data-theme="bordered"] .shadow-2xl .rounded-xl,
+[data-theme="tinted"] .shadow-2xl .rounded-xl { box-shadow: none !important; }
+
+/* ── Avatar initials circle — stronger border ── */
+[data-theme="light"] .ring-2.ring-slate-700,
+[data-theme="bordered"] .ring-2.ring-slate-700,
+[data-theme="tinted"] .ring-2.ring-slate-700 { --tw-ring-color: #94a3b8 !important; }
+
+/* ── Feed pills — visible on white ── */
+[data-theme="light"] .rounded-full.border.border-slate-700\/60,
+[data-theme="bordered"] .rounded-full.border.border-slate-700\/60,
+[data-theme="tinted"] .rounded-full.border.border-slate-700\/60 {
+  border-color: #94a3b8 !important;
+  background-color: #f8fafc !important;
+  color: #475569 !important;
+}
+[data-theme="light"] .rounded-full.border.border-slate-800\/60,
+[data-theme="bordered"] .rounded-full.border.border-slate-800\/60,
+[data-theme="tinted"] .rounded-full.border.border-slate-800\/60 {
+  border-color: #cbd5e1 !important;
+  background-color: #f8fafc !important;
+  color: #475569 !important;
+}
+
+/* ── Header meta stats (LAST TESTED etc.) ── */
+[data-theme="light"] .text-slate-100,
+[data-theme="bordered"] .text-slate-100,
+[data-theme="tinted"] .text-slate-100 { color: #1e293b !important; }
 
 /* ── Chart grid lines — lighter stroke for light backgrounds ── */
 [data-theme="light"] .recharts-cartesian-grid line,
