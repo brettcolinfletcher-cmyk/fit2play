@@ -156,3 +156,33 @@ body {
 [data-theme="tinted"] .border-slate-700\/80 { border-color: #4ade80 !important; }
 [data-theme="tinted"] .border-slate-700\/60 { border-color: rgba(74,222,128,0.5) !important; }
 [data-theme="tinted"] .border-slate-700\/40 { border-color: rgba(74,222,128,0.3) !important; }
+
+/* ─── Frosted: depth + polish ────────────────────────────────────────── */
+
+/* Cards get subtle drop shadows to lift off the light page */
+[data-theme="light"] .rounded-xl,
+[data-theme="bordered"] .rounded-xl,
+[data-theme="tinted"] .rounded-xl { box-shadow: 0 1px 4px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04) !important; }
+
+[data-theme="light"] .rounded-2xl,
+[data-theme="bordered"] .rounded-2xl,
+[data-theme="tinted"] .rounded-2xl { box-shadow: 0 4px 16px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.05) !important; }
+
+/* Ring panel — intentionally stronger shadow to signal it's a deliberate dark accent zone */
+[data-theme="light"] .shadow-2xl { box-shadow: 0 8px 40px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.10) !important; }
+
+/* Section divider lines — visible on light backgrounds */
+[data-theme="light"] .bg-slate-800 { background-color: #e2e8f0 !important; }
+
+/* Eyebrow labels — stronger on light */
+[data-theme="light"] .text-slate-500.uppercase,
+[data-theme="bordered"] .text-slate-500.uppercase,
+[data-theme="tinted"] .text-slate-500.uppercase { color: #64748b !important; }
+
+/* 2A bordered: use box-shadow for lime ring instead of border on every element */
+[data-theme="bordered"] .rounded-xl { box-shadow: 0 1px 4px rgba(0,0,0,0.05), 0 0 0 1.5px #a3e635 !important; }
+[data-theme="bordered"] .rounded-2xl { box-shadow: 0 4px 16px rgba(0,0,0,0.06), 0 0 0 1.5px #a3e635 !important; }
+
+/* 2B tinted: soft green glow on cards */
+[data-theme="tinted"] .rounded-xl { box-shadow: 0 1px 4px rgba(22,163,74,0.08), 0 0 0 1px #86efac !important; }
+[data-theme="tinted"] .rounded-2xl { box-shadow: 0 4px 16px rgba(22,163,74,0.10), 0 0 0 1px #86efac !important; }
