@@ -159,30 +159,91 @@ body {
 
 /* ─── Frosted: depth + polish ────────────────────────────────────────── */
 
-/* Cards get subtle drop shadows to lift off the light page */
-[data-theme="light"] .rounded-xl,
-[data-theme="bordered"] .rounded-xl,
-[data-theme="tinted"] .rounded-xl { box-shadow: 0 1px 4px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04) !important; }
+/* Cards get refined drop shadows — tactile but not heavy */
+[data-theme="light"] .rounded-xl { box-shadow: 0 1px 3px rgba(0,0,0,0.05), 0 2px 8px rgba(0,0,0,0.04) !important; }
+[data-theme="light"] .rounded-2xl { box-shadow: 0 2px 12px rgba(0,0,0,0.07), 0 1px 3px rgba(0,0,0,0.04) !important; }
+[data-theme="bordered"] .rounded-xl { box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 0 0 1.5px #a3e635 !important; }
+[data-theme="bordered"] .rounded-2xl { box-shadow: 0 2px 12px rgba(0,0,0,0.06), 0 0 0 1.5px #a3e635 !important; }
+[data-theme="tinted"] .rounded-xl { box-shadow: 0 1px 4px rgba(22,163,74,0.07), 0 0 0 1px #86efac !important; }
+[data-theme="tinted"] .rounded-2xl { box-shadow: 0 2px 12px rgba(22,163,74,0.09), 0 0 0 1px #86efac !important; }
 
-[data-theme="light"] .rounded-2xl,
-[data-theme="bordered"] .rounded-2xl,
-[data-theme="tinted"] .rounded-2xl { box-shadow: 0 4px 16px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.05) !important; }
+/* ── Ring panel: keep dark — it's the intentional anchor on a light page ── */
+/* Override the white flip for the ring panel's specific classes */
+[data-theme="light"] .shadow-2xl.rounded-2xl,
+[data-theme="bordered"] .shadow-2xl.rounded-2xl,
+[data-theme="tinted"] .shadow-2xl.rounded-2xl {
+  background-color: #0f172a !important;
+  border-color: rgba(163,230,53,0.25) !important;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.20), 0 2px 8px rgba(0,0,0,0.12) !important;
+}
 
-/* Ring panel — intentionally stronger shadow to signal it's a deliberate dark accent zone */
-[data-theme="light"] .shadow-2xl { box-shadow: 0 8px 40px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.10) !important; }
+/* Inside the ring panel — text stays light */
+[data-theme="light"] .shadow-2xl .text-slate-50,
+[data-theme="bordered"] .shadow-2xl .text-slate-50,
+[data-theme="tinted"] .shadow-2xl .text-slate-50 { color: #f8fafc !important; }
+[data-theme="light"] .shadow-2xl .text-slate-200,
+[data-theme="bordered"] .shadow-2xl .text-slate-200,
+[data-theme="tinted"] .shadow-2xl .text-slate-200 { color: #e2e8f0 !important; }
+[data-theme="light"] .shadow-2xl .text-slate-400,
+[data-theme="bordered"] .shadow-2xl .text-slate-400,
+[data-theme="tinted"] .shadow-2xl .text-slate-400 { color: #94a3b8 !important; }
+[data-theme="light"] .shadow-2xl .text-slate-500,
+[data-theme="bordered"] .shadow-2xl .text-slate-500,
+[data-theme="tinted"] .shadow-2xl .text-slate-500 { color: #64748b !important; }
+[data-theme="light"] .shadow-2xl .bg-slate-800,
+[data-theme="bordered"] .shadow-2xl .bg-slate-800,
+[data-theme="tinted"] .shadow-2xl .bg-slate-800 { background-color: #1e293b !important; }
+[data-theme="light"] .shadow-2xl .bg-slate-950\/40,
+[data-theme="bordered"] .shadow-2xl .bg-slate-950\/40,
+[data-theme="tinted"] .shadow-2xl .bg-slate-950\/40 { background-color: rgba(2,6,23,0.4) !important; }
+[data-theme="light"] .shadow-2xl .border-slate-800,
+[data-theme="bordered"] .shadow-2xl .border-slate-800,
+[data-theme="tinted"] .shadow-2xl .border-slate-800 { border-color: #1e293b !important; }
+[data-theme="light"] .shadow-2xl .bg-slate-900\/40,
+[data-theme="bordered"] .shadow-2xl .bg-slate-900\/40,
+[data-theme="tinted"] .shadow-2xl .bg-slate-900\/40 { background-color: rgba(15,23,42,0.5) !important; }
 
-/* Section divider lines — visible on light backgrounds */
-[data-theme="light"] .bg-slate-800 { background-color: #e2e8f0 !important; }
+/* ── Dashboard nav — white bar with border on light themes ── */
+[data-theme="light"] nav,
+[data-theme="bordered"] nav,
+[data-theme="tinted"] nav { background-color: #ffffff !important; border-bottom: 1px solid #e2e8f0 !important; }
+[data-theme="light"] nav .text-slate-50,
+[data-theme="bordered"] nav .text-slate-50,
+[data-theme="tinted"] nav .text-slate-50 { color: #0f172a !important; }
+[data-theme="light"] nav .bg-slate-900\/40,
+[data-theme="bordered"] nav .bg-slate-900\/40,
+[data-theme="tinted"] nav .bg-slate-900\/40 { background-color: transparent !important; }
 
-/* Eyebrow labels — stronger on light */
-[data-theme="light"] .text-slate-500.uppercase,
-[data-theme="bordered"] .text-slate-500.uppercase,
-[data-theme="tinted"] .text-slate-500.uppercase { color: #64748b !important; }
+/* ── Chart grid lines — lighter stroke for light backgrounds ── */
+[data-theme="light"] .recharts-cartesian-grid line,
+[data-theme="bordered"] .recharts-cartesian-grid line,
+[data-theme="tinted"] .recharts-cartesian-grid line { stroke: #e2e8f0 !important; }
+[data-theme="light"] .recharts-xAxis .recharts-cartesian-axis-tick text,
+[data-theme="light"] .recharts-yAxis .recharts-cartesian-axis-tick text,
+[data-theme="bordered"] .recharts-xAxis .recharts-cartesian-axis-tick text,
+[data-theme="bordered"] .recharts-yAxis .recharts-cartesian-axis-tick text,
+[data-theme="tinted"] .recharts-xAxis .recharts-cartesian-axis-tick text,
+[data-theme="tinted"] .recharts-yAxis .recharts-cartesian-axis-tick text { fill: #64748b !important; }
 
-/* 2A bordered: use box-shadow for lime ring instead of border on every element */
-[data-theme="bordered"] .rounded-xl { box-shadow: 0 1px 4px rgba(0,0,0,0.05), 0 0 0 1.5px #a3e635 !important; }
-[data-theme="bordered"] .rounded-2xl { box-shadow: 0 4px 16px rgba(0,0,0,0.06), 0 0 0 1.5px #a3e635 !important; }
+/* ── Eyebrow divider lines ── */
+[data-theme="light"] .h-px.flex-1.bg-slate-800,
+[data-theme="bordered"] .h-px.flex-1.bg-slate-800,
+[data-theme="tinted"] .h-px.flex-1.bg-slate-800 { background-color: #cbd5e1 !important; }
 
-/* 2B tinted: soft green glow on cards */
-[data-theme="tinted"] .rounded-xl { box-shadow: 0 1px 4px rgba(22,163,74,0.08), 0 0 0 1px #86efac !important; }
-[data-theme="tinted"] .rounded-2xl { box-shadow: 0 4px 16px rgba(22,163,74,0.10), 0 0 0 1px #86efac !important; }
+/* ── Label text — one step darker for legibility on white ── */
+[data-theme="light"] .text-slate-500,
+[data-theme="bordered"] .text-slate-500,
+[data-theme="tinted"] .text-slate-500 { color: #64748b !important; }
+
+/* ── Clinician comment boxes ── */
+[data-theme="light"] .bg-slate-950\/60,
+[data-theme="bordered"] .bg-slate-950\/60,
+[data-theme="tinted"] .bg-slate-950\/60 { background-color: #f0f4f8 !important; }
+[data-theme="light"] .border-slate-700\/40,
+[data-theme="bordered"] .border-slate-700\/40,
+[data-theme="tinted"] .border-slate-700\/40 { border-color: #cbd5e1 !important; }
+
+/* ── Eyebrow section labels ── */
+[data-theme="light"] .tracking-widest,
+[data-theme="bordered"] .tracking-widest,
+[data-theme="tinted"] .tracking-widest { color: #475569 !important; }
