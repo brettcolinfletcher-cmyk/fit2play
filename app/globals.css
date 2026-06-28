@@ -296,3 +296,53 @@ body {
 [data-theme="light"] .tracking-widest,
 [data-theme="bordered"] .tracking-widest,
 [data-theme="tinted"] .tracking-widest { color: #475569 !important; }
+
+/* ── Theme switcher pill bar ── */
+[data-theme="light"] .rounded-full.border.border-slate-700.bg-slate-900\/40,
+[data-theme="bordered"] .rounded-full.border.border-slate-700.bg-slate-900\/40,
+[data-theme="tinted"] .rounded-full.border.border-slate-700.bg-slate-900\/40 {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06) !important;
+}
+
+/* ── Compare pre/post button ── */
+[data-theme="light"] .border-slate-800.bg-slate-900\/40,
+[data-theme="bordered"] .border-slate-800.bg-slate-900\/40,
+[data-theme="tinted"] .border-slate-800.bg-slate-900\/40 {
+  background-color: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #334155 !important;
+}
+
+/* ── Avatar background — more visible on white header ── */
+[data-theme="light"] .bg-slate-800.rounded-full,
+[data-theme="bordered"] .bg-slate-800.rounded-full,
+[data-theme="tinted"] .bg-slate-800.rounded-full { background-color: #e2e8f0 !important; color: #475569 !important; }
+
+/* ── Eyebrow h-px divider lines — all variants of the selector ── */
+[data-theme="light"] .h-px,
+[data-theme="bordered"] .h-px,
+[data-theme="tinted"] .h-px { background-color: #cbd5e1 !important; }
+
+/* ── Recharts chart plot area background ── */
+[data-theme="light"] .recharts-surface,
+[data-theme="bordered"] .recharts-surface,
+[data-theme="tinted"] .recharts-surface { background-color: transparent !important; }
+[data-theme="light"] .recharts-wrapper,
+[data-theme="bordered"] .recharts-wrapper,
+[data-theme="tinted"] .recharts-wrapper { background-color: transparent !important; }
+
+/* ── Recharts legend text ── */
+[data-theme="light"] .recharts-legend-item-text,
+[data-theme="bordered"] .recharts-legend-item-text,
+[data-theme="tinted"] .recharts-legend-item-text { color: #64748b !important; }
+
+/* ── Recharts tooltip dark — keep readable on all themes ── */
+[data-theme="light"] .recharts-tooltip-wrapper > div,
+[data-theme="bordered"] .recharts-tooltip-wrapper > div,
+[data-theme="tinted"] .recharts-tooltip-wrapper > div {
+  background-color: #0f172a !important;
+  border-color: #1e293b !important;
+  color: #e2e8f0 !important;
+}
