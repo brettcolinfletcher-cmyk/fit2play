@@ -106,10 +106,10 @@ export default function SlDjTrendPanel({
         </div>
 
         <ResponsiveContainer width="100%" height={280}>
-          <LineChart data={rows} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+          <LineChart data={rows} margin={{ top: 4, right: 16, left: 0, bottom: -10 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
             <XAxis dataKey="date" tick={{ fill: "#94a3b8", fontSize: 11 }} axisLine={false} tickLine={false} />
-            <YAxis tick={{ fill: "#94a3b8", fontSize: 11 }} axisLine={false} tickLine={false} width={36} />
+            <YAxis tick={{ fill: "#94a3b8", fontSize: 11 }} axisLine={false} tickLine={false} width={36} tickCount={5} domain={["auto", "auto"]} />
             <Tooltip contentStyle={TOOLTIP_STYLE} labelStyle={{ color: "#a3e635", fontWeight: 600 }} />
             <Legend wrapperStyle={{ fontSize: 11, color: "#94a3b8" }} />
             <Line type="monotone" dataKey="rsiLeft" name="Left RSI" stroke="#60a5fa" strokeWidth={2.5} dot={{ fill: "#60a5fa", r: 5, strokeWidth: 0 }} activeDot={{ r: 7 }} connectNulls />

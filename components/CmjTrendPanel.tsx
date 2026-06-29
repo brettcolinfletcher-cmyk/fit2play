@@ -79,23 +79,23 @@ export default function CmjTrendPanel({
       <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5">
         <h2 className="mb-4 text-xs uppercase tracking-wide text-slate-500">{title}</h2>
         <ResponsiveContainer width="100%" height={280}>
-          <LineChart data={rows} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+          <LineChart data={rows} margin={{ top: 4, right: 16, left: 0, bottom: -10 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
             <XAxis dataKey="date" tick={{ fill: "#94a3b8", fontSize: 11 }} axisLine={false} tickLine={false} />
-            <YAxis yAxisId="jump" orientation="left" tick={{ fill: "#94a3b8", fontSize: 11 }} axisLine={false} tickLine={false} width={36} />
-            <YAxis yAxisId="rsi" orientation="right" tick={{ fill: "#94a3b8", fontSize: 11 }} axisLine={false} tickLine={false} width={36} />
+            <YAxis yAxisId="jump" orientation="left" tick={{ fill: "#94a3b8", fontSize: 11 }} axisLine={false} tickLine={false} width={36} tickCount={5} domain={["auto", "auto"]} />
+            <YAxis yAxisId="rsi" orientation="right" tick={{ fill: "#94a3b8", fontSize: 11 }} axisLine={false} tickLine={false} width={36} tickCount={5} domain={["auto", "auto"]} />
             <Tooltip contentStyle={TOOLTIP_STYLE} labelStyle={{ color: "#a3e635", fontWeight: 600 }} />
             <Legend wrapperStyle={{ fontSize: 11, color: "#94a3b8" }} />
-            <ReferenceLine yAxisId="jump" y={30} stroke="#475569" strokeDasharray="6 4" />
-            <Line yAxisId="jump" type="monotone" dataKey="jumpHeightCm" name="Jump height (cm)" stroke="#a3e635" strokeWidth={2} dot={{ fill: "#a3e635", r: 4 }} activeDot={{ r: 6 }} connectNulls />
-            <Line yAxisId="rsi" type="monotone" dataKey="mrsi" name="mRSI" stroke="#38bdf8" strokeWidth={2} dot={{ fill: "#38bdf8", r: 4 }} activeDot={{ r: 6 }} connectNulls />
+            <ReferenceLine yAxisId="jump" y={30} stroke="#94a3b8" strokeDasharray="6 4" />
+            <Line yAxisId="jump" type="monotone" dataKey="jumpHeightCm" name="Jump height (cm)" stroke="#a3e635" strokeWidth={2.5} dot={{ fill: "#a3e635", r: 5, strokeWidth: 0 }} activeDot={{ r: 7 }} connectNulls />
+            <Line yAxisId="rsi" type="monotone" dataKey="mrsi" name="mRSI" stroke="#38bdf8" strokeWidth={2.5} dot={{ fill: "#38bdf8", r: 5, strokeWidth: 0 }} activeDot={{ r: 7 }} connectNulls />
           </LineChart>
         </ResponsiveContainer>
+        <p className="mt-3 text-[0.65rem] text-slate-500">
+          <span className="mr-1.5 inline-block font-mono tracking-widest">- - -</span>
+          30 cm benchmark
+        </p>
       </div>
-      <p className="text-[0.68rem] text-slate-500">
-        <span className="mr-2 inline-block rounded bg-slate-800 px-1.5 py-0.5 text-slate-400">- - -</span>
-        30 cm benchmark
-      </p>
     </div>
   );
 }
