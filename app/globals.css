@@ -263,7 +263,27 @@ body {
 [data-theme="bordered"] .text-slate-100,
 [data-theme="tinted"] .text-slate-100 { color: #1e293b !important; }
 
-/* ── Chart grid lines — lighter stroke for light backgrounds ── */
+/* ── Nav active link and logout button — light variants ── */
+[data-theme="light"] .sticky.top-0 .bg-slate-900.text-lime-300,
+[data-theme="bordered"] .sticky.top-0 .bg-slate-900.text-lime-300,
+[data-theme="tinted"] .sticky.top-0 .bg-slate-900.text-lime-300 {
+  background-color: #f0fdf4 !important;
+  color: #16a34a !important;
+  border-color: #86efac !important;
+}
+[data-theme="light"] .sticky.top-0 .hover\:bg-slate-900:hover,
+[data-theme="bordered"] .sticky.top-0 .hover\:bg-slate-900:hover,
+[data-theme="tinted"] .sticky.top-0 .hover\:bg-slate-900:hover {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+/* Logout button border */
+[data-theme="light"] .sticky.top-0 .border-slate-700.text-slate-400,
+[data-theme="bordered"] .sticky.top-0 .border-slate-700.text-slate-400,
+[data-theme="tinted"] .sticky.top-0 .border-slate-700.text-slate-400 {
+  border-color: #cbd5e1 !important;
+  color: #64748b !important;
+}
 [data-theme="light"] .recharts-cartesian-grid line,
 [data-theme="bordered"] .recharts-cartesian-grid line,
 [data-theme="tinted"] .recharts-cartesian-grid line { stroke: #e2e8f0 !important; }
@@ -346,3 +366,48 @@ body {
   border-color: #1e293b !important;
   color: #e2e8f0 !important;
 }
+
+/* ── Page background — warmer, closer to white ── */
+[data-theme="light"] { background-color: #f8fafc !important; }
+
+/* ── Chart section headers ── */
+[data-theme="light"] .text-slate-500.uppercase.tracking-wide,
+[data-theme="bordered"] .text-slate-500.uppercase.tracking-wide,
+[data-theme="tinted"] .text-slate-500.uppercase.tracking-wide { color: #334155 !important; }
+
+/* ── Sprint metric toggle pills — inactive state on light ── */
+[data-theme="light"] .border-slate-800.text-slate-400,
+[data-theme="bordered"] .border-slate-800.text-slate-400,
+[data-theme="tinted"] .border-slate-800.text-slate-400 {
+  border-color: #cbd5e1 !important;
+  color: #475569 !important;
+  background-color: #f8fafc !important;
+}
+
+/* ── Sprint table header row ── */
+[data-theme="light"] .tracking-widest.text-slate-500,
+[data-theme="bordered"] .tracking-widest.text-slate-500,
+[data-theme="tinted"] .tracking-widest.text-slate-500 { color: #475569 !important; }
+
+/* ── Sprint table date column ── */
+[data-theme="light"] .text-slate-200.font-medium,
+[data-theme="bordered"] .text-slate-200.font-medium,
+[data-theme="tinted"] .text-slate-200.font-medium { color: #1e293b !important; }
+
+/* ── Sprint table average row ── */
+[data-theme="light"] .bg-slate-900\/60.text-slate-300,
+[data-theme="bordered"] .bg-slate-900\/60.text-slate-300,
+[data-theme="tinted"] .bg-slate-900\/60.text-slate-300 { background-color: #f1f5f9 !important; color: #334155 !important; }
+
+/* ── Sprint legend pills (Green/Red below table) ── */
+[data-theme="light"] .rounded.bg-emerald-500\/15,
+[data-theme="bordered"] .rounded.bg-emerald-500\/15,
+[data-theme="tinted"] .rounded.bg-emerald-500\/15 { background-color: #dcfce7 !important; }
+[data-theme="light"] .rounded.bg-red-500\/15,
+[data-theme="bordered"] .rounded.bg-red-500\/15,
+[data-theme="tinted"] .rounded.bg-red-500\/15 { background-color: #fee2e2 !important; }
+
+/* ── CMJ dashed benchmark line — subtler on light ── */
+[data-theme="light"] .recharts-reference-line line,
+[data-theme="bordered"] .recharts-reference-line line,
+[data-theme="tinted"] .recharts-reference-line line { stroke: #94a3b8 !important; }
