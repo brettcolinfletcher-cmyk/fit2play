@@ -29,18 +29,18 @@ export default function SiteNav() {
 
   const linkClass = (href: string) =>
     pathname === href
-      ? "text-lime-400"
-      : "text-slate-300 hover:text-lime-400";
+      ? "text-lime-600 font-semibold"
+      : "text-slate-600 hover:text-lime-600";
 
   return (
     <>
       <header className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 pt-6">
         <Link href="/" className="flex shrink-0 items-center gap-2">
           <Image
-            src="/fit2play_logo_transparent.png"
+            src="/fit2play_logo_light.png"
             alt="Fit2Perform logo"
-            width={200}
-            height={80}
+            width={259}
+            height={88}
             className="max-h-10 w-auto"
             priority
           />
@@ -71,7 +71,7 @@ export default function SiteNav() {
             type="button"
             aria-expanded={menuOpen}
             aria-label={menuOpen ? "Close menu" : "Open menu"}
-            className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-700 bg-slate-950/80 text-lg leading-none text-slate-200"
+            className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-300 bg-white text-lg leading-none text-slate-700"
             onClick={() => setMenuOpen((o) => !o)}
           >
             {menuOpen ? "×" : "☰"}
@@ -81,7 +81,7 @@ export default function SiteNav() {
 
       {menuOpen ? (
         <div
-          className="border-b border-slate-800 bg-slate-950/95 px-4 py-4 md:hidden"
+          className="border-b border-slate-200 bg-white/95 px-4 py-4 shadow-sm md:hidden"
           id="mobile-nav"
         >
           <nav className="mx-auto flex max-w-5xl flex-col gap-3 text-sm">

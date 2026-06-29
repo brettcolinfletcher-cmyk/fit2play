@@ -37,7 +37,7 @@ const INJURY_AREAS = [
 const btnPrimary =
   "inline-flex items-center justify-center rounded-full bg-lime-400 px-5 py-2 text-xs font-semibold text-slate-950 shadow-md hover:brightness-110 md:text-sm";
 const btnSecondary =
-  "inline-flex items-center justify-center rounded-full border border-slate-600 px-4 py-2 text-xs font-semibold text-slate-100 hover:border-lime-400 hover:text-lime-400 md:text-sm";
+  "inline-flex items-center justify-center rounded-full border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-700 hover:border-lime-500 hover:text-lime-600 md:text-sm";
 
 const CREDIBILITY_CLUBS = [
   { name: "AC Milan / Serie A", file: "serie-a.png" },
@@ -54,20 +54,20 @@ const CREDIBILITY_CLUBS = [
 
 export default function HomePage() {
   return (
-    <div className="min-h-screen overflow-x-hidden bg-[radial-gradient(circle_at_top,_#111827_0,_#020617_55%)] text-slate-50">
+    <div className="min-h-screen overflow-x-hidden bg-[#f8fafc] text-slate-900">
       <SiteNav />
 
       <main className="mx-auto max-w-5xl px-4 pb-20 pt-10">
         {/* 1 — Hero */}
         <section className="grid gap-10 pb-16 md:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] md:items-center">
           <div>
-            <p className="mb-3 inline-flex rounded-full bg-slate-900/70 px-3 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.25em] text-lime-300">
+            <p className="mb-3 inline-flex rounded-full bg-lime-50 border border-lime-200 px-3 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.25em] text-lime-700">
               Return-to-play &amp; performance testing
             </p>
-            <h1 className="mb-4 text-3xl font-semibold leading-tight text-slate-100 md:text-4xl">
+            <h1 className="mb-4 text-3xl font-semibold leading-tight text-slate-900 md:text-4xl">
               Know when they&apos;re ready — and how far they can go.
             </h1>
-            <p className="mb-5 max-w-xl text-sm text-slate-300 md:text-base">
+            <p className="mb-5 max-w-xl text-sm text-slate-600 md:text-base">
               Fit2Perform turns force plates, sprint testing and dynamometry into one
               decision-ready platform — measuring strength, power, asymmetry and readiness.
               Guide athletes safely back from injury, and benchmark performance when
@@ -87,11 +87,11 @@ export default function HomePage() {
         </section>
 
         {/* 2 — Credibility strip */}
-        <section className="scroll-mt-24 border-y border-slate-800 py-10">
-          <h2 className="mb-3 text-xl font-semibold text-slate-100 md:text-2xl">
+        <section className="scroll-mt-24 border-y border-slate-200 py-10">
+          <h2 className="mb-3 text-xl font-semibold text-slate-900 md:text-2xl">
             Decades inside elite sport.
           </h2>
-          <p className="mb-6 max-w-3xl text-sm text-slate-300 md:text-base">
+          <p className="mb-6 max-w-3xl text-sm text-slate-600 md:text-base">
             Fit2Perform is built by people who&apos;ve worked across professional sport —
             from AFL and the NFL to Serie A and Olympic programs — including Carlton FC, the
             New England Patriots, AC Milan, the Australian Institute of Sport, the Western
@@ -107,10 +107,10 @@ export default function HomePage() {
 
         {/* Our solutions */}
         <section id="solutions" className="scroll-mt-24 pb-16">
-          <h2 className="mb-2 text-sm font-semibold uppercase tracking-[0.2em] text-lime-300">
+          <h2 className="mb-2 text-sm font-semibold uppercase tracking-[0.2em] text-lime-600">
             Our solutions
           </h2>
-          <p className="mb-6 max-w-2xl text-sm text-slate-300 md:text-base">
+          <p className="mb-6 max-w-2xl text-sm text-slate-600 md:text-base">
             Four ways we put objective data behind your decisions.
           </p>
           <div className="grid gap-4 md:grid-cols-2">
@@ -162,7 +162,7 @@ export default function HomePage() {
 
         {/* 4 — Who it's for */}
         <section id="who" className="scroll-mt-24 pb-16">
-          <h2 className="mb-6 text-sm font-semibold uppercase tracking-[0.2em] text-lime-300">
+          <h2 className="mb-6 text-sm font-semibold uppercase tracking-[0.2em] text-lime-600">
             Who it&apos;s for
           </h2>
           <div className="grid gap-4 md:grid-cols-2">
@@ -183,11 +183,11 @@ export default function HomePage() {
 
         {/* 5 — Female athletes */}
         <section className="scroll-mt-24 pb-16">
-          <div className="rounded-2xl border border-slate-700 bg-slate-950/60 p-6 shadow-xl shadow-lime-400/10 md:p-8">
-            <h2 className="mb-3 text-xl font-semibold text-slate-100 md:text-2xl">
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+            <h2 className="mb-3 text-xl font-semibold text-slate-900 md:text-2xl">
               Built for the whole roster.
             </h2>
-            <p className="max-w-3xl text-sm text-slate-300 md:text-base">
+            <p className="max-w-3xl text-sm text-slate-600 md:text-base">
               Return-to-play and performance testing has historically been built around
               male athletes. Fit2Perform brings real experience across female sport,
               including AFLW, elite netball and women&apos;s cricket, with benchmarks that
@@ -198,13 +198,13 @@ export default function HomePage() {
 
         {/* What every assessment covers */}
         <section id="testing" className="scroll-mt-24 pb-16">
-          <h2 className="mb-2 text-sm font-semibold uppercase tracking-[0.2em] text-lime-300">
+          <h2 className="mb-2 text-sm font-semibold uppercase tracking-[0.2em] text-lime-600">
             What every assessment covers
           </h2>
-          <p className="mb-6 max-w-2xl text-sm text-slate-300 md:text-base">
+          <p className="mb-6 max-w-2xl text-sm text-slate-600 md:text-base">
             A complete picture, in one session.
           </p>
-          <ul className="space-y-3 rounded-2xl border border-slate-700 bg-slate-950/60 p-5 md:p-6">
+          <ul className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
             {ASSESSMENT_COVERAGE.map((item) => (
               <CheckListItem key={item}>{item}</CheckListItem>
             ))}
@@ -213,15 +213,15 @@ export default function HomePage() {
 
         {/* Injuries / range */}
         <section className="scroll-mt-24 pb-16">
-          <h2 className="mb-2 text-sm font-semibold uppercase tracking-[0.2em] text-lime-300">
+          <h2 className="mb-2 text-sm font-semibold uppercase tracking-[0.2em] text-lime-600">
             From first session to full performance
           </h2>
-          <p className="mb-4 max-w-2xl text-sm text-slate-300 md:text-base">
+          <p className="mb-4 max-w-2xl text-sm text-slate-600 md:text-base">
             Fit2Perform isn&apos;t just for injured athletes. Screen a healthy squad before
             problems start, benchmark performance in your best players, or guide a safe
             return — the same objective testing serves all three.
           </p>
-          <p className="mb-6 max-w-2xl text-sm text-slate-300 md:text-base">
+          <p className="mb-6 max-w-2xl text-sm text-slate-600 md:text-base">
             And when injury does happen, our testing supports return-to-play across the
             areas that matter most:
           </p>
@@ -229,7 +229,7 @@ export default function HomePage() {
             {INJURY_AREAS.map((item) => (
               <li
                 key={item.label}
-                className="flex gap-2 rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3 text-sm text-slate-300"
+                className="flex gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 shadow-sm"
               >
                 <span
                   className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-lime-400"
@@ -238,7 +238,7 @@ export default function HomePage() {
                 <span>
                   {item.label}
                   {"detail" in item && item.detail ? (
-                    <span className="block text-xs text-slate-500">{item.detail}</span>
+                    <span className="block text-xs text-slate-400">{item.detail}</span>
                   ) : null}
                 </span>
               </li>
@@ -253,10 +253,10 @@ export default function HomePage() {
 
         {/* 7 — Product proof */}
         <section id="product-proof" className="scroll-mt-24 pb-16">
-          <h2 className="mb-2 text-xl font-semibold text-slate-100 md:text-2xl">
+          <h2 className="mb-2 text-xl font-semibold text-slate-900 md:text-2xl">
             From raw test to clear decision.
           </h2>
-          <p className="mb-6 text-sm text-slate-400">
+          <p className="mb-6 text-sm text-slate-500">
             De-identified examples of what clinicians and athletes receive after every
             session.
           </p>
@@ -277,23 +277,23 @@ export default function HomePage() {
 
         {/* 8 — Evidence */}
         <section className="scroll-mt-24 pb-16">
-          <h2 className="mb-3 text-xl font-semibold text-slate-100 md:text-2xl">
+          <h2 className="mb-3 text-xl font-semibold text-slate-900 md:text-2xl">
             Grounded in the evidence.
           </h2>
-          <p className="mb-4 max-w-3xl text-sm text-slate-300 md:text-base">
+          <p className="mb-4 max-w-3xl text-sm text-slate-600 md:text-base">
             Every protocol in Fit2Perform is built on established return-to-play and
             performance literature and validated testing methods — the same equipment and
             benchmarks used by leading high-performance programs.
           </p>
-          <Link href="/research" className="text-sm font-semibold text-lime-400 hover:text-lime-300">
+          <Link href="/research" className="text-sm font-semibold text-lime-600 hover:text-lime-700">
             Read the evidence →
           </Link>
         </section>
 
         {/* 9 — Final CTA */}
         <section id="contact" className="scroll-mt-24 pb-8">
-          <div className="flex flex-col gap-4 rounded-2xl border border-lime-400/50 bg-gradient-to-r from-lime-400/20 to-emerald-500/10 px-5 py-6 shadow-xl shadow-lime-400/10 md:px-8 md:py-8">
-            <h2 className="text-lg font-semibold text-slate-100 md:text-xl">
+          <div className="flex flex-col gap-4 rounded-2xl border border-lime-300 bg-gradient-to-r from-lime-50 to-emerald-50 px-5 py-6 shadow-sm md:px-8 md:py-8">
+            <h2 className="text-lg font-semibold text-slate-900 md:text-xl">
               Make your next decision with confidence — from return to play to peak
               performance.
             </h2>
@@ -302,11 +302,11 @@ export default function HomePage() {
                 Book a testing session
               </a>
             </div>
-            <p className="text-xs text-slate-200/80">
+            <p className="text-xs text-slate-600">
               Questions?{" "}
               <a
                 href="mailto:info@fit2play.com.au"
-                className="font-semibold text-lime-200 hover:text-lime-100"
+                className="font-semibold text-lime-700 hover:text-lime-800"
               >
                 info@fit2play.com.au
               </a>
@@ -346,9 +346,9 @@ function ClubLogo({ name, file }: { name: string; file: string }) {
 
 function BenefitCard({ title, body }: { title: string; body: string }) {
   return (
-    <div className="flex h-full flex-col rounded-2xl border border-slate-700 bg-slate-950/70 p-5 shadow-xl shadow-lime-400/10">
-      <h3 className="mb-2 text-base font-semibold text-slate-100 md:text-lg">{title}</h3>
-      <p className="text-xs text-slate-300 md:text-sm">{body}</p>
+    <div className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <h3 className="mb-2 text-base font-semibold text-slate-900 md:text-lg">{title}</h3>
+      <p className="text-xs text-slate-600 md:text-sm">{body}</p>
     </div>
   );
 }
@@ -365,10 +365,10 @@ function WhoPathCard({
   cta: string;
 }) {
   return (
-    <div className="flex h-full flex-col rounded-2xl border border-slate-700 bg-slate-900/60 p-5 md:p-6">
-      <h3 className="mb-2 text-base font-semibold text-slate-100 md:text-lg">{title}</h3>
-      <p className="flex-1 text-xs text-slate-300 md:text-sm">{body}</p>
-      <a href={href} className="mt-4 text-xs font-semibold text-lime-400 hover:text-lime-300 md:text-sm">
+    <div className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
+      <h3 className="mb-2 text-base font-semibold text-slate-900 md:text-lg">{title}</h3>
+      <p className="flex-1 text-xs text-slate-600 md:text-sm">{body}</p>
+      <a href={href} className="mt-4 text-xs font-semibold text-lime-600 hover:text-lime-700 md:text-sm">
         {cta} →
       </a>
     </div>
@@ -377,9 +377,9 @@ function WhoPathCard({
 
 function CheckListItem({ children }: { children: string }) {
   return (
-    <li className="flex gap-2 text-sm text-slate-300">
+    <li className="flex gap-2 text-sm text-slate-700">
       <span
-        className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-lime-400"
+        className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-lime-500"
         aria-hidden
       />
       <span>{children}</span>
