@@ -139,10 +139,10 @@ export default function DashboardNav({ lightTheme = false }: { lightTheme?: bool
           <Link href="/dashboard" className="flex shrink-0 items-center gap-2">
             {lightTheme ? (
               <Image
-                src="/fit2play_logo_symbol.png"
+                src="/fit2play_logo_light.png"
                 alt="Fit2Play logo"
-                width={40}
-                height={40}
+                width={259}
+                height={88}
                 className="h-8 w-auto"
               />
             ) : (
