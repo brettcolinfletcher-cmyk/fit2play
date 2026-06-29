@@ -10,10 +10,10 @@ export default function SiteFooter() {
       <div className="mx-auto flex max-w-5xl flex-col items-center justify-between gap-4 px-4 py-8 text-xs text-slate-500 md:flex-row">
         <Link href="/" className="opacity-90 hover:opacity-100">
           <Image
-            src="/fit2play_logo_light.png"
+            src="/fit2play_logo_canva.png"
             alt="Fit2Perform"
-            width={259}
-            height={88}
+            width={260}
+            height={100}
             className="max-h-8 w-auto"
           />
         </Link>
