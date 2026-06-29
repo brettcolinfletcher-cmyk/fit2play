@@ -32,6 +32,7 @@ type SessionRow = {
 type TeamRow = {
   id: string;
   name: string;
+  logo_url: string | null;
 };
 
 type AthleteTeamRow = {
@@ -147,7 +148,7 @@ export default function AthletesListPage() {
           .order("last_name", { ascending: true })
           .order("first_name", { ascending: true }),
         supabase.from("sessions").select("athlete_id, session_date"),
-        supabase.from("teams").select("id, name").order("name", { ascending: true }),
+        supabase.from("teams").select("id, name, logo_url").order("name", { ascending: true }),
         supabase.from("athlete_teams").select("athlete_id, team_id"),
       ]);
 
@@ -477,6 +478,7 @@ export default function AthletesListPage() {
                   count={sidebarCounts.byTeam.get(t.id) ?? 0}
                   active={scope.kind === "team" && scope.id === t.id}
                   onClick={() => setScope({ kind: "team", id: t.id })}
+                  logoUrl={t.logo_url ?? undefined}
                 />
               ))}
               <SidebarItem
@@ -689,12 +691,14 @@ function SidebarItem({
   active,
   onClick,
   muted = false,
+  logoUrl,
 }: {
   label: string;
   count: number;
   active: boolean;
   onClick: () => void;
   muted?: boolean;
+  logoUrl?: string;
 }) {
   const base = "flex w-full items-center justify-between rounded-lg px-3 py-2 text-xs transition";
   const activeCls = active
@@ -704,7 +708,19 @@ function SidebarItem({
     : "text-slate-300 hover:bg-slate-800/60 hover:text-slate-50";
   return (
     <button type="button" onClick={onClick} className={`${base} ${activeCls}`}>
-      <span className="truncate">{label}</span>
+      <span className="flex items-center gap-2 truncate">
+        {logoUrl && (
+          <Image
+            src={logoUrl}
+            alt={label}
+            width={20}
+            height={20}
+            className="h-5 w-5 shrink-0 rounded-sm object-contain"
+            unoptimized
+          />
+        )}
+        <span className="truncate">{label}</span>
+      </span>
       <span className="tabular-nums text-slate-500">{count}</span>
     </button>
   );
