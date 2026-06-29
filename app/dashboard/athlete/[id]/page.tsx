@@ -116,17 +116,14 @@ export default function AthleteProfilePage() {
     side: string | null;
   }[]>([]);
   const [showAllSessions, setShowAllSessions] = useState(false);
-  const [theme, setTheme] = useState<"navy" | "slate" | "frosted" | "bordered" | "tinted" | "zinc">("navy");
-
-  const THEMES = {
-    navy:    { bg: "bg-[radial-gradient(circle_at_top,_#111827_0,_#020617_55%)]", card: "bg-slate-900/40",  border: "border-slate-800",    text: "text-slate-50",  dataTheme: "navy",     label: "Current" },
-    slate:   { bg: "bg-[#1a2535]",  card: "bg-[#243447]",   border: "border-[#2d4057]",   text: "text-slate-100", dataTheme: "navy",     label: "Slate" },
-    frosted: { bg: "bg-[#f1f5f9]",  card: "bg-white",       border: "border-gray-200",    text: "text-slate-900", dataTheme: "light",    label: "Frosted" },
-    bordered:{ bg: "bg-[#f1f5f9]",  card: "bg-white",       border: "border-lime-400",    text: "text-slate-900", dataTheme: "bordered", label: "2A — Borders" },
-    tinted:  { bg: "bg-[#dcfce7]",  card: "bg-white",       border: "border-emerald-300", text: "text-slate-900", dataTheme: "tinted",   label: "2B — Tinted" },
-    zinc:    { bg: "bg-[#18181b]",  card: "bg-[#27272a]",   border: "border-[#3f3f46]",   text: "text-slate-50",  dataTheme: "navy",     label: "Charcoal" },
-  } as const;
-  const t = THEMES[theme];
+  // Theme: Frosted (hardcoded)
+  const t = {
+    bg: "bg-[#f8fafc]",
+    card: "bg-white",
+    border: "border-gray-200",
+    text: "text-slate-900",
+    dataTheme: "light",
+  };
 
   const loadData = useCallback(async () => {
     if (!athleteId) return;
@@ -510,42 +507,23 @@ export default function AthleteProfilePage() {
 
   return (
     <main className={`min-h-screen ${t.bg} ${t.text}`} data-theme={t.dataTheme}>
-      <DashboardNav />
+      <DashboardNav lightTheme />
 
       <section className="mx-auto max-w-7xl px-4 pt-8 pb-20">
         <div className="mb-6 flex items-center justify-between gap-3">
           <button
             type="button"
             onClick={() => router.push("/dashboard")}
-            className="text-sm text-slate-400 hover:text-lime-300"
+            className="text-sm text-slate-500 hover:text-slate-800 transition"
           >
             ← Back to dashboard
           </button>
-          <div className="flex items-center gap-2">
-            {/* Theme switcher */}
-            <div className="flex items-center gap-1 rounded-full border border-slate-700 bg-slate-900/40 p-1">
-              {(Object.keys(THEMES) as (keyof typeof THEMES)[]).map((key) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setTheme(key)}
-                  className={`rounded-full px-3 py-1 text-[0.65rem] font-medium transition ${
-                    theme === key
-                      ? "bg-lime-400 text-slate-950"
-                      : "text-slate-400 hover:text-slate-200"
-                  }`}
-                >
-                  {THEMES[key].label}
-                </button>
-              ))}
-            </div>
-            <Link
-              href={`/dashboard/athlete/${athleteId}/compare`}
-              className="rounded-full border border-slate-800 bg-slate-900/40 px-4 py-1.5 text-xs font-medium text-slate-200 transition hover:border-lime-400/40 hover:text-lime-300"
-            >
-              Compare pre / post
-            </Link>
-          </div>
+          <Link
+            href={`/dashboard/athlete/${athleteId}/compare`}
+            className="rounded-full border border-gray-200 bg-white px-4 py-1.5 text-xs font-medium text-slate-600 shadow-sm transition hover:border-gray-300 hover:text-slate-900"
+          >
+            Compare pre / post
+          </Link>
         </div>
 
         {loading ? (
