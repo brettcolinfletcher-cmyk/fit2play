@@ -13,7 +13,7 @@ function classNames(...classes: (string | boolean | null | undefined)[]) {
 const logoutButtonClass =
   "text-xs text-slate-400 hover:text-red-400 border border-slate-700 hover:border-red-400 rounded-full px-3 py-1.5";
 
-export default function DashboardNav() {
+export default function DashboardNav({ lightTheme = false }: { lightTheme?: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -137,13 +137,23 @@ export default function DashboardNav() {
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3">
         <div className="flex min-w-0 flex-1 items-center gap-3">
           <Link href="/dashboard" className="flex shrink-0 items-center gap-2">
-            <Image
-              src="/fit2play_logo_transparent.png"
-              alt="Fit2Play logo"
-              width={160}
-              height={50}
-              className="h-8 w-auto"
-            />
+            {lightTheme ? (
+              <Image
+                src="/fit2play_logo_symbol.png"
+                alt="Fit2Play logo"
+                width={40}
+                height={40}
+                className="h-8 w-auto"
+              />
+            ) : (
+              <Image
+                src="/fit2play_logo_transparent.png"
+                alt="Fit2Play logo"
+                width={160}
+                height={50}
+                className="h-8 w-auto"
+              />
+            )}
           </Link>
           <span className="hidden text-[11px] text-slate-400 lg:inline">
             Data-driven return-to-sport testing
