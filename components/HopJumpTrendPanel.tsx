@@ -54,7 +54,7 @@ const TOOLTIP_STYLE = {
   color: "#e2e8f0",
 };
 
-/** Bilateral chart — one distance line + optional peak force */
+/** Bilateral chart — distance only */
 function BilateralSubPanel({ label, rows }: { label: string; rows: HopJumpRow[] }) {
   if (!rows.length) return null;
   return (
@@ -64,12 +64,10 @@ function BilateralSubPanel({ label, rows }: { label: string; rows: HopJumpRow[] 
         <LineChart data={rows} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
           <XAxis dataKey="date" tick={{ fill: "#94a3b8", fontSize: 11 }} axisLine={false} tickLine={false} />
-          <YAxis yAxisId="dist" orientation="left" tick={{ fill: "#94a3b8", fontSize: 11 }} axisLine={false} tickLine={false} width={36} />
-          <YAxis yAxisId="force" orientation="right" tick={{ fill: "#94a3b8", fontSize: 11 }} axisLine={false} tickLine={false} width={40} />
+          <YAxis tick={{ fill: "#94a3b8", fontSize: 11 }} axisLine={false} tickLine={false} width={36} />
           <Tooltip contentStyle={TOOLTIP_STYLE} labelStyle={{ color: "#a3e635", fontWeight: 600 }} />
           <Legend wrapperStyle={{ fontSize: 11, color: "#94a3b8" }} />
-          <Line yAxisId="dist" type="monotone" dataKey="distLeft" name="Distance (m)" stroke="#a3e635" strokeWidth={2.5} dot={{ fill: "#a3e635", r: 5, strokeWidth: 0 }} activeDot={{ r: 7 }} connectNulls />
-          <Line yAxisId="force" type="monotone" dataKey="peakForce" name="Peak force (N)" stroke="#38bdf8" strokeWidth={2} strokeDasharray="5 3" dot={{ fill: "#38bdf8", r: 4, strokeWidth: 0 }} activeDot={{ r: 6 }} connectNulls />
+          <Line type="monotone" dataKey="distLeft" name="Distance (m)" stroke="#a3e635" strokeWidth={2.5} dot={{ fill: "#a3e635", r: 5, strokeWidth: 0 }} activeDot={{ r: 7 }} connectNulls />
         </LineChart>
       </ResponsiveContainer>
     </div>
@@ -159,10 +157,7 @@ export default function HopJumpTrendPanel({
       )}
       <p className="text-[0.68rem] text-slate-500">
         <span className="text-[#60a5fa]">Blue = Left</span>{" · "}
-        <span className="text-[#a3e635]">Lime = Right</span>{" · "}
-        Dashed = Peak force (N)
-        {" · "}
-        <span className="text-slate-600">Sub-type names subject to change once real 1080 data syncs</span>
+        <span className="text-[#a3e635]">Lime = Right / Bilateral</span>
       </p>
     </div>
   );
