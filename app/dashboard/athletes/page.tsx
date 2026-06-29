@@ -387,7 +387,7 @@ export default function AthletesListPage() {
 
   if (!staffOk) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-950 text-slate-50">
+      <main className="flex min-h-screen items-center justify-center bg-[#f8fafc] text-slate-900 athlete-frosted" data-theme="light">
         <p className="text-xs text-slate-400">Checking access…</p>
       </main>
     );
@@ -403,8 +403,8 @@ export default function AthletesListPage() {
       : "Archived";
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_#111827_0,_#020617_55%)] text-slate-50">
-      <DashboardNav />
+    <main className="min-h-screen bg-[#f8fafc] text-slate-900 athlete-frosted" data-theme="light">
+      <DashboardNav lightTheme />
       <section className="mx-auto max-w-7xl px-4 pt-8 pb-20">
         {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-3">

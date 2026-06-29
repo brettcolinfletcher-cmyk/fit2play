@@ -91,8 +91,8 @@ export default function OrganisationDashboardPage() {
   });
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_#111827_0,_#020617_55%)] text-slate-50">
-      <DashboardNav />
+    <main className="min-h-screen bg-[#f8fafc] text-slate-900 athlete-frosted" data-theme="light">
+      <DashboardNav lightTheme />
 
       <section className="mx-auto max-w-6xl px-6 pt-8 pb-20">
         <header className="mb-6 flex flex-wrap items-center justify-between gap-3">

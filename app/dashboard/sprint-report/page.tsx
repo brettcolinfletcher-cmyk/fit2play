@@ -547,8 +547,8 @@ export default function SprintReportPage() {
   );
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_#111827_0,_#020617_55%)] text-slate-50">
-      <DashboardNav />
+    <main className="min-h-screen bg-[#f8fafc] text-slate-900 athlete-frosted" data-theme="light">
+      <DashboardNav lightTheme />
       <div className="mx-auto max-w-7xl px-4 pt-8 pb-16">
         <div className="mb-6">
           <h1 className="text-xl font-semibold tracking-tight text-slate-50">
