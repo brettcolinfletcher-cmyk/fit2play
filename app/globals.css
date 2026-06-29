@@ -425,24 +425,9 @@ body {
 [data-theme="bordered"] .border-b.border-slate-800,
 [data-theme="tinted"] .border-b.border-slate-800 { border-color: #e2e8f0 !important; }
 
-/* ── Lime top border accent on key cards ── */
-/* Header card, ring panel, and trend panel cards get a 2px lime top border */
-[data-theme="light"] .rounded-2xl,
-[data-theme="bordered"] .rounded-2xl,
-[data-theme="tinted"] .rounded-2xl {
-  border-top: 2px solid #7fe303 !important;
-}
-/* Ring panel gets a stronger lime top border */
-[data-theme="light"] .shadow-2xl.rounded-2xl,
-[data-theme="bordered"] .shadow-2xl.rounded-2xl,
-[data-theme="tinted"] .shadow-2xl.rounded-2xl {
-  border-top: 2px solid #7fe303 !important;
-  border-color: rgba(163,230,53,0.25) !important;
-  border-top-color: #7fe303 !important;
-}
-/* Trend chart panels (rounded-xl) get a subtler lime top accent */
+/* ── Subtle lime top accent on trend/test cards only (not header or ring panel) ── */
 [data-theme="light"] .rounded-xl,
 [data-theme="bordered"] .rounded-xl,
 [data-theme="tinted"] .rounded-xl {
-  border-top: 1.5px solid rgba(127,227,3,0.35) !important;
+  border-top: 1.5px solid rgba(127,227,3,0.25) !important;
 }
