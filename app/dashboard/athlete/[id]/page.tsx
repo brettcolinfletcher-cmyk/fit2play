@@ -506,7 +506,7 @@ export default function AthleteProfilePage() {
   }
 
   return (
-    <main className={`min-h-screen ${t.bg} ${t.text}`} data-theme={t.dataTheme}>
+    <main className={`min-h-screen ${t.bg} ${t.text} athlete-frosted`} data-theme={t.dataTheme}>
       <DashboardNav lightTheme />
 
       <section className="mx-auto max-w-7xl px-4 pt-8 pb-20">
