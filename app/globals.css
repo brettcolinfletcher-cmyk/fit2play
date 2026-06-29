@@ -295,6 +295,16 @@ body {
 [data-theme="tinted"] .recharts-xAxis .recharts-cartesian-axis-tick text,
 [data-theme="tinted"] .recharts-yAxis .recharts-cartesian-axis-tick text { fill: #64748b !important; }
 
+/* ── Chart plot area — very subtle bg to define chart bounds on white cards ── */
+[data-theme="light"] .recharts-cartesian-grid-bg,
+[data-theme="bordered"] .recharts-cartesian-grid-bg,
+[data-theme="tinted"] .recharts-cartesian-grid-bg { fill: #f8fafc !important; }
+
+/* ── Recharts legend text — darker on light ── */
+[data-theme="light"] .recharts-legend-item-text,
+[data-theme="bordered"] .recharts-legend-item-text,
+[data-theme="tinted"] .recharts-legend-item-text { color: #475569 !important; fill: #475569 !important; }
+
 /* ── Eyebrow divider lines ── */
 [data-theme="light"] .h-px.flex-1.bg-slate-800,
 [data-theme="bordered"] .h-px.flex-1.bg-slate-800,

@@ -178,9 +178,9 @@ export default function SprintTrendPanel({
                 dataKey={m.key}
                 name={m.label}
                 stroke={m.color}
-                strokeWidth={2}
-                dot={{ fill: m.color, r: 4 }}
-                activeDot={{ r: 6 }}
+                strokeWidth={2.5}
+                dot={{ fill: m.color, r: 5, strokeWidth: 0 }}
+                activeDot={{ r: 7 }}
                 connectNulls
               />
             ))}
