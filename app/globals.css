@@ -323,10 +323,10 @@ body {
 [data-theme="bordered"] .border-slate-700\/40,
 [data-theme="tinted"] .border-slate-700\/40 { border-color: #cbd5e1 !important; }
 
-/* ── Eyebrow section labels ── */
-[data-theme="light"] .tracking-widest,
-[data-theme="bordered"] .tracking-widest,
-[data-theme="tinted"] .tracking-widest { color: #475569 !important; }
+/* ── Section eyebrow text — stronger on light ── */
+[data-theme="light"] .uppercase.tracking-widest,
+[data-theme="bordered"] .uppercase.tracking-widest,
+[data-theme="tinted"] .uppercase.tracking-widest { color: #475569 !important; font-weight: 500 !important; }
 
 /* ── Theme switcher pill bar ── */
 [data-theme="light"] .rounded-full.border.border-slate-700.bg-slate-900\/40,

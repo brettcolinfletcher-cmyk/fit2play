@@ -135,7 +135,7 @@ export default function SprintTrendPanel({
         </div>
 
         <ResponsiveContainer width="100%" height={300}>
-          <LineChart data={rows} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+          <LineChart data={rows} margin={{ top: 4, right: 16, left: 0, bottom: -10 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
             <XAxis
               dataKey="date"
@@ -150,6 +150,8 @@ export default function SprintTrendPanel({
               axisLine={false}
               tickLine={false}
               width={36}
+              tickCount={5}
+              domain={["auto", "auto"]}
             />
             <YAxis
               yAxisId="time"
@@ -158,6 +160,8 @@ export default function SprintTrendPanel({
               axisLine={false}
               tickLine={false}
               width={36}
+              tickCount={5}
+              domain={["auto", "auto"]}
             />
             <Tooltip
               contentStyle={{
