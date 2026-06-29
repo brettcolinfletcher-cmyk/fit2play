@@ -106,9 +106,9 @@ export default function AthleteRingPanel({ metricLatest, metricPrev }: Props) {
       className="relative overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/60 p-6 shadow-2xl"
       style={{ boxShadow: `0 0 60px -12px ${band?.color ?? "#a3e635"}22` }}
     >
-      {/* Subtle radial glow behind overall ring */}
+      {/* Radial glow behind overall ring */}
       <div
-        className="pointer-events-none absolute -left-8 -top-8 h-64 w-64 rounded-full opacity-10 blur-3xl"
+        className="pointer-events-none absolute -left-8 -top-8 h-64 w-64 rounded-full opacity-20 blur-2xl"
         style={{ background: band?.color ?? "#a3e635" }}
       />
 
@@ -149,6 +149,7 @@ export default function AthleteRingPanel({ metricLatest, metricPrev }: Props) {
               <div
                 key={q.key}
                 className="flex flex-col items-center rounded-xl border border-slate-800/80 bg-slate-950/40 px-2 py-3 text-center transition-colors hover:border-slate-700"
+                style={qBand?.color ? { boxShadow: `inset 0 0 20px -8px ${qBand.color}33, 0 0 12px -4px ${qBand.color}22` } : undefined}
               >
                 <div className="relative h-16 w-16">
                   <Ring score={score} size={64} stroke={6} />
