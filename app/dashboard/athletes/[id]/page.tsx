@@ -385,7 +385,7 @@ function ChartShell({
     <div>
       <p className="mb-2 text-xs text-slate-400">{title}</p>
       {showChart ? (
-        <div className="h-[160px] w-full rounded border border-slate-100 bg-white">
+        <div className="h-[160px] w-full rounded border border-slate-800 bg-[#0f172a]">
           <ResponsiveContainer width="100%" height="100%">
             {chartType === "bar" ? (
               <BarChart data={points} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>

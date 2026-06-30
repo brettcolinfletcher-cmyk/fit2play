@@ -58,8 +58,8 @@ export default function SectionComment({
   }
 
   return (
-    <div className="mt-6 rounded-xl border border-slate-800 bg-slate-950/50 p-4">
-      <p className="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">
+    <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4">
+      <p className="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-400">
         Section note
       </p>
       {editing ? (
@@ -68,10 +68,10 @@ export default function SectionComment({
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             rows={4}
-            className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-200"
+            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-lime-400 focus:outline-none"
             placeholder="Add a clinical note…"
           />
-          {err && <p className="text-xs text-rose-400">{err}</p>}
+          {err && <p className="text-xs text-rose-600">{err}</p>}
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
@@ -88,7 +88,7 @@ export default function SectionComment({
                 setDraft(text);
                 setErr(null);
               }}
-              className="rounded-full border border-slate-600 px-4 py-1.5 text-xs text-slate-300"
+              className="rounded-full border border-slate-300 px-4 py-1.5 text-xs text-slate-500"
             >
               Cancel
             </button>
@@ -103,12 +103,12 @@ export default function SectionComment({
               setEditing(true);
               setErr(null);
             }}
-            className="w-full rounded-lg border border-transparent px-2 py-2 text-left text-sm text-slate-300 hover:border-slate-700 hover:bg-slate-900/80"
+            className="w-full rounded-lg border border-transparent px-2 py-2 text-left text-sm text-slate-700 hover:border-slate-200 hover:bg-white"
           >
             {text.trim() ? (
               <span className="whitespace-pre-wrap">{text}</span>
             ) : (
-              <span className="text-slate-500">Add a clinical note…</span>
+              <span className="text-slate-400">Add a clinical note…</span>
             )}
           </button>
           <button
@@ -120,7 +120,7 @@ export default function SectionComment({
               setEditing(true);
               setErr(null);
             }}
-            className="absolute right-2 top-2 rounded p-1 text-slate-600 opacity-0 transition hover:bg-slate-800 hover:text-lime-300 group-hover:opacity-100"
+            className="absolute right-2 top-2 rounded p-1 text-slate-400 opacity-0 transition hover:bg-slate-100 hover:text-lime-600 group-hover:opacity-100"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
