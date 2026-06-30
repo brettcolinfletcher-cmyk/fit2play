@@ -124,10 +124,10 @@ export default function SyncDashboardPage() {
     <main className="min-h-screen bg-[#f8fafc] text-slate-900 athlete-frosted" data-theme="light">
       <DashboardNav lightTheme />
       <section className="mx-auto max-w-7xl px-4 pt-8 pb-20">
-        <h1 className="text-xl font-semibold tracking-tight text-slate-50">
+        <h1 className="text-xl font-semibold tracking-tight text-slate-900">
           Data sync
         </h1>
-        <p className="mt-1 text-sm text-slate-400">
+        <p className="mt-1 text-sm text-slate-500">
           Pull sessions from Hawkins Dynamics and 1080 Motion into Supabase.
           Nightly cron runs at midnight AEST.
         </p>
@@ -179,24 +179,24 @@ function SyncCard({
   formatAest: (iso: string) => string;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow-xl shadow-lime-400/10">
-      <h2 className="text-sm font-semibold uppercase tracking-widest text-lime-300">
+    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <h2 className="text-sm font-semibold uppercase tracking-widest text-lime-700">
         {title}
       </h2>
-      <p className="mt-2 text-xs text-slate-400">{description}</p>
+      <p className="mt-2 text-xs text-slate-500">{description}</p>
 
       <dl className="mt-4 space-y-2 text-sm">
         <div>
           <dt className="text-[0.7rem] font-medium uppercase tracking-widest text-slate-400">
             Last synced
           </dt>
-          <dd className="text-slate-200">
+          <dd className="text-slate-700">
             {statusLoading ? (
-              <span className="text-slate-500">Loading…</span>
+              <span className="text-slate-400">Loading…</span>
             ) : last ? (
               formatAest(last.synced_at)
             ) : (
-              <span className="text-slate-500">Never</span>
+              <span className="text-slate-400">Never</span>
             )}
           </dd>
         </div>
@@ -204,7 +204,7 @@ function SyncCard({
           <dt className="text-[0.7rem] font-medium uppercase tracking-widest text-slate-400">
             Sessions (last run)
           </dt>
-          <dd className="tabular-nums text-slate-200">
+          <dd className="tabular-nums text-slate-700">
             {statusLoading ? "—" : last?.sessions_created ?? "—"}
           </dd>
         </div>
@@ -213,7 +213,7 @@ function SyncCard({
             <dt className="text-[0.7rem] font-medium uppercase tracking-widest text-slate-400">
               Last log errors
             </dt>
-            <dd className="text-xs text-amber-400">{last.errors}</dd>
+            <dd className="text-xs text-amber-600">{last.errors}</dd>
           </div>
         ) : null}
       </dl>
@@ -222,7 +222,7 @@ function SyncCard({
         type="button"
         disabled={busy}
         onClick={onSync}
-        className="mt-5 inline-flex items-center justify-center rounded-full border border-slate-600 bg-slate-800 px-4 py-2 text-xs font-semibold text-lime-300 hover:border-lime-400/50 disabled:opacity-50"
+        className="mt-5 inline-flex items-center justify-center rounded-full border border-lime-500 bg-white px-4 py-2 text-xs font-semibold text-lime-700 hover:bg-lime-50 disabled:opacity-50"
       >
         {busy ? (
           <span className="flex items-center gap-2">
@@ -237,7 +237,7 @@ function SyncCard({
       {message ? (
         <p
           className={`mt-3 text-xs ${
-            message.startsWith("Error") ? "text-rose-400" : "text-emerald-400"
+            message.startsWith("Error") ? "text-rose-600" : "text-emerald-600"
           }`}
         >
           {message}
@@ -250,7 +250,7 @@ function SyncCard({
 function Spinner() {
   return (
     <span
-      className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-lime-400/30 border-t-lime-400"
+      className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-lime-200 border-t-lime-600"
       aria-hidden
     />
   );
