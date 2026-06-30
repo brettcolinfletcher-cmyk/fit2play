@@ -39,7 +39,7 @@ export default function SiteNav({ dark = false }: { dark?: boolean }) {
       <header className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 pt-6">
         <Link href="/" className="flex shrink-0 items-center gap-2">
           <Image
-            src="/fit2play_logo_canva.png"
+            src={dark ? "/fit2play_logo_transparent.png" : "/fit2play_logo_canva.png"}
             alt="Fit2Perform logo"
             width={260}
             height={100}

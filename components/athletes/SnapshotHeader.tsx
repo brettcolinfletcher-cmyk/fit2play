@@ -100,7 +100,7 @@ function GaugeRing({ gauge }: { gauge: AthleteSnapshot["gauges"][number] }) {
           cy="36"
           r={radius}
           fill="none"
-          stroke="#e2e8f0"
+          stroke="rgba(148,163,184,0.2)"
           strokeWidth={strokeWidth}
         />
         <circle
@@ -118,7 +118,7 @@ function GaugeRing({ gauge }: { gauge: AthleteSnapshot["gauges"][number] }) {
           x="36"
           y="40"
           textAnchor="middle"
-          fill="#1e293b"
+          fill="#e2e8f0"
           fontSize="14"
           fontWeight="600"
         >
@@ -215,7 +215,7 @@ export default function SnapshotHeader({
 
       {snapshot.gauges.length > 0 ? (
         <div
-          className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-5"
+          className="grid gap-4 rounded-2xl border border-slate-800 bg-[#0f172a] p-5"
           style={{ gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))" }}
         >
           {snapshot.gauges.map((gauge) => (
@@ -225,8 +225,8 @@ export default function SnapshotHeader({
       ) : null}
 
       {snapshot.hero ? (
-        <div className="rounded-2xl border border-slate-200 bg-white p-5">
-          <h3 className="text-sm font-semibold text-slate-800">
+        <div className="rounded-2xl border border-slate-800 bg-[#0f172a] p-5">
+          <h3 className="text-sm font-semibold text-slate-200">
             {snapshot.hero.title}
             <span className="ml-2 text-xs font-normal text-slate-400">
               ({snapshot.hero.unit})
@@ -235,9 +235,9 @@ export default function SnapshotHeader({
           <div className="mt-3 h-48 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={snapshot.hero.points}>
-                <CartesianGrid stroke="#e2e8f0" strokeDasharray="2 6" />
-                <XAxis dataKey="date" tick={AXIS_TICK} />
-                <YAxis tick={AXIS_TICK} width={42} />
+                <CartesianGrid stroke="rgba(148,163,184,0.12)" strokeDasharray="2 6" />
+                <XAxis dataKey="date" tick={{ fill: "#94a3b8", fontSize: 10 }} />
+                <YAxis tick={{ fill: "#94a3b8", fontSize: 10 }} width={42} />
                 <Tooltip
                   contentStyle={TOOLTIP_STYLE}
                   labelStyle={{ color: "#94a3b8" }}
@@ -265,10 +265,10 @@ export default function SnapshotHeader({
           {snapshot.tiles.map((tile) => (
             <div
               key={tile.key}
-              className="rounded-2xl border border-slate-200 bg-white p-4"
+              className="rounded-2xl border border-slate-800 bg-[#0f172a] p-4"
             >
               <p className="text-xs uppercase tracking-wide text-slate-400">{tile.label}</p>
-              <p className="mt-1 text-2xl font-semibold text-slate-900">{tile.value}</p>
+              <p className="mt-1 text-2xl font-semibold text-slate-100">{tile.value}</p>
               <p className={`mt-1 text-xs ${tile.deltaColorClass}`}>{tile.delta}</p>
             </div>
           ))}
