@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 export default function MediaPage() {
   return (
     <div className="min-h-screen overflow-x-hidden bg-[radial-gradient(circle_at_top,_#111827_0,_#020617_55%)] text-slate-50">
-      <SiteNav />
+      <SiteNav dark />
 
       <main className="mx-auto max-w-5xl px-4 pb-20 pt-10">
         <section className="pb-12">

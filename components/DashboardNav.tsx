@@ -51,6 +51,11 @@ export default function DashboardNav({ lightTheme = false }: { lightTheme?: bool
 
   const navItems: { href: string; label: string; active: boolean }[] = [
     {
+      href: "/",
+      label: "Home",
+      active: false,
+    },
+    {
       href: "/dashboard",
       label: "Dashboard",
       active: pathname === "/dashboard",
@@ -143,7 +148,7 @@ export default function DashboardNav({ lightTheme = false }: { lightTheme?: bool
                 alt="Fit2Play logo"
                 width={260}
                 height={100}
-                className="h-8 w-auto"
+                className="h-10 w-auto"
               />
             ) : (
               <Image
@@ -151,7 +156,7 @@ export default function DashboardNav({ lightTheme = false }: { lightTheme?: bool
                 alt="Fit2Play logo"
                 width={160}
                 height={50}
-                className="h-8 w-auto"
+                className="h-10 w-auto"
               />
             )}
           </Link>

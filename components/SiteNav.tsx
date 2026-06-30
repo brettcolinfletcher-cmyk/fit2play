@@ -22,14 +22,16 @@ const NAV_LINKS = [
   { label: "Contact", href: "/contact" },
 ] as const;
 
-export default function SiteNav() {
+export default function SiteNav({ dark = false }: { dark?: boolean }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const closeMenu = () => setMenuOpen(false);
   const pathname = usePathname();
 
   const linkClass = (href: string) =>
     pathname === href
-      ? "text-lime-600 font-semibold"
+      ? "text-lime-400 font-semibold"
+      : dark
+      ? "text-slate-300 hover:text-lime-400"
       : "text-slate-600 hover:text-lime-600";
 
   return (
@@ -41,7 +43,7 @@ export default function SiteNav() {
             alt="Fit2Perform logo"
             width={260}
             height={100}
-            className="max-h-10 w-auto"
+            className="max-h-14 w-auto"
             priority
           />
         </Link>
