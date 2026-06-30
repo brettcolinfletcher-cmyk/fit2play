@@ -114,15 +114,15 @@ export default function SyncDashboardPage() {
 
   if (!staffOk) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-950 text-slate-50">
+      <main className="flex min-h-screen items-center justify-center bg-[#f8fafc] text-slate-900 athlete-frosted" data-theme="light">
         <p className="text-xs text-slate-400">Checking access…</p>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_#111827_0,_#020617_55%)] text-slate-50">
-      <DashboardNav />
+    <main className="min-h-screen bg-[#f8fafc] text-slate-900 athlete-frosted" data-theme="light">
+      <DashboardNav lightTheme />
       <section className="mx-auto max-w-7xl px-4 pt-8 pb-20">
         <h1 className="text-xl font-semibold tracking-tight text-slate-50">
           Data sync
@@ -213,7 +213,7 @@ function SyncCard({
             <dt className="text-[0.7rem] font-medium uppercase tracking-widest text-slate-400">
               Last log errors
             </dt>
-            <dd className="text-xs text-amber-400/90">{last.errors}</dd>
+            <dd className="text-xs text-amber-400">{last.errors}</dd>
           </div>
         ) : null}
       </dl>
@@ -237,7 +237,7 @@ function SyncCard({
       {message ? (
         <p
           className={`mt-3 text-xs ${
-            message.startsWith("Error") ? "text-rose-400" : "text-emerald-400/90"
+            message.startsWith("Error") ? "text-rose-400" : "text-emerald-400"
           }`}
         >
           {message}
