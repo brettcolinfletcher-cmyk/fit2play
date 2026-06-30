@@ -13,20 +13,24 @@ type Props = {
   metricPrev: Record<string, number>;
 };
 
-/** Animated SVG ring — draws from 0 to target on mount. */
-function Ring({
+/** Animated SVG ring — draws from 0 to target on mount. Exported so other
+ *  score panels (e.g. RtpScorePanel) render pixel-identical rings. */
+export function Ring({
   score,
   size,
   stroke,
   animate = false,
+  color,
 }: {
   score: number | null;
   size: number;
   stroke: number;
   animate?: boolean;
+  /** Override the band-derived colour (RtpScorePanel uses pass/warn/fail, not quality bands) */
+  color?: string;
 }) {
   const arcRef = useRef<SVGCircleElement>(null);
-  const color = scoreBand(score)?.color ?? "#475569";
+  const resolvedColor = color ?? scoreBand(score)?.color ?? "#475569";
   const r = size / 2 - stroke;
   const c = 2 * Math.PI * r;
   const targetOffset = score == null ? c : c * (1 - score / 100);
@@ -64,7 +68,7 @@ function Ring({
         cy={size / 2}
         r={r}
         fill="none"
-        stroke={color}
+        stroke={resolvedColor}
         strokeWidth={stroke}
         strokeLinecap="round"
         strokeDasharray={c}
@@ -105,14 +109,14 @@ export default function AthleteRingPanel({ metricLatest, metricPrev }: Props) {
     <div
       className="relative overflow-hidden rounded-2xl p-6 shadow-2xl"
       style={{
-        backgroundColor: "#0f172a",
-        border: "1.5px solid rgba(127,227,3,0.40)",
-        boxShadow: `0 8px 40px rgba(0,0,0,0.20), 0 2px 8px rgba(0,0,0,0.12), 0 0 80px -8px rgba(163,230,53,0.50), 0 0 60px -12px ${band?.color ?? "#a3e635"}22`,
+        backgroundColor: "rgba(2,6,23,0.7)",
+        border: "1px solid #334155",
+        boxShadow: `0 20px 25px -5px rgba(0,0,0,0.15), 0 8px 10px -6px rgba(0,0,0,0.10), 0 0 50px -12px rgba(163,230,53,0.18), 0 0 40px -16px ${band?.color ?? "#a3e635"}1a`,
       }}
     >
       {/* Radial glow behind overall ring */}
       <div
-        className="pointer-events-none absolute -left-8 -top-8 h-64 w-64 rounded-full opacity-20 blur-2xl"
+        className="pointer-events-none absolute -left-8 -top-8 h-64 w-64 rounded-full opacity-10 blur-2xl"
         style={{ background: band?.color ?? "#a3e635" }}
       />
 

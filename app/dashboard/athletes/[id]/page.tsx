@@ -33,6 +33,9 @@ import SectionComment from "@/components/athletes/SectionComment";
 import SectionJumpNav from "@/components/athletes/SectionJumpNav";
 import SnapshotHeader from "@/components/athletes/SnapshotHeader";
 import TimepointSummary from "@/components/athletes/TimepointSummary";
+import AthleteRingPanel from "@/components/AthleteRingPanel";
+import AthleteTestSummary from "@/components/AthleteTestSummary";
+import AthleteIdentityCard from "@/components/athletes/AthleteIdentityCard";
 import {
   buildHopTestBlocks,
   formatChartAxisDate,
@@ -385,7 +388,7 @@ function ChartShell({
     <div>
       <p className="mb-2 text-xs text-slate-400">{title}</p>
       {showChart ? (
-        <div className="h-[160px] w-full rounded border border-slate-800 bg-[#0f172a]">
+        <div className="h-[160px] w-full rounded-xl border bg-slate-950/70 f2p-dark-tile">
           <ResponsiveContainer width="100%" height="100%">
             {chartType === "bar" ? (
               <BarChart data={points} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
@@ -458,6 +461,18 @@ export default function AthleteDetailPage() {
   const [athlete, setAthlete] = useState<Athlete | null>(null);
   const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [metricsBySession, setMetricsBySession] = useState<Map<string, MetricRow[]>>(() => new Map());
+  const [perfMetricLatest, setPerfMetricLatest] = useState<Record<string, number>>({});
+  const [perfMetricPrev, setPerfMetricPrev] = useState<Record<string, number>>({});
+  const [perfMetricSides, setPerfMetricSides] = useState<Record<string, number>>({});
+  const [perfIsoLatest, setPerfIsoLatest] = useState<
+    | {
+        kneeExtension: { left: number | null; right: number | null };
+        kneeFlexion: { left: number | null; right: number | null };
+        hipAbduction: { left: number | null; right: number | null };
+      }
+    | undefined
+  >(undefined);
+  const [perfDataLoading, setPerfDataLoading] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -715,6 +730,78 @@ export default function AthleteDetailPage() {
     })();
     return () => { cancelled = true; };
   }, [staffOk, id]);
+
+  // Athlete's dashboard mode: 'rtp' (exit-criteria/LSI gauges, date-filtered,
+  // editable cutoffs) or 'performance' (fixed composite 6-quality score, same
+  // as the athlete's own login). Set per-athlete on the edit page.
+  const dashboardMode: "rtp" | "performance" =
+    String((athlete as Record<string, unknown> | null)?.dashboard_mode ?? "rtp") === "performance"
+      ? "performance"
+      : "rtp";
+
+  // Performance-mode score data comes from a different pipeline (RPC-backed,
+  // not date-filtered) than the RTP gauges above, so it's fetched separately
+  // and only when this athlete is actually in performance mode.
+  useEffect(() => {
+    if (!staffOk || !id || dashboardMode !== "performance") return;
+    let cancelled = false;
+    (async () => {
+      setPerfDataLoading(true);
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const res = await fetch(`/api/athlete-dashboard/${id}`, {
+        headers: session?.access_token
+          ? { Authorization: `Bearer ${session.access_token}` }
+          : {},
+      });
+      const json = await res.json().catch(() => ({}));
+      if (cancelled) return;
+      if (!res.ok) {
+        setPerfDataLoading(false);
+        return;
+      }
+      setPerfMetricLatest((json.metricLatest as Record<string, number>) ?? {});
+      setPerfMetricPrev((json.metricPrev as Record<string, number>) ?? {});
+      setPerfMetricSides((json.metricSides as Record<string, number>) ?? {});
+
+      const fpTrendMetrics = (json.fpTrendMetrics as {
+        session_date: string;
+        test_type: string;
+        test_sub_type: string | null;
+        key: string;
+        value: string;
+        side: string | null;
+      }[]) ?? [];
+      const isoRows = fpTrendMetrics.filter((r) => r.test_type === "force_plate_isometric");
+      const latestDate = isoRows.length
+        ? [...new Set(isoRows.map((r) => r.session_date.slice(0, 10)))].sort().at(-1)
+        : null;
+      if (latestDate) {
+        const day = isoRows.filter((r) => r.session_date.slice(0, 10) === latestDate);
+        const getSide = (subKeyword: string, side: string): number | null => {
+          const r = day.find(
+            (x) =>
+              (x.test_sub_type ?? "").toLowerCase().includes(subKeyword) &&
+              x.key === "peak_force" &&
+              x.side === side
+          );
+          return r ? Number(r.value) : null;
+        };
+        setPerfIsoLatest({
+          kneeExtension: { left: getSide("knee extension", "left"), right: getSide("knee extension", "right") },
+          kneeFlexion: { left: getSide("knee flexion", "left"), right: getSide("knee flexion", "right") },
+          hipAbduction: { left: getSide("hip abduction", "left"), right: getSide("hip abduction", "right") },
+        });
+      } else {
+        setPerfIsoLatest(undefined);
+      }
+      setPerfDataLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [staffOk, id, dashboardMode]);
 
   const grouped = useMemo(() => {
     const h: SessionRow[] = [], m: SessionRow[] = [], c: SessionRow[] = [];
@@ -1047,14 +1134,31 @@ export default function AthleteDetailPage() {
           <p className="mt-8 text-sm text-rose-400">{error}</p>
         ) : athlete ? (
           <>
-            <SnapshotHeader
-              athlete={athlete}
-              sessions={filteredSessions}
-              metricsBySession={metricsBySession}
-              hopTests={filteredHopTests}
-              visibility={visibility}
-              criteria={criteria}
-            />
+            {dashboardMode === "performance" ? (
+              <div className="mt-6 space-y-6">
+                <AthleteIdentityCard athlete={athlete} />
+                <AthleteRingPanel metricLatest={perfMetricLatest} metricPrev={perfMetricPrev} />
+                {perfDataLoading ? (
+                  <p className="text-xs text-slate-400">Loading performance data…</p>
+                ) : null}
+                <AthleteTestSummary
+                  metricLatest={perfMetricLatest}
+                  metricPrev={perfMetricPrev}
+                  metricSides={perfMetricSides}
+                  sectionComments={sectionCommentBySection as Record<string, string>}
+                  isoLatest={perfIsoLatest}
+                />
+              </div>
+            ) : (
+              <SnapshotHeader
+                athlete={athlete}
+                sessions={filteredSessions}
+                metricsBySession={metricsBySession}
+                hopTests={filteredHopTests}
+                visibility={visibility}
+                criteria={criteria}
+              />
+            )}
 
             <SectionJumpNav sectionsWithData={sectionsWithData} />
 

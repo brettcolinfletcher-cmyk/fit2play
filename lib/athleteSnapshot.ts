@@ -163,9 +163,13 @@ function hawkinsCsvSessions(sessions: ReportSessionRow[]): ReportSessionRow[] {
 }
 
 function gaugeColorClass(lsi: number, pass: number, warn: number): string {
-  if (lsi >= pass) return "text-lime-600";
-  if (lsi >= warn) return "text-amber-600";
-  return "text-rose-600";
+  // These labels render inside the dark f2p-dark-panel gauge grid, so use the
+  // lighter 400-weight variants (matching the homepage DashboardShowcase
+  // mockup's ring colours) rather than the 600-weight variants meant for
+  // text on a white background — those read as murky/low-contrast on navy.
+  if (lsi >= pass) return "text-lime-400";
+  if (lsi >= warn) return "text-amber-400";
+  return "text-rose-400";
 }
 
 function makeGauge(

@@ -11,11 +11,17 @@ import { supabase } from "@/lib/supabaseClient";
 const LR_OPTIONS = ["Left", "Right", "Both"] as const;
 
 type AthleteStatus = "active" | "monitoring" | "archived";
+type DashboardMode = "rtp" | "performance";
 
 const STATUS_OPTIONS: { value: AthleteStatus; label: string; hint: string }[] = [
   { value: "active", label: "Active", hint: "Current caseload" },
   { value: "monitoring", label: "Monitoring", hint: "Watch-list / discharged check-ins" },
   { value: "archived", label: "Archived", hint: "Hidden from main list" },
+];
+
+const DASHBOARD_MODE_OPTIONS: { value: DashboardMode; label: string; hint: string }[] = [
+  { value: "rtp", label: "Return to play", hint: "Exit-criteria / LSI gauges against your editable cutoffs — for athletes in rehab" },
+  { value: "performance", label: "Performance", hint: "Composite 6-quality score (speed, power, strength etc.) — for general athlete monitoring" },
 ];
 
 type FormState = {
@@ -25,6 +31,7 @@ type FormState = {
   team: string;
   primary_sport: string;
   status: AthleteStatus;
+  dashboard_mode: DashboardMode;
   height_cm: string;
   weight_kg: string;
   dominant_leg: string;
@@ -39,6 +46,7 @@ const emptyForm: FormState = {
   team: "",
   primary_sport: "",
   status: "active",
+  dashboard_mode: "rtp",
   height_cm: "",
   weight_kg: "",
   dominant_leg: "",
@@ -84,6 +92,8 @@ export default function EditAthletePage() {
         loadedStatus === "monitoring" || loadedStatus === "archived"
           ? loadedStatus
           : "active";
+      const loadedMode = String(a.dashboard_mode ?? "rtp");
+      const safeMode: DashboardMode = loadedMode === "performance" ? "performance" : "rtp";
       setForm({
         first_name: String(a.first_name ?? ""),
         last_name: String(a.last_name ?? ""),
@@ -91,6 +101,7 @@ export default function EditAthletePage() {
         team: String(a.team ?? ""),
         primary_sport: String(a.primary_sport ?? ""),
         status: safeStatus,
+        dashboard_mode: safeMode,
         height_cm:
           a.height_cm != null && a.height_cm !== ""
             ? String(a.height_cm)
@@ -168,6 +179,7 @@ export default function EditAthletePage() {
       team: form.team.trim() || null,
       primary_sport: form.primary_sport.trim() || null,
       status: form.status,
+      dashboard_mode: form.dashboard_mode,
       notes: form.notes.trim() || null,
       dominant_leg: form.dominant_leg || null,
       dominant_hand: form.dominant_hand || null,
@@ -363,6 +375,29 @@ export default function EditAthletePage() {
               </select>
               <p className="mt-1 text-[11px] text-slate-500">
                 {STATUS_OPTIONS.find((o) => o.value === form.status)?.hint}
+              </p>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs text-slate-400">Dashboard mode</label>
+              <select
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-slate-100"
+                value={form.dashboard_mode}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    dashboard_mode: e.target.value as DashboardMode,
+                  }))
+                }
+              >
+                {DASHBOARD_MODE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-[11px] text-slate-500">
+                {DASHBOARD_MODE_OPTIONS.find((o) => o.value === form.dashboard_mode)?.hint}
               </p>
             </div>
 

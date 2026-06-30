@@ -167,15 +167,17 @@ body {
 [data-theme="tinted"] .rounded-xl { box-shadow: 0 1px 4px rgba(22,163,74,0.07), 0 0 0 1px #86efac !important; }
 [data-theme="tinted"] .rounded-2xl { box-shadow: 0 2px 12px rgba(22,163,74,0.09), 0 0 0 1px #86efac !important; }
 
-/* ── Ring panel: keep dark — it's the intentional anchor on a light page ── */
-/* Override the white flip for the ring panel's specific classes */
+/* ── Ring panel: keep dark — it's the intentional anchor on a light page ──
+   Softened to match the homepage marketing mockups (DashboardShowcase /
+   ProductProofVisuals cardShell): translucent slate-950, slate-700 border,
+   ambient lime glow only — no hard neon edge. */
 [data-theme="light"] .shadow-2xl.rounded-2xl,
 [data-theme="bordered"] .shadow-2xl.rounded-2xl,
 [data-theme="tinted"] .shadow-2xl.rounded-2xl {
-  background-color: #0f172a !important;
-  border-color: rgba(127,227,3,0.45) !important;
-  border-width: 1.5px !important;
-  box-shadow: 0 8px 40px rgba(0,0,0,0.20), 0 2px 8px rgba(0,0,0,0.12), 0 0 80px -8px rgba(163,230,53,0.55), 0 0 30px -4px rgba(163,230,53,0.35) !important;
+  background-color: rgba(2,6,23,0.7) !important;
+  border-color: #334155 !important;
+  border-width: 1px !important;
+  box-shadow: 0 20px 25px -5px rgba(0,0,0,0.15), 0 8px 10px -6px rgba(0,0,0,0.10), 0 0 50px -12px rgba(163,230,53,0.18) !important;
 }
 
 /* Inside the ring panel — text stays light */
@@ -572,3 +574,83 @@ body {
 [data-theme="light"] .text-emerald-100,
 [data-theme="bordered"] .text-emerald-100,
 [data-theme="tinted"] .text-emerald-100 { color: #047857 !important; }
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   DARK ANCHOR PANELS — shared with homepage marketing mockups
+   Used by SnapshotHeader (gauge grid / hero trend / perf tiles) and the
+   per-metric ChartShell mini charts on the athlete report. These are
+   intentional dark zones on an otherwise white/frosted page, and must read
+   as the SAME design language as the homepage's DashboardShowcase and
+   ProductProofVisuals cardShell (translucent slate-950, soft slate-700
+   border, ambient lime glow only — no hard neon edge, no light-theme flip).
+   Explicitly scoped + placed last so it always wins over the generic
+   .rounded-xl / .rounded-2xl / .border-slate-700 frosted-theme overrides
+   above, including the lime top-border accent.
+   ═══════════════════════════════════════════════════════════════════════════════ */
+[data-theme="light"] .f2p-dark-panel,
+[data-theme="bordered"] .f2p-dark-panel,
+[data-theme="tinted"] .f2p-dark-panel,
+.f2p-dark-panel {
+  background-color: rgba(2,6,23,0.7) !important;
+  border-color: #334155 !important;
+  border-top-color: #334155 !important;
+  box-shadow: 0 20px 25px -5px rgba(0,0,0,0.15), 0 8px 10px -6px rgba(0,0,0,0.10), 0 0 50px -12px rgba(163,230,53,0.18) !important;
+}
+
+[data-theme="light"] .f2p-dark-tile,
+[data-theme="bordered"] .f2p-dark-tile,
+[data-theme="tinted"] .f2p-dark-tile,
+.f2p-dark-tile {
+  background-color: rgba(2,6,23,0.7) !important;
+  border-color: #334155 !important;
+  border-top-color: #334155 !important;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.12), 0 0 24px -8px rgba(163,230,53,0.14) !important;
+}
+
+/* Text/labels inside these dark anchor zones stay light, same treatment as
+   the ring panel above. */
+[data-theme="light"] .f2p-dark-panel .text-slate-400,
+[data-theme="light"] .f2p-dark-tile .text-slate-400,
+[data-theme="bordered"] .f2p-dark-panel .text-slate-400,
+[data-theme="bordered"] .f2p-dark-tile .text-slate-400,
+[data-theme="tinted"] .f2p-dark-panel .text-slate-400,
+[data-theme="tinted"] .f2p-dark-tile .text-slate-400 { color: #94a3b8 !important; }
+
+[data-theme="light"] .f2p-dark-panel .text-slate-100,
+[data-theme="light"] .f2p-dark-tile .text-slate-100,
+[data-theme="bordered"] .f2p-dark-panel .text-slate-100,
+[data-theme="bordered"] .f2p-dark-tile .text-slate-100,
+[data-theme="tinted"] .f2p-dark-panel .text-slate-100,
+[data-theme="tinted"] .f2p-dark-tile .text-slate-100 { color: #f1f5f9 !important; }
+
+[data-theme="light"] .f2p-dark-panel .text-slate-200,
+[data-theme="light"] .f2p-dark-tile .text-slate-200,
+[data-theme="bordered"] .f2p-dark-panel .text-slate-200,
+[data-theme="bordered"] .f2p-dark-tile .text-slate-200,
+[data-theme="tinted"] .f2p-dark-panel .text-slate-200,
+[data-theme="tinted"] .f2p-dark-tile .text-slate-200 { color: #e2e8f0 !important; }
+
+/* Gauge LSI labels (lime/amber/rose) inside the dark anchor panels must stay
+   the light 400-weight tone — the page-wide override above remaps these
+   classes to dark shades intended for white card backgrounds. */
+[data-theme="light"] .f2p-dark-panel .text-lime-400,
+[data-theme="light"] .f2p-dark-tile .text-lime-400,
+[data-theme="bordered"] .f2p-dark-panel .text-lime-400,
+[data-theme="bordered"] .f2p-dark-tile .text-lime-400,
+[data-theme="tinted"] .f2p-dark-panel .text-lime-400,
+[data-theme="tinted"] .f2p-dark-tile .text-lime-400 { color: #a3e635 !important; }
+
+[data-theme="light"] .f2p-dark-panel .text-amber-400,
+[data-theme="light"] .f2p-dark-tile .text-amber-400,
+[data-theme="bordered"] .f2p-dark-panel .text-amber-400,
+[data-theme="bordered"] .f2p-dark-tile .text-amber-400,
+[data-theme="tinted"] .f2p-dark-panel .text-amber-400,
+[data-theme="tinted"] .f2p-dark-tile .text-amber-400 { color: #fbbf24 !important; }
+
+[data-theme="light"] .f2p-dark-panel .text-rose-400,
+[data-theme="light"] .f2p-dark-tile .text-rose-400,
+[data-theme="bordered"] .f2p-dark-panel .text-rose-400,
+[data-theme="bordered"] .f2p-dark-tile .text-rose-400,
+[data-theme="tinted"] .f2p-dark-panel .text-rose-400,
+[data-theme="tinted"] .f2p-dark-tile .text-rose-400 { color: #f87171 !important; }
+

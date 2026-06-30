@@ -17,9 +17,11 @@ const ALLOWED_PATCH = [
   "dominant_hand",
   "notes",
   "status",
+  "dashboard_mode",
 ] as const;
 
 const VALID_STATUSES = new Set(["active", "monitoring", "archived"]);
+const VALID_DASHBOARD_MODES = new Set(["rtp", "performance"]);
 
 function pickAllowedPatch(body: Record<string, unknown>) {
   const out: Record<string, unknown> = {};
@@ -31,6 +33,13 @@ function pickAllowedPatch(body: Record<string, unknown>) {
     throw new Error(
       `Invalid status: must be one of active, monitoring, archived`
     );
+  }
+  if (
+    "dashboard_mode" in out &&
+    out.dashboard_mode !== null &&
+    !VALID_DASHBOARD_MODES.has(String(out.dashboard_mode))
+  ) {
+    throw new Error(`Invalid dashboard_mode: must be one of rtp, performance`);
   }
   return out;
 }
