@@ -70,12 +70,12 @@ function displayName(athlete: AthleteIdentity | null): string {
 function statusPillClass(status: string | null): string {
   const s = (status ?? "").toLowerCase();
   if (s === "monitoring") {
-    return "border-amber-500/40 bg-amber-500/10 text-amber-300";
+    return "border-amber-400/60 bg-amber-50 text-amber-700";
   }
   if (s === "archived") {
-    return "border-slate-600 bg-slate-800 text-slate-400";
+    return "border-slate-300 bg-slate-100 text-slate-500";
   }
-  return "border-lime-500/40 bg-lime-500/10 text-lime-300";
+  return "border-lime-500/50 bg-lime-50 text-lime-700";
 }
 
 function GaugeRing({ gauge }: { gauge: AthleteSnapshot["gauges"][number] }) {
@@ -92,7 +92,7 @@ function GaugeRing({ gauge }: { gauge: AthleteSnapshot["gauges"][number] }) {
 
   return (
     <div
-      className={`flex flex-col items-center gap-2 ${gauge.isCriterion ? "" : "opacity-50"}`}
+      className={`flex flex-col items-center gap-2 ${gauge.isCriterion ? "" : "opacity-40"}`}
     >
       <svg width="72" height="72" viewBox="0 0 72 72" aria-hidden>
         <circle
@@ -100,7 +100,7 @@ function GaugeRing({ gauge }: { gauge: AthleteSnapshot["gauges"][number] }) {
           cy="36"
           r={radius}
           fill="none"
-          stroke="rgba(148,163,184,0.18)"
+          stroke="#e2e8f0"
           strokeWidth={strokeWidth}
         />
         <circle
@@ -118,8 +118,9 @@ function GaugeRing({ gauge }: { gauge: AthleteSnapshot["gauges"][number] }) {
           x="36"
           y="40"
           textAnchor="middle"
-          className="fill-slate-100 text-sm font-semibold"
+          fill="#1e293b"
           fontSize="14"
+          fontWeight="600"
         >
           {Math.round(gauge.lsi)}
         </text>
@@ -128,7 +129,7 @@ function GaugeRing({ gauge }: { gauge: AthleteSnapshot["gauges"][number] }) {
         {gauge.label}
       </span>
       {!gauge.isCriterion ? (
-        <span className="text-[9px] text-slate-500">not scored</span>
+        <span className="text-[9px] text-slate-400">not scored</span>
       ) : null}
     </div>
   );
@@ -170,7 +171,7 @@ export default function SnapshotHeader({
 
   return (
     <section id="snapshot" className="scroll-mt-28 mt-6 space-y-4">
-      <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-5">
+      <div className="rounded-2xl border border-slate-200 bg-white p-5">
         <div className="flex flex-wrap items-start gap-4">
           <AthleteAvatar
             url={athlete?.profile_image_url}
@@ -180,7 +181,7 @@ export default function SnapshotHeader({
           />
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-xl font-semibold text-slate-50">{displayName(athlete)}</h2>
+              <h2 className="text-xl font-semibold text-slate-900">{displayName(athlete)}</h2>
               {athlete?.status ? (
                 <span
                   className={`rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${statusPillClass(athlete.status)}`}
@@ -193,19 +194,19 @@ export default function SnapshotHeader({
               <p className="mt-1 text-sm text-slate-500">{metaParts.join(" · ")}</p>
             ) : null}
             {athlete?.notes?.trim() ? (
-              <p className="mt-2 text-sm text-slate-300">{athlete.notes.trim()}</p>
+              <p className="mt-2 text-sm text-slate-600">{athlete.notes.trim()}</p>
             ) : null}
           </div>
         </div>
 
-        <p className="mt-4 text-sm text-slate-400">
+        <p className="mt-4 text-sm text-slate-500">
           {snapshot.readiness.total === 0 ? (
             snapshot.readiness.line
           ) : (
             <>
               Cleared on{" "}
-              <span className="font-semibold text-lime-300">{snapshot.readiness.pass}</span> of{" "}
-              <span className="font-semibold text-slate-200">{snapshot.readiness.total}</span>{" "}
+              <span className="font-semibold text-lime-600">{snapshot.readiness.pass}</span> of{" "}
+              <span className="font-semibold text-slate-700">{snapshot.readiness.total}</span>{" "}
               exit criteria.
             </>
           )}
@@ -214,7 +215,7 @@ export default function SnapshotHeader({
 
       {snapshot.gauges.length > 0 ? (
         <div
-          className="grid gap-4 rounded-2xl border border-slate-800 bg-slate-900/40 p-5"
+          className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-5"
           style={{ gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))" }}
         >
           {snapshot.gauges.map((gauge) => (
@@ -224,17 +225,17 @@ export default function SnapshotHeader({
       ) : null}
 
       {snapshot.hero ? (
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-5">
-          <h3 className="text-sm font-semibold text-slate-200">
+        <div className="rounded-2xl border border-slate-200 bg-white p-5">
+          <h3 className="text-sm font-semibold text-slate-800">
             {snapshot.hero.title}
-            <span className="ml-2 text-xs font-normal text-slate-500">
+            <span className="ml-2 text-xs font-normal text-slate-400">
               ({snapshot.hero.unit})
             </span>
           </h3>
           <div className="mt-3 h-48 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={snapshot.hero.points}>
-                <CartesianGrid stroke="#1e293b" strokeDasharray="3 3" />
+                <CartesianGrid stroke="#e2e8f0" strokeDasharray="2 6" />
                 <XAxis dataKey="date" tick={AXIS_TICK} />
                 <YAxis tick={AXIS_TICK} width={42} />
                 <Tooltip
@@ -264,10 +265,10 @@ export default function SnapshotHeader({
           {snapshot.tiles.map((tile) => (
             <div
               key={tile.key}
-              className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4"
+              className="rounded-2xl border border-slate-200 bg-white p-4"
             >
-              <p className="text-xs uppercase tracking-wide text-slate-500">{tile.label}</p>
-              <p className="mt-1 text-2xl font-semibold text-slate-100">{tile.value}</p>
+              <p className="text-xs uppercase tracking-wide text-slate-400">{tile.label}</p>
+              <p className="mt-1 text-2xl font-semibold text-slate-900">{tile.value}</p>
               <p className={`mt-1 text-xs ${tile.deltaColorClass}`}>{tile.delta}</p>
             </div>
           ))}

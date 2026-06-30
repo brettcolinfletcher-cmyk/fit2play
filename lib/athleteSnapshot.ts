@@ -163,9 +163,9 @@ function hawkinsCsvSessions(sessions: ReportSessionRow[]): ReportSessionRow[] {
 }
 
 function gaugeColorClass(lsi: number, pass: number, warn: number): string {
-  if (lsi >= pass) return "text-lime-400";
-  if (lsi >= warn) return "text-amber-400";
-  return "text-rose-400";
+  if (lsi >= pass) return "text-lime-600";
+  if (lsi >= warn) return "text-amber-600";
+  return "text-rose-600";
 }
 
 function makeGauge(
