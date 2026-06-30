@@ -442,3 +442,133 @@ body {
 [data-theme="tinted"] .rounded-xl {
   border-top: 1.5px solid rgba(127,227,3,0.25) !important;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   COLOUR READABILITY — light themes
+   All "light" colour variants (200, 300, 400) are nearly invisible on a
+   white / near-white page background. We remap them to dark, saturated
+   equivalents that pass WCAG AA while keeping semantic meaning intact.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Lime ─────────────────────────────────────────────────────────────────── */
+[data-theme="light"] .text-lime-200,
+[data-theme="bordered"] .text-lime-200,
+[data-theme="tinted"] .text-lime-200 { color: #16a34a !important; }
+
+[data-theme="light"] .text-lime-300,
+[data-theme="bordered"] .text-lime-300,
+[data-theme="tinted"] .text-lime-300 { color: #16a34a !important; }
+
+[data-theme="light"] .text-lime-300\/90,
+[data-theme="bordered"] .text-lime-300\/90,
+[data-theme="tinted"] .text-lime-300\/90 { color: rgba(22,163,74,0.9) !important; }
+
+[data-theme="light"] .text-lime-400,
+[data-theme="bordered"] .text-lime-400,
+[data-theme="tinted"] .text-lime-400 { color: #15803d !important; }
+
+/* ── Amber ────────────────────────────────────────────────────────────────── */
+[data-theme="light"] .text-amber-200,
+[data-theme="bordered"] .text-amber-200,
+[data-theme="tinted"] .text-amber-200 { color: #92400e !important; }
+
+[data-theme="light"] .text-amber-300,
+[data-theme="bordered"] .text-amber-300,
+[data-theme="tinted"] .text-amber-300 { color: #92400e !important; }
+
+[data-theme="light"] .text-amber-400,
+[data-theme="bordered"] .text-amber-400,
+[data-theme="tinted"] .text-amber-400 { color: #b45309 !important; }
+
+/* ── Rose ─────────────────────────────────────────────────────────────────── */
+[data-theme="light"] .text-rose-200,
+[data-theme="bordered"] .text-rose-200,
+[data-theme="tinted"] .text-rose-200 { color: #9f1239 !important; }
+
+[data-theme="light"] .text-rose-300,
+[data-theme="bordered"] .text-rose-300,
+[data-theme="tinted"] .text-rose-300 { color: #be123c !important; }
+
+[data-theme="light"] .text-rose-400,
+[data-theme="bordered"] .text-rose-400,
+[data-theme="tinted"] .text-rose-400 { color: #be123c !important; }
+
+/* ── Red ──────────────────────────────────────────────────────────────────── */
+[data-theme="light"] .text-red-400,
+[data-theme="bordered"] .text-red-400,
+[data-theme="tinted"] .text-red-400 { color: #b91c1c !important; }
+
+/* ── Emerald ──────────────────────────────────────────────────────────────── */
+[data-theme="light"] .text-emerald-300,
+[data-theme="bordered"] .text-emerald-300,
+[data-theme="tinted"] .text-emerald-300 { color: #047857 !important; }
+
+[data-theme="light"] .text-emerald-400,
+[data-theme="bordered"] .text-emerald-400,
+[data-theme="tinted"] .text-emerald-400 { color: #047857 !important; }
+
+/* ── Sky ──────────────────────────────────────────────────────────────────── */
+[data-theme="light"] .text-sky-300,
+[data-theme="bordered"] .text-sky-300,
+[data-theme="tinted"] .text-sky-300 { color: #0369a1 !important; }
+
+/* ── Violet ───────────────────────────────────────────────────────────────── */
+[data-theme="light"] .text-violet-300,
+[data-theme="bordered"] .text-violet-300,
+[data-theme="tinted"] .text-violet-300 { color: #6d28d9 !important; }
+
+/* ── Restore semantic colours inside the ring panel (intentionally dark) ──── */
+/* AthleteRingPanel uses shadow-2xl and is kept dark by earlier rules.        */
+/* ScoreTrend inside it uses text-emerald-400 / text-rose-400 which must      */
+/* remain light against the dark background.                                  */
+[data-theme="light"] .shadow-2xl .text-emerald-400,
+[data-theme="bordered"] .shadow-2xl .text-emerald-400,
+[data-theme="tinted"] .shadow-2xl .text-emerald-400 { color: #34d399 !important; }
+
+[data-theme="light"] .shadow-2xl .text-rose-400,
+[data-theme="bordered"] .shadow-2xl .text-rose-400,
+[data-theme="tinted"] .shadow-2xl .text-rose-400 { color: #fb7185 !important; }
+
+/* ── Lime hover / group-hover ─────────────────────────────────────────────── */
+[data-theme="light"] .hover\:text-lime-300:hover,
+[data-theme="bordered"] .hover\:text-lime-300:hover,
+[data-theme="tinted"] .hover\:text-lime-300:hover { color: #15803d !important; }
+
+[data-theme="light"] .hover\:text-lime-100:hover,
+[data-theme="bordered"] .hover\:text-lime-100:hover,
+[data-theme="tinted"] .hover\:text-lime-100:hover { color: #166534 !important; }
+
+[data-theme="light"] .group:hover .group-hover\:text-lime-200,
+[data-theme="bordered"] .group:hover .group-hover\:text-lime-200,
+[data-theme="tinted"] .group:hover .group-hover\:text-lime-200 { color: #15803d !important; }
+
+/* ── Rose hover (logout danger, delete actions) ───────────────────────────── */
+[data-theme="light"] .hover\:text-red-400:hover,
+[data-theme="bordered"] .hover\:text-red-400:hover,
+[data-theme="tinted"] .hover\:text-red-400:hover { color: #b91c1c !important; }
+
+[data-theme="light"] .hover\:text-rose-400:hover,
+[data-theme="bordered"] .hover\:text-rose-400:hover,
+[data-theme="tinted"] .hover\:text-rose-400:hover { color: #be123c !important; }
+
+[data-theme="light"] .hover\:text-rose-200:hover,
+[data-theme="bordered"] .hover\:text-rose-200:hover,
+[data-theme="tinted"] .hover\:text-rose-200:hover { color: #9f1239 !important; }
+
+/* ── tracking-wide eyebrow headings (lime-300 section labels, not just -widest) */
+[data-theme="light"] .uppercase.tracking-wide,
+[data-theme="bordered"] .uppercase.tracking-wide,
+[data-theme="tinted"] .uppercase.tracking-wide { color: #475569 !important; font-weight: 500 !important; }
+
+/* ── -100 "pastel" alert text — completely invisible on white ─────────────── */
+[data-theme="light"] .text-rose-100,
+[data-theme="bordered"] .text-rose-100,
+[data-theme="tinted"] .text-rose-100 { color: #9f1239 !important; }
+
+[data-theme="light"] .text-amber-100,
+[data-theme="bordered"] .text-amber-100,
+[data-theme="tinted"] .text-amber-100 { color: #92400e !important; }
+
+[data-theme="light"] .text-emerald-100,
+[data-theme="bordered"] .text-emerald-100,
+[data-theme="tinted"] .text-emerald-100 { color: #047857 !important; }
