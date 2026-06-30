@@ -302,18 +302,18 @@ function MetricPicker({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-300 hover:border-slate-600 hover:text-slate-100"
+        className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:border-slate-300 hover:text-slate-800"
       >
         Metrics ({selected.size}) ▼
       </button>
       {open ? (
-        <div className="absolute right-0 z-20 mt-2 w-64 rounded-lg border border-slate-700 bg-slate-950 p-3 shadow-xl">
+        <div className="absolute right-0 z-20 mt-2 w-64 rounded-lg border border-slate-200 bg-white p-3 shadow-lg">
           <ul className="max-h-64 space-y-1 overflow-y-auto">
             {metrics.map((m) => {
               const checked = selected.has(m.key);
               return (
                 <li key={m.key}>
-                  <label className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-xs text-slate-200 hover:bg-slate-900/80">
+                  <label className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-xs text-slate-700 hover:bg-slate-50">
                     <input
                       type="checkbox"
                       checked={checked}
@@ -323,7 +323,7 @@ function MetricPicker({
                         else next.add(m.key);
                         onChange(next);
                       }}
-                      className="h-3.5 w-3.5 rounded border-slate-600 bg-slate-900 accent-lime-400"
+                      className="h-3.5 w-3.5 rounded border-slate-300 bg-white accent-lime-500"
                     />
                     <span>{m.label}</span>
                   </label>
@@ -331,11 +331,11 @@ function MetricPicker({
               );
             })}
           </ul>
-          <div className="mt-3 flex justify-end gap-2 border-t border-slate-800 pt-3">
+          <div className="mt-3 flex justify-end gap-2 border-t border-slate-100 pt-3">
             <button
               type="button"
               onClick={() => onChange(new Set(defaultSelected))}
-              className="rounded px-2 py-1 text-xs text-slate-400 hover:text-slate-200"
+              className="rounded px-2 py-1 text-xs text-slate-500 hover:text-slate-700"
             >
               Reset
             </button>
@@ -385,7 +385,7 @@ function ChartShell({
     <div>
       <p className="mb-2 text-xs text-slate-400">{title}</p>
       {showChart ? (
-        <div className="h-[160px] w-full rounded border border-slate-800 bg-[#0f172a]">
+        <div className="h-[160px] w-full rounded border border-slate-100 bg-white">
           <ResponsiveContainer width="100%" height="100%">
             {chartType === "bar" ? (
               <BarChart data={points} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
@@ -943,14 +943,14 @@ export default function AthleteDetailPage() {
           const rows = metricsBySession.get(s.id) ?? [];
           const open = expanded.has(s.id);
           return (
-            <div key={s.id} className="rounded-lg border border-slate-800 bg-slate-900/50">
+            <div key={s.id} className="rounded-lg border border-slate-200 bg-white">
               <button
                 type="button"
-                className="flex w-full flex-wrap items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-slate-900"
+                className="flex w-full flex-wrap items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-slate-50"
                 onClick={() => toggleExpand(s.id)}
               >
-                <span className="text-slate-200">{formatWhen(s.session_date)}</span>
-                <span className="flex flex-wrap items-center gap-1 text-xs text-slate-500">
+                <span className="text-slate-700">{formatWhen(s.session_date)}</span>
+                <span className="flex flex-wrap items-center gap-1 text-xs text-slate-400">
                   {s.clinician_notes?.trim() ? (
                     <span className="text-slate-400" title="Has clinician note">
                       📝
@@ -965,19 +965,19 @@ export default function AthleteDetailPage() {
                 </span>
               </button>
               {open && (
-                <div className="border-t border-slate-800 px-3 py-2">
+                <div className="border-t border-slate-100 px-3 py-2">
                   {rows.length === 0 ? (
-                    <p className="text-xs text-slate-500">No metrics.</p>
+                    <p className="text-xs text-slate-400">No metrics.</p>
                   ) : (
                     <table className="w-full text-xs">
                       <tbody>
                         {rows.map((r, i) => (
-                          <tr key={`${r.key}-${r.rep_index ?? i}`} className="border-b border-slate-800/80">
-                            <td className="py-1 pr-2 text-slate-400">
+                          <tr key={`${r.key}-${r.rep_index ?? i}`} className="border-b border-slate-100">
+                            <td className="py-1 pr-2 text-slate-500">
                               {labelForMetricKey(r.key)}
                               {r.rep_index != null ? ` (rep ${r.rep_index})` : ""}
                             </td>
-                            <td className="py-1 text-right font-mono text-slate-200">
+                            <td className="py-1 text-right font-mono text-slate-700">
                               {formatMetricValue(r.value, r.key)}
                             </td>
                           </tr>
@@ -1272,7 +1272,7 @@ export default function AthleteDetailPage() {
                   </h2>
                   <span className="text-xs text-slate-500">({sessions.length})</span>
                 </span>
-                <span className="flex items-center gap-1 rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-300 group-hover:border-slate-600">
+                <span className="flex items-center gap-1 rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-500 group-hover:border-slate-300">
                   View
                   <span className="transition-transform group-open:rotate-180">▾</span>
                 </span>

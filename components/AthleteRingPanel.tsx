@@ -55,7 +55,7 @@ function Ring({
         cy={size / 2}
         r={r}
         fill="none"
-        stroke="#1e293b"
+        stroke="#334155"
         strokeWidth={stroke}
       />
       <circle
@@ -103,8 +103,12 @@ export default function AthleteRingPanel({ metricLatest, metricPrev }: Props) {
 
   return (
     <div
-      className="relative overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/60 p-6 shadow-2xl"
-      style={{ boxShadow: `0 0 60px -12px ${band?.color ?? "#a3e635"}22` }}
+      className="relative overflow-hidden rounded-2xl p-6 shadow-2xl"
+      style={{
+        backgroundColor: "#0f172a",
+        border: "1.5px solid rgba(127,227,3,0.40)",
+        boxShadow: `0 8px 40px rgba(0,0,0,0.20), 0 2px 8px rgba(0,0,0,0.12), 0 0 80px -8px rgba(163,230,53,0.50), 0 0 60px -12px ${band?.color ?? "#a3e635"}22`,
+      }}
     >
       {/* Radial glow behind overall ring */}
       <div
@@ -148,8 +152,12 @@ export default function AthleteRingPanel({ metricLatest, metricPrev }: Props) {
             return (
               <div
                 key={q.key}
-                className="flex flex-col items-center rounded-xl border border-slate-800/80 bg-slate-950/40 px-2 py-3 text-center transition-colors hover:border-slate-700"
-                style={qBand?.color ? { boxShadow: `inset 0 0 20px -8px ${qBand.color}33, 0 0 12px -4px ${qBand.color}22` } : undefined}
+                className="flex flex-col items-center rounded-xl px-2 py-3 text-center transition-colors"
+                style={{
+                  backgroundColor: "rgba(2,6,23,0.5)",
+                  border: "1px solid rgba(30,41,59,0.9)",
+                  ...(qBand?.color ? { boxShadow: `inset 0 0 20px -8px ${qBand.color}33, 0 0 12px -4px ${qBand.color}22` } : {}),
+                }}
               >
                 <div className="relative h-16 w-16">
                   <Ring score={score} size={64} stroke={6} />
