@@ -654,3 +654,92 @@ body {
 [data-theme="tinted"] .f2p-dark-panel .text-rose-400,
 [data-theme="tinted"] .f2p-dark-tile .text-rose-400 { color: #f87171 !important; }
 
+/* ── Additional text/bg colours that the light-theme overrides remap to dark,
+   causing invisible-on-dark content inside f2p-dark-tile cards
+   (AthleteTestSummary headline values, SnapshotHeader tiles, etc.) ── */
+
+/* text-slate-50: main headline metric values (e.g. "8.34" in Sprint card) */
+[data-theme="light"] .f2p-dark-panel .text-slate-50,
+[data-theme="light"] .f2p-dark-tile .text-slate-50,
+[data-theme="bordered"] .f2p-dark-panel .text-slate-50,
+[data-theme="bordered"] .f2p-dark-tile .text-slate-50,
+[data-theme="tinted"] .f2p-dark-panel .text-slate-50,
+[data-theme="tinted"] .f2p-dark-tile .text-slate-50 { color: #f8fafc !important; }
+
+/* text-slate-300: L/R symmetry bar values, comment text */
+[data-theme="light"] .f2p-dark-panel .text-slate-300,
+[data-theme="light"] .f2p-dark-tile .text-slate-300,
+[data-theme="bordered"] .f2p-dark-panel .text-slate-300,
+[data-theme="bordered"] .f2p-dark-tile .text-slate-300,
+[data-theme="tinted"] .f2p-dark-panel .text-slate-300,
+[data-theme="tinted"] .f2p-dark-tile .text-slate-300 { color: #cbd5e1 !important; }
+
+/* text-slate-600: "Feeds" label — very dark on a dark bg = invisible */
+[data-theme="light"] .f2p-dark-panel .text-slate-600,
+[data-theme="light"] .f2p-dark-tile .text-slate-600,
+[data-theme="bordered"] .f2p-dark-panel .text-slate-600,
+[data-theme="bordered"] .f2p-dark-tile .text-slate-600,
+[data-theme="tinted"] .f2p-dark-panel .text-slate-600,
+[data-theme="tinted"] .f2p-dark-tile .text-slate-600 { color: #94a3b8 !important; }
+
+/* text-emerald-400 / rose-400 inside dark tiles (trend arrows) */
+[data-theme="light"] .f2p-dark-panel .text-emerald-400,
+[data-theme="light"] .f2p-dark-tile .text-emerald-400,
+[data-theme="bordered"] .f2p-dark-panel .text-emerald-400,
+[data-theme="bordered"] .f2p-dark-tile .text-emerald-400,
+[data-theme="tinted"] .f2p-dark-panel .text-emerald-400,
+[data-theme="tinted"] .f2p-dark-tile .text-emerald-400 { color: #34d399 !important; }
+
+[data-theme="light"] .f2p-dark-panel .text-rose-400,
+[data-theme="light"] .f2p-dark-tile .text-rose-400,
+[data-theme="bordered"] .f2p-dark-panel .text-rose-400,
+[data-theme="bordered"] .f2p-dark-tile .text-rose-400,
+[data-theme="tinted"] .f2p-dark-panel .text-rose-400,
+[data-theme="tinted"] .f2p-dark-tile .text-rose-400 { color: #f87171 !important; }
+
+/* bg-slate-800 inside dark tiles: icon badge, symmetry track, divider — keep dark */
+[data-theme="light"] .f2p-dark-panel .bg-slate-800,
+[data-theme="light"] .f2p-dark-tile .bg-slate-800,
+[data-theme="bordered"] .f2p-dark-panel .bg-slate-800,
+[data-theme="bordered"] .f2p-dark-tile .bg-slate-800,
+[data-theme="tinted"] .f2p-dark-panel .bg-slate-800,
+[data-theme="tinted"] .f2p-dark-tile .bg-slate-800 { background-color: #1e293b !important; }
+
+/* bg-slate-800/60: feed pills */
+[data-theme="light"] .f2p-dark-panel .bg-slate-800\/60,
+[data-theme="light"] .f2p-dark-tile .bg-slate-800\/60,
+[data-theme="bordered"] .f2p-dark-panel .bg-slate-800\/60,
+[data-theme="bordered"] .f2p-dark-tile .bg-slate-800\/60,
+[data-theme="tinted"] .f2p-dark-panel .bg-slate-800\/60,
+[data-theme="tinted"] .f2p-dark-tile .bg-slate-800\/60 { background-color: rgba(30,41,59,0.6) !important; }
+
+/* bg-slate-950/60: comment boxes */
+[data-theme="light"] .f2p-dark-panel .bg-slate-950\/60,
+[data-theme="light"] .f2p-dark-tile .bg-slate-950\/60,
+[data-theme="bordered"] .f2p-dark-panel .bg-slate-950\/60,
+[data-theme="bordered"] .f2p-dark-tile .bg-slate-950\/60,
+[data-theme="tinted"] .f2p-dark-panel .bg-slate-950\/60,
+[data-theme="tinted"] .f2p-dark-tile .bg-slate-950\/60 { background-color: rgba(2,6,23,0.6) !important; }
+
+/* border-slate-700/40, border-slate-700/60, border-slate-800/80 inside dark tiles */
+[data-theme="light"] .f2p-dark-panel .border-slate-700\/40,
+[data-theme="light"] .f2p-dark-tile .border-slate-700\/40,
+[data-theme="bordered"] .f2p-dark-panel .border-slate-700\/40,
+[data-theme="bordered"] .f2p-dark-tile .border-slate-700\/40,
+[data-theme="tinted"] .f2p-dark-panel .border-slate-700\/40,
+[data-theme="tinted"] .f2p-dark-tile .border-slate-700\/40 { border-color: rgba(51,65,85,0.4) !important; }
+
+[data-theme="light"] .f2p-dark-panel .border-slate-700\/60,
+[data-theme="light"] .f2p-dark-tile .border-slate-700\/60,
+[data-theme="bordered"] .f2p-dark-panel .border-slate-700\/60,
+[data-theme="bordered"] .f2p-dark-tile .border-slate-700\/60,
+[data-theme="tinted"] .f2p-dark-panel .border-slate-700\/60,
+[data-theme="tinted"] .f2p-dark-tile .border-slate-700\/60 { border-color: rgba(51,65,85,0.6) !important; }
+
+[data-theme="light"] .f2p-dark-panel .border-slate-800\/80,
+[data-theme="light"] .f2p-dark-tile .border-slate-800\/80,
+[data-theme="bordered"] .f2p-dark-panel .border-slate-800\/80,
+[data-theme="bordered"] .f2p-dark-tile .border-slate-800\/80,
+[data-theme="tinted"] .f2p-dark-panel .border-slate-800\/80,
+[data-theme="tinted"] .f2p-dark-tile .border-slate-800\/80 { border-color: rgba(30,41,59,0.8) !important; }
+

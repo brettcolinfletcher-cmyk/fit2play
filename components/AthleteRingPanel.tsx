@@ -109,7 +109,7 @@ export default function AthleteRingPanel({ metricLatest, metricPrev }: Props) {
     <div
       className="relative overflow-hidden rounded-2xl p-6 shadow-2xl"
       style={{
-        backgroundColor: "rgba(2,6,23,0.7)",
+        backgroundColor: "#0f172a",
         border: "1px solid #334155",
         boxShadow: `0 20px 25px -5px rgba(0,0,0,0.15), 0 8px 10px -6px rgba(0,0,0,0.10), 0 0 50px -12px rgba(163,230,53,0.18), 0 0 40px -16px ${band?.color ?? "#a3e635"}1a`,
       }}

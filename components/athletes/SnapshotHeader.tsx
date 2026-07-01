@@ -53,6 +53,15 @@ const TOOLTIP_STYLE = {
   fontSize: "11px",
 };
 
+const TILE_ICONS: Record<string, string> = {
+  linear: "⚡",
+  cod: "↩",
+  cmj: "↑",
+  drop_jump: "▼",
+  dynamometry: "▮",
+  hop_tests: "→",
+};
+
 export default function SnapshotHeader({
   athlete,
   sessions,
@@ -106,7 +115,7 @@ export default function SnapshotHeader({
               ({snapshot.hero.unit})
             </span>
           </h3>
-          <div className="mt-3 h-48 w-full">
+          <div className="mt-3 h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={snapshot.hero.points}>
                 <CartesianGrid stroke="rgba(148,163,184,0.12)" strokeDasharray="2 6" />
@@ -121,8 +130,8 @@ export default function SnapshotHeader({
                   type="monotone"
                   dataKey="v"
                   stroke="#a3e635"
-                  strokeWidth={2}
-                  dot={{ fill: "#a3e635", r: 3 }}
+                  strokeWidth={2.5}
+                  dot={{ fill: "#a3e635", r: 4 }}
                   connectNulls
                 />
               </LineChart>
@@ -134,16 +143,26 @@ export default function SnapshotHeader({
       {snapshot.tiles.length > 0 ? (
         <div
           className="grid gap-3"
-          style={{ gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))" }}
+          style={{ gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))" }}
         >
           {snapshot.tiles.map((tile) => (
             <div
               key={tile.key}
-              className="rounded-2xl border bg-slate-950/70 p-4 f2p-dark-tile"
+              className="f2p-dark-tile rounded-xl border p-5"
             >
-              <p className="text-xs uppercase tracking-wide text-slate-400">{tile.label}</p>
-              <p className="mt-1 text-2xl font-semibold text-slate-100">{tile.value}</p>
-              <p className={`mt-1 text-xs ${tile.deltaColorClass}`}>{tile.delta}</p>
+              {/* Icon + label header matching AthleteTestSummary */}
+              <div className="mb-3 flex items-center gap-2">
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-800 text-sm">
+                  {TILE_ICONS[tile.key] ?? "•"}
+                </span>
+                <p className="text-sm font-semibold text-slate-100">{tile.label}</p>
+              </div>
+              {/* Headline value */}
+              <p className="text-2xl font-bold tabular-nums text-slate-50 leading-none">{tile.value}</p>
+              {/* Delta */}
+              <p className={`mt-1.5 text-[0.7rem] font-medium tabular-nums ${tile.deltaColorClass}`}>
+                {tile.delta}
+              </p>
             </div>
           ))}
         </div>
