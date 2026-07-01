@@ -65,8 +65,8 @@ export default function DjTrendPanel({
 
   if (!rows.length) {
     return (
-      <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5">
-        <h2 className="text-xs uppercase tracking-wide text-slate-500">{title}</h2>
+      <div className="f2p-dark-tile rounded-xl border p-5">
+        <h2 className="text-xs uppercase tracking-wide text-slate-400">{title}</h2>
         <p className="mt-4 text-xs text-slate-400">No drop-jump sessions yet.</p>
       </div>
     );
@@ -74,8 +74,8 @@ export default function DjTrendPanel({
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5">
-        <h2 className="mb-4 text-xs uppercase tracking-wide text-slate-500">{title}</h2>
+      <div className="f2p-dark-tile rounded-xl border p-5">
+        <h2 className="mb-4 text-xs uppercase tracking-wide text-slate-400">{title}</h2>
         <ResponsiveContainer width="100%" height={280}>
           <LineChart data={rows} margin={{ top: 4, right: 16, left: 0, bottom: -10 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />

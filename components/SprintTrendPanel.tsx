@@ -101,8 +101,8 @@ export default function SprintTrendPanel({
 
   if (!rows.length) {
     return (
-      <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5">
-        <h2 className="text-xs uppercase tracking-wide text-slate-500">{title}</h2>
+      <div className="f2p-dark-tile rounded-xl border p-5">
+        <h2 className="text-xs uppercase tracking-wide text-slate-400">{title}</h2>
         <p className="mt-4 text-xs text-slate-400">{emptyLabel}</p>
       </div>
     );
@@ -112,9 +112,9 @@ export default function SprintTrendPanel({
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5">
+      <div className="f2p-dark-tile rounded-xl border p-5">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-xs uppercase tracking-wide text-slate-500">{title}</h2>
+          <h2 className="mb-4 text-xs uppercase tracking-wide text-slate-400">{title}</h2>
           <div className="flex flex-wrap gap-2">
             {METRIC_CONFIG.map((m) => (
               <button
@@ -192,7 +192,7 @@ export default function SprintTrendPanel({
         </ResponsiveContainer>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/40">
+      <div className="f2p-dark-tile overflow-x-auto rounded-xl border">
         <table className="min-w-full text-left">
           <thead>
             <tr className="border-b border-slate-800 text-[0.7rem] font-medium uppercase tracking-widest text-slate-500">

@@ -67,8 +67,8 @@ export default function SlDjTrendPanel({
 
   if (!rows.length) {
     return (
-      <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5">
-        <h2 className="text-xs uppercase tracking-wide text-slate-500">{title}</h2>
+      <div className="f2p-dark-tile rounded-xl border p-5">
+        <h2 className="text-xs uppercase tracking-wide text-slate-400">{title}</h2>
         <p className="mt-4 text-xs text-slate-400">No single-leg drop-jump sessions yet.</p>
       </div>
     );
@@ -76,9 +76,9 @@ export default function SlDjTrendPanel({
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5">
+      <div className="f2p-dark-tile rounded-xl border p-5">
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-          <h2 className="text-xs uppercase tracking-wide text-slate-500">{title}</h2>
+          <h2 className="text-xs uppercase tracking-wide text-slate-400">{title}</h2>
           {firstLsi != null && lastLsi != null && rows.length >= 2 && (
             <div className="flex items-center gap-3 rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-1.5">
               <div className="text-center">

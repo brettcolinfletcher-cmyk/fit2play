@@ -58,7 +58,7 @@ const TOOLTIP_STYLE = {
 function BilateralSubPanel({ label, rows }: { label: string; rows: HopJumpRow[] }) {
   if (!rows.length) return null;
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5">
+    <div className="f2p-dark-tile rounded-xl border p-5">
       <h3 className="mb-4 text-xs font-medium uppercase tracking-wide text-slate-400">{label}</h3>
       <ResponsiveContainer width="100%" height={240}>
         <LineChart data={rows} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
@@ -81,7 +81,7 @@ function AsymmetrySubPanel({ label, rows }: { label: string; rows: HopJumpRow[] 
   const lastLsi = lsi(rows[rows.length - 1]?.distLeft ?? null, rows[rows.length - 1]?.distRight ?? null);
 
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5">
+    <div className="f2p-dark-tile rounded-xl border p-5">
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <h3 className="text-xs font-medium uppercase tracking-wide text-slate-400">{label}</h3>
         {firstLsi != null && lastLsi != null && rows.length >= 2 && (
@@ -136,8 +136,8 @@ export default function HopJumpTrendPanel({
 
   if (!hasAny) {
     return (
-      <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5">
-        <h2 className="text-xs uppercase tracking-wide text-slate-500">{title}</h2>
+      <div className="f2p-dark-tile rounded-xl border p-5">
+        <h2 className="text-xs uppercase tracking-wide text-slate-400">{title}</h2>
         <p className="mt-4 text-xs text-slate-400">No hop/jump sessions yet.</p>
       </div>
     );

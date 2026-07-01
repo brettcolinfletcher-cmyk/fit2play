@@ -193,7 +193,7 @@ export default function AthleteTestSummary({
         {cards.map(({ t, metrics, sym, feeds }) => (
           <div
             key={t.type}
-            className="rounded-xl border border-slate-800 bg-slate-900/50 p-5 transition-all duration-200 hover:border-slate-700"
+            className="f2p-dark-tile rounded-xl border p-5 transition-all duration-200"
           >
             {/* Card header */}
             <div className="mb-4 flex items-center gap-2">
@@ -262,7 +262,7 @@ export default function AthleteTestSummary({
 
         {/* Isometric strength card — stacked sub-tests */}
         {isoHasData && (
-          <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-5 transition-all duration-200 hover:border-slate-700">
+          <div className="f2p-dark-tile rounded-xl border p-5 transition-all duration-200">
             <div className="mb-4 flex items-center gap-2">
               <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-800 text-sm">▮</span>
               <p className="text-sm font-semibold text-slate-100">Isometric strength</p>

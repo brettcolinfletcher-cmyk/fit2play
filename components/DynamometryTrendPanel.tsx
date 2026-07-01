@@ -83,7 +83,7 @@ function IsoSubPanel({
 
   return (
     <div className="space-y-3">
-      <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5">
+      <div className="f2p-dark-tile rounded-xl border p-5">
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
           <h3 className="text-xs font-medium uppercase tracking-wide text-slate-400">
             {label}
