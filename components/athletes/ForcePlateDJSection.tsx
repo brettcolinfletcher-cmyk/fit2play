@@ -295,7 +295,7 @@ export default function ForcePlateDJSection({
               {!enough ? (
                 <p className="py-12 text-center text-xs text-slate-500">Not enough data</p>
               ) : (
-                <div className="h-[160px] w-full rounded border border-slate-800 bg-[#0f172a]">
+                <div className="h-[160px] w-full rounded-xl border border-slate-800 f2p-dark-tile">
                   <ResponsiveContainer width="100%" height="100%">
                     {chartType === "bar" ? (
                       <BarChart data={pts} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
