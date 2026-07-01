@@ -160,12 +160,12 @@ body {
 /* ─── Frosted: depth + polish ────────────────────────────────────────── */
 
 /* Cards get refined drop shadows — tactile but not heavy */
-[data-theme="light"] .rounded-xl { box-shadow: 0 1px 3px rgba(0,0,0,0.05), 0 2px 8px rgba(0,0,0,0.04) !important; }
-[data-theme="light"] .rounded-2xl { box-shadow: 0 2px 12px rgba(0,0,0,0.07), 0 1px 3px rgba(0,0,0,0.04) !important; }
-[data-theme="bordered"] .rounded-xl { box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 0 0 1.5px #a3e635 !important; }
-[data-theme="bordered"] .rounded-2xl { box-shadow: 0 2px 12px rgba(0,0,0,0.06), 0 0 0 1.5px #a3e635 !important; }
-[data-theme="tinted"] .rounded-xl { box-shadow: 0 1px 4px rgba(22,163,74,0.07), 0 0 0 1px #86efac !important; }
-[data-theme="tinted"] .rounded-2xl { box-shadow: 0 2px 12px rgba(22,163,74,0.09), 0 0 0 1px #86efac !important; }
+[data-theme="light"] .rounded-xl:not(.f2p-dark-tile):not(.f2p-dark-panel) { box-shadow: 0 1px 3px rgba(0,0,0,0.05), 0 2px 8px rgba(0,0,0,0.04) !important; }
+[data-theme="light"] .rounded-2xl:not(.f2p-dark-tile):not(.f2p-dark-panel) { box-shadow: 0 2px 12px rgba(0,0,0,0.07), 0 1px 3px rgba(0,0,0,0.04) !important; }
+[data-theme="bordered"] .rounded-xl:not(.f2p-dark-tile):not(.f2p-dark-panel) { box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 0 0 1.5px #a3e635 !important; }
+[data-theme="bordered"] .rounded-2xl:not(.f2p-dark-tile):not(.f2p-dark-panel) { box-shadow: 0 2px 12px rgba(0,0,0,0.06), 0 0 0 1.5px #a3e635 !important; }
+[data-theme="tinted"] .rounded-xl:not(.f2p-dark-tile):not(.f2p-dark-panel) { box-shadow: 0 1px 4px rgba(22,163,74,0.07), 0 0 0 1px #86efac !important; }
+[data-theme="tinted"] .rounded-2xl:not(.f2p-dark-tile):not(.f2p-dark-panel) { box-shadow: 0 2px 12px rgba(22,163,74,0.09), 0 0 0 1px #86efac !important; }
 
 /* ── Ring panel: keep dark — it's the intentional anchor on a light page ──
    Softened to match the homepage marketing mockups (DashboardShowcase /
@@ -438,10 +438,10 @@ body {
 [data-theme="bordered"] .border-b.border-slate-800,
 [data-theme="tinted"] .border-b.border-slate-800 { border-color: #e2e8f0 !important; }
 
-/* ── Subtle lime top accent on trend/test cards only (not header or ring panel) ── */
-[data-theme="light"] .rounded-xl,
-[data-theme="bordered"] .rounded-xl,
-[data-theme="tinted"] .rounded-xl {
+/* ── Subtle lime top accent on trend/test cards only (not header, ring panel, or dark anchor panels) ── */
+[data-theme="light"] .rounded-xl:not(.f2p-dark-tile):not(.f2p-dark-panel),
+[data-theme="bordered"] .rounded-xl:not(.f2p-dark-tile):not(.f2p-dark-panel),
+[data-theme="tinted"] .rounded-xl:not(.f2p-dark-tile):not(.f2p-dark-panel) {
   border-top: 1.5px solid rgba(127,227,3,0.25) !important;
 }
 
