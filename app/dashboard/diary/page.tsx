@@ -134,6 +134,30 @@ function dayNum(dateStr: string): string {
   return String(calDate(dateStr).getUTCDate());
 }
 
+type AvailRow = { practitioner_id: string; weekday: number; start_time: string; end_time: string };
+type ExcRow = { practitioner_id: string; exception_date: string; start_time: string | null; end_time: string | null; is_available: boolean };
+
+function subtractWin(ws: { s: number; e: number }[], b: { s: number; e: number }) {
+  const out: { s: number; e: number }[] = [];
+  for (const w of ws) {
+    if (b.e <= w.s || b.s >= w.e) { out.push(w); continue; }
+    if (b.s > w.s) out.push({ s: w.s, e: b.s });
+    if (b.e < w.e) out.push({ s: b.e, e: w.e });
+  }
+  return out;
+}
+function openWindowsFor(avail: AvailRow[], exc: ExcRow[], pracId: string, dateStr: string) {
+  const weekday = calDate(dateStr).getUTCDay();
+  let ws = avail
+    .filter((a) => a.practitioner_id === pracId && a.weekday === weekday)
+    .map((a) => ({ s: hhmmToMin(a.start_time), e: hhmmToMin(a.end_time) }));
+  const ex = exc.filter((x) => x.practitioner_id === pracId && x.exception_date === dateStr);
+  if (ex.some((x) => !x.is_available && !x.start_time && !x.end_time)) return [];
+  for (const x of ex) if (x.is_available && x.start_time && x.end_time) ws.push({ s: hhmmToMin(x.start_time), e: hhmmToMin(x.end_time) });
+  for (const x of ex) if (!x.is_available && x.start_time && x.end_time) ws = subtractWin(ws, { s: hhmmToMin(x.start_time), e: hhmmToMin(x.end_time) });
+  return ws.filter((w) => w.e > w.s);
+}
+
 // ---- component ---------------------------------------------------------------
 
 export default function DiaryPage() {
@@ -149,6 +173,8 @@ export default function DiaryPage() {
   const [athletes, setAthletes] = useState<AthleteLite[]>([]);
   const [bookings, setBookings] = useState<BookingRow[]>([]);
   const [events, setEvents] = useState<EventRow[]>([]);
+  const [availRows, setAvailRows] = useState<AvailRow[]>([]);
+  const [excRows, setExcRows] = useState<ExcRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   const today = todayPerth();
@@ -205,7 +231,7 @@ export default function DiaryPage() {
     const rangeEnd = toInstant(addDays(days[days.length - 1], 1), 0);
     const ids = isAll ? activePracs.map((p) => p.id) : [pracId];
 
-    const [{ data: bk }, { data: ev }] = await Promise.all([
+    const [{ data: bk }, { data: ev }, { data: av }, { data: exc }] = await Promise.all([
       supabase
         .from("bookings")
         .select(
@@ -221,9 +247,18 @@ export default function DiaryPage() {
         .in("practitioner_id", ids)
         .lt("start_at", rangeEnd)
         .gt("end_at", rangeStart),
+      supabase.from("availability").select("practitioner_id, weekday, start_time, end_time").in("practitioner_id", ids),
+      supabase
+        .from("availability_exceptions")
+        .select("practitioner_id, exception_date, start_time, end_time, is_available")
+        .in("practitioner_id", ids)
+        .gte("exception_date", days[0])
+        .lte("exception_date", days[days.length - 1]),
     ]);
     setBookings((bk ?? []) as unknown as BookingRow[]);
     setEvents((ev ?? []) as EventRow[]);
+    setAvailRows((av ?? []) as AvailRow[]);
+    setExcRows((exc ?? []) as ExcRow[]);
     setLoading(false);
   }, [pracId, isAll, activePracs, days]);
 
@@ -456,6 +491,7 @@ export default function DiaryPage() {
                     key={i}
                     isToday={c.date === today}
                     items={itemsByCell.get(`${c.date}|${c.prac.id}`) ?? []}
+                    openWindows={openWindowsFor(availRows, excRows, c.prac.id, c.date)}
                     onCreate={(s, e) => openCreate(c.prac.id, c.date, s, e)}
                     onItemClick={onItemClick}
                   />
@@ -488,11 +524,13 @@ export default function DiaryPage() {
 function DragColumn({
   isToday,
   items,
+  openWindows,
   onCreate,
   onItemClick,
 }: {
   isToday: boolean;
   items: Item[];
+  openWindows: { s: number; e: number }[];
   onCreate: (startMin: number, endMin: number) => void;
   onItemClick: (it: Item) => void;
 }) {
@@ -535,6 +573,18 @@ function DragColumn({
       className={`relative border-l border-slate-800 ${isToday ? "bg-lime-400/[0.04]" : ""}`}
       style={{ height: GRID_MIN * PX }}
     >
+      {openWindows.map((w, i) => (
+        <div
+          key={`ow${i}`}
+          className="absolute inset-x-0"
+          style={{
+            top: Math.max(0, w.s - DAY_START * 60) * PX,
+            height: Math.max(0, Math.min(w.e, DAY_END * 60) - Math.max(w.s, DAY_START * 60)) * PX,
+            background: "rgba(255,255,255,0.06)",
+            boxShadow: "inset 3px 0 0 rgba(127,227,3,0.5)",
+          }}
+        />
+      ))}
       {Array.from({ length: DAY_END - DAY_START }, (_, i) => (
         <div key={i} className="absolute inset-x-0 border-t border-slate-800/60" style={{ top: i * 60 * PX }} />
       ))}
