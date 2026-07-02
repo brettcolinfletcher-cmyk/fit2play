@@ -2,28 +2,22 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 /**
  * Server-side booking engine for the PUBLIC (patient-facing) flow.
- *
- * Anonymous patients have no RLS access to availability/bookings, and they
- * MUST NOT — computing slots in the browser would leak the clinician's whole
- * calendar. So all of this runs server-side with the service-role key and
- * returns only free slot times, never the underlying bookings.
- *
- * Timezone is fixed to Perth (UTC+8, no DST). All wall-clock <-> instant
- * conversions go through PERTH_OFFSET so behaviour is independent of the
- * server's timezone.
+ * Practitioner-centric: slots and bookings key off practitioner_id. Never leaks
+ * the calendar to the browser — only free slot times go out. Perth (UTC+8) fixed.
  */
 
 const PERTH_OFFSET = "+08:00";
 const PERTH_TZ = "Australia/Perth";
 
-export const SLOT_INTERVAL_MIN = 15; // granularity of offered start times
-export const MIN_NOTICE_MIN = 120; // can't book within the next 2 hours
-export const MAX_ADVANCE_DAYS = 60; // how far ahead patients may book
+export const SLOT_INTERVAL_MIN = 15;
+export const MIN_NOTICE_MIN = 120;
+export const MAX_ADVANCE_DAYS = 60;
 
 export type PublicClinic = {
   organisationId: string;
   organisationName: string;
-  clinicianId: string;
+  practitionerId: string;
+  clinicianProfileId: string | null;
   clinicianName: string;
 };
 
@@ -39,25 +33,20 @@ export type PublicApptType = {
 
 export type Slot = { startIso: string; label: string };
 
-// ---- admin client ------------------------------------------------------------
-
 export function getAdminClient(): SupabaseClient {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) {
-    throw new Error("Supabase admin env vars are not configured.");
-  }
+  if (!url || !key) throw new Error("Supabase admin env vars are not configured.");
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
 // ---- Perth time helpers ------------------------------------------------------
 
 function calDate(dateStr: string): Date {
-  // Pure calendar date, anchored at noon UTC to dodge offset/DST edges.
   return new Date(`${dateStr}T12:00:00Z`);
 }
 function weekdayOf(dateStr: string): number {
-  return calDate(dateStr).getUTCDay(); // 0 = Sunday .. 6 = Saturday
+  return calDate(dateStr).getUTCDay();
 }
 export function addDaysStr(dateStr: string, n: number): string {
   const d = calDate(dateStr);
@@ -65,13 +54,12 @@ export function addDaysStr(dateStr: string, n: number): string {
   return d.toISOString().slice(0, 10);
 }
 export function todayPerth(): string {
-  const p = new Intl.DateTimeFormat("en-CA", {
+  return new Intl.DateTimeFormat("en-CA", {
     timeZone: PERTH_TZ,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
   }).format(new Date());
-  return p; // en-CA => YYYY-MM-DD
 }
 function instantOf(dateStr: string, minutesOfDay: number): number {
   const hh = String(Math.floor(minutesOfDay / 60)).padStart(2, "0");
@@ -89,12 +77,11 @@ function labelOf(minutesOfDay: number): string {
   return `${h12}:${String(m).padStart(2, "0")} ${ampm}`;
 }
 function timeToMin(t: string): number {
-  // "HH:MM" or "HH:MM:SS" -> minutes of day
   const [h, m] = t.split(":");
   return Number(h) * 60 + Number(m);
 }
 
-// ---- window maths (minutes of day) -------------------------------------------
+// ---- window maths ------------------------------------------------------------
 
 type Window = { s: number; e: number };
 
@@ -102,7 +89,7 @@ function subtract(windows: Window[], block: Window): Window[] {
   const out: Window[] = [];
   for (const w of windows) {
     if (block.e <= w.s || block.s >= w.e) {
-      out.push(w); // no overlap
+      out.push(w);
       continue;
     }
     if (block.s > w.s) out.push({ s: w.s, e: block.s });
@@ -120,17 +107,12 @@ function windowsForDate(
     .filter((a) => a.weekday === weekday)
     .map((a) => ({ s: timeToMin(a.start_time), e: timeToMin(a.end_time) }));
 
-  // Full-day block (is_available=false with no times) => clinic closed that day.
-  if (exceptions.some((x) => !x.is_available && !x.start_time && !x.end_time)) {
-    return [];
-  }
-  // Add one-off open windows (e.g. working a normally-closed day).
+  if (exceptions.some((x) => !x.is_available && !x.start_time && !x.end_time)) return [];
   for (const x of exceptions) {
     if (x.is_available && x.start_time && x.end_time) {
       windows.push({ s: timeToMin(x.start_time), e: timeToMin(x.end_time) });
     }
   }
-  // Subtract one-off closed windows (e.g. lunch, meeting).
   for (const x of exceptions) {
     if (!x.is_available && x.start_time && x.end_time) {
       windows = subtract(windows, { s: timeToMin(x.start_time), e: timeToMin(x.end_time) });
@@ -150,25 +132,22 @@ export async function resolveClinic(admin: SupabaseClient): Promise<PublicClinic
     .maybeSingle();
   if (!org) return null;
 
-  const { data: av } = await admin
-    .from("availability")
-    .select("clinician_id")
+  const { data: prac } = await admin
+    .from("practitioners")
+    .select("id, full_name, profile_id")
     .eq("organisation_id", org.id)
+    .eq("is_active", true)
+    .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle();
-  if (!av) return null;
-
-  const { data: prof } = await admin
-    .from("profiles")
-    .select("id, full_name")
-    .eq("id", av.clinician_id)
-    .maybeSingle();
+  if (!prac) return null;
 
   return {
     organisationId: org.id as string,
     organisationName: (org.name as string) ?? "Clinic",
-    clinicianId: av.clinician_id as string,
-    clinicianName: (prof?.full_name as string) ?? "Clinician",
+    practitionerId: prac.id as string,
+    clinicianProfileId: (prac.profile_id as string) ?? null,
+    clinicianName: (prac.full_name as string) ?? "Clinician",
   };
 }
 
@@ -211,34 +190,41 @@ export async function getSlotsForDate(
   dateStr: string
 ): Promise<Slot[]> {
   const weekday = weekdayOf(dateStr);
+  const dayStart = isoOf(dateStr, 0);
+  const dayEnd = isoOf(addDaysStr(dateStr, 1), 0);
 
-  const [{ data: availability }, { data: exceptions }] = await Promise.all([
-    admin
-      .from("availability")
-      .select("weekday, start_time, end_time")
-      .eq("clinician_id", clinic.clinicianId)
-      .eq("weekday", weekday),
-    admin
-      .from("availability_exceptions")
-      .select("start_time, end_time, is_available")
-      .eq("clinician_id", clinic.clinicianId)
-      .eq("exception_date", dateStr),
-  ]);
+  const [{ data: availability }, { data: exceptions }, { data: busyRows }, { data: blockRows }] =
+    await Promise.all([
+      admin
+        .from("availability")
+        .select("weekday, start_time, end_time")
+        .eq("practitioner_id", clinic.practitionerId)
+        .eq("weekday", weekday),
+      admin
+        .from("availability_exceptions")
+        .select("start_time, end_time, is_available")
+        .eq("practitioner_id", clinic.practitionerId)
+        .eq("exception_date", dateStr),
+      admin
+        .from("bookings")
+        .select("start_at, end_at")
+        .eq("practitioner_id", clinic.practitionerId)
+        .neq("status", "cancelled")
+        .gte("start_at", dayStart)
+        .lt("start_at", dayEnd),
+      admin
+        .from("diary_events")
+        .select("start_at, end_at")
+        .eq("practitioner_id", clinic.practitionerId)
+        .eq("kind", "block")
+        .lt("start_at", dayEnd)
+        .gt("end_at", dayStart),
+    ]);
 
   const windows = windowsForDate(weekday, availability ?? [], exceptions ?? []);
   if (windows.length === 0) return [];
 
-  // Existing non-cancelled bookings for this clinician on this day.
-  const dayStart = isoOf(dateStr, 0);
-  const dayEnd = isoOf(addDaysStr(dateStr, 1), 0);
-  const { data: busyRows } = await admin
-    .from("bookings")
-    .select("start_at, end_at")
-    .eq("clinician_id", clinic.clinicianId)
-    .neq("status", "cancelled")
-    .gte("start_at", dayStart)
-    .lt("start_at", dayEnd);
-  const busy = (busyRows ?? []).map((b) => ({
+  const busy = [...(busyRows ?? []), ...(blockRows ?? [])].map((b) => ({
     start: new Date(b.start_at as string).getTime(),
     end: new Date(b.end_at as string).getTime(),
   }));
@@ -254,12 +240,9 @@ export async function getSlotsForDate(
       const startMs = instantOf(dateStr, start);
       const endMs = startMs + dur * 60000;
       if (startMs < nowFloor) continue;
-
       const blockedStart = startMs - bb * 60000;
       const blockedEnd = endMs + ba * 60000;
-      const clash = busy.some((b) => blockedStart < b.end && blockedEnd > b.start);
-      if (clash) continue;
-
+      if (busy.some((b) => blockedStart < b.end && blockedEnd > b.start)) continue;
       slots.push({ startIso: new Date(startMs).toISOString(), label: labelOf(start) });
     }
   }
@@ -291,10 +274,8 @@ export async function createPublicBooking(
   const type = await getTypeById(admin, clinic.organisationId, input.typeId);
   if (!type) return { ok: false, error: "invalid", message: "That appointment type isn't available." };
 
-  // Re-validate the slot server-side — never trust the client's claimed time.
   const slots = await getSlotsForDate(admin, clinic, type, input.dateStr);
-  const match = slots.find((s) => s.startIso === input.startIso);
-  if (!match) {
+  if (!slots.find((s) => s.startIso === input.startIso)) {
     return { ok: false, error: "slot_unavailable", message: "That time is no longer available." };
   }
 
@@ -305,7 +286,8 @@ export async function createPublicBooking(
       .from("bookings")
       .insert({
         organisation_id: clinic.organisationId,
-        clinician_id: clinic.clinicianId,
+        practitioner_id: clinic.practitionerId,
+        clinician_id: clinic.clinicianProfileId,
         appointment_type_id: type.id,
         athlete_id: null,
         start_at: input.startIso,
@@ -326,13 +308,8 @@ export async function createPublicBooking(
       }
       return { ok: false, error: "server", message: "Could not save the booking. Please try again." };
     }
-
-    return {
-      ok: true,
-      bookingId: data.id as string,
-      cancelToken: (data.cancel_token as string) ?? null,
-      label: match.label,
-    };
+    const label = slots.find((s) => s.startIso === input.startIso)?.label ?? "";
+    return { ok: true, bookingId: data.id as string, cancelToken: (data.cancel_token as string) ?? null, label };
   } catch {
     return { ok: false, error: "server", message: "Could not save the booking. Please try again." };
   }
