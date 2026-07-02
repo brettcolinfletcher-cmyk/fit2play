@@ -82,6 +82,11 @@ export default function DashboardNav({ lightTheme = false }: { lightTheme?: bool
         active: pathname.startsWith("/dashboard/teams"),
       },
       {
+        href: "/dashboard/diary",
+        label: "Diary",
+        active: pathname.startsWith("/dashboard/diary"),
+      },
+      {
         href: "/dashboard/sprint-report",
         label: "Sprint Report",
         active: pathname.startsWith("/dashboard/sprint-report"),
