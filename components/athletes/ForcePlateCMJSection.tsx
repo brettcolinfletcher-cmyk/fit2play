@@ -155,18 +155,18 @@ function MetricPicker({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-300 hover:border-slate-600 hover:text-slate-100"
+        className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:border-slate-300 hover:text-slate-800"
       >
         Metrics ({selected.size}) ▼
       </button>
       {open ? (
-        <div className="absolute right-0 z-20 mt-2 w-64 rounded-lg border border-slate-700 bg-slate-950 p-3 shadow-xl">
+        <div className="absolute right-0 z-20 mt-2 w-64 rounded-lg border border-slate-200 bg-white p-3 shadow-lg">
           <ul className="max-h-64 space-y-1 overflow-y-auto">
             {metrics.map((m) => {
               const checked = selected.has(m.key);
               return (
                 <li key={m.key}>
-                  <label className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-xs text-slate-200 hover:bg-slate-900/80">
+                  <label className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-xs text-slate-700 hover:bg-slate-50">
                     <input
                       type="checkbox"
                       checked={checked}
@@ -184,11 +184,11 @@ function MetricPicker({
               );
             })}
           </ul>
-          <div className="mt-3 flex justify-end gap-2 border-t border-slate-800 pt-3">
+          <div className="mt-3 flex justify-end gap-2 border-t border-slate-100 pt-3">
             <button
               type="button"
               onClick={() => onChange(new Set(defaultSelected))}
-              className="rounded px-2 py-1 text-xs text-slate-400 hover:text-slate-200"
+              className="rounded px-2 py-1 text-xs text-slate-500 hover:text-slate-700"
             >
               Reset
             </button>
@@ -329,7 +329,7 @@ export default function ForcePlateCMJSection({
               {!enough ? (
                 <p className="py-12 text-center text-xs text-slate-500">Not enough data</p>
               ) : (
-                <div className="h-[220px] w-full rounded-xl border border-slate-800 f2p-dark-tile">
+                <div className="h-[220px] w-full rounded-xl border border-slate-200 bg-white">
                   <ResponsiveContainer width="100%" height="100%">
                     {chartType === "bar" ? (
                       <BarChart data={pts} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>

@@ -65,8 +65,8 @@ export default function DjTrendPanel({
 
   if (!rows.length) {
     return (
-      <div className="f2p-dark-tile rounded-xl border p-5">
-        <h2 className="text-xs uppercase tracking-wide text-slate-400">{title}</h2>
+      <div className="rounded-xl border border-slate-200 bg-white p-5">
+        <h2 className="text-xs uppercase tracking-wide text-slate-500">{title}</h2>
         <p className="mt-4 text-xs text-slate-400">No drop-jump sessions yet.</p>
       </div>
     );
@@ -74,16 +74,16 @@ export default function DjTrendPanel({
 
   return (
     <div className="space-y-4">
-      <div className="f2p-dark-tile rounded-xl border p-5">
-        <h2 className="mb-4 text-xs uppercase tracking-wide text-slate-400">{title}</h2>
+      <div className="rounded-xl border border-slate-200 bg-white p-5">
+        <h2 className="mb-4 text-xs uppercase tracking-wide text-slate-500">{title}</h2>
         <ResponsiveContainer width="100%" height={280}>
           <LineChart data={rows} margin={{ top: 4, right: 16, left: 0, bottom: -10 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
-            <XAxis dataKey="date" tick={{ fill: "#94a3b8", fontSize: 11 }} axisLine={false} tickLine={false} />
-            <YAxis yAxisId="rsi" orientation="left" tick={{ fill: "#94a3b8", fontSize: 11 }} axisLine={false} tickLine={false} width={36} tickCount={5} domain={["auto", "auto"]} />
-            <YAxis yAxisId="jump" orientation="right" tick={{ fill: "#94a3b8", fontSize: 11 }} axisLine={false} tickLine={false} width={36} tickCount={5} domain={["auto", "auto"]} />
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.25)" vertical={false} />
+            <XAxis dataKey="date" tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} />
+            <YAxis yAxisId="rsi" orientation="left" tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} width={36} tickCount={5} domain={["auto", "auto"]} />
+            <YAxis yAxisId="jump" orientation="right" tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} width={36} tickCount={5} domain={["auto", "auto"]} />
             <Tooltip contentStyle={TOOLTIP_STYLE} labelStyle={{ color: "#a3e635", fontWeight: 600 }} />
-            <Legend wrapperStyle={{ fontSize: 11, color: "#94a3b8" }} />
+            <Legend wrapperStyle={{ fontSize: 11, color: "#64748b" }} />
             <Line yAxisId="rsi" type="monotone" dataKey="rsi" name="RSI" stroke="#a3e635" strokeWidth={2.5} dot={{ fill: "#a3e635", r: 5, strokeWidth: 0 }} activeDot={{ r: 7 }} connectNulls />
             <Line yAxisId="jump" type="monotone" dataKey="jumpHeightCm" name="Jump height (cm)" stroke="#38bdf8" strokeWidth={2.5} dot={{ fill: "#38bdf8", r: 5, strokeWidth: 0 }} activeDot={{ r: 7 }} connectNulls />
           </LineChart>
@@ -101,7 +101,7 @@ function MC({ value, avg, lb, dp }: {
 }) {
   if (value == null || Number.isNaN(value))
     return <td className="py-3 px-4 text-xs text-slate-400">—</td>;
-  let color = "text-slate-200";
+  let color = "text-slate-700";
   if (avg != null && !Number.isNaN(avg) && avg !== 0) {
     if (lb ? value < avg : value > avg) color = "text-emerald-400";
     else if (lb ? value > avg : value < avg) color = "text-red-400";

@@ -101,8 +101,8 @@ export default function SprintTrendPanel({
 
   if (!rows.length) {
     return (
-      <div className="f2p-dark-tile rounded-xl border p-5">
-        <h2 className="text-xs uppercase tracking-wide text-slate-400">{title}</h2>
+      <div className="rounded-xl border border-slate-200 bg-white p-5">
+        <h2 className="text-xs uppercase tracking-wide text-slate-500">{title}</h2>
         <p className="mt-4 text-xs text-slate-400">{emptyLabel}</p>
       </div>
     );
@@ -112,9 +112,9 @@ export default function SprintTrendPanel({
 
   return (
     <div className="space-y-4">
-      <div className="f2p-dark-tile rounded-xl border p-5">
+      <div className="rounded-xl border border-slate-200 bg-white p-5">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <h2 className="mb-4 text-xs uppercase tracking-wide text-slate-400">{title}</h2>
+          <h2 className="mb-4 text-xs uppercase tracking-wide text-slate-500">{title}</h2>
           <div className="flex flex-wrap gap-2">
             {METRIC_CONFIG.map((m) => (
               <button
@@ -124,7 +124,7 @@ export default function SprintTrendPanel({
                 className={`rounded-full border px-3 py-1 text-[0.72rem] font-medium transition-all ${
                   activeMetrics.has(m.key)
                     ? "border-transparent text-slate-950"
-                    : "border-slate-800 text-slate-400 hover:border-slate-600"
+                    : "border-slate-200 text-slate-500 hover:border-slate-400"
                 }`}
                 style={activeMetrics.has(m.key) ? { backgroundColor: m.color } : {}}
               >
@@ -136,7 +136,7 @@ export default function SprintTrendPanel({
 
         <ResponsiveContainer width="100%" height={300}>
           <LineChart data={rows} margin={{ top: 4, right: 16, left: 0, bottom: -10 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.25)" vertical={false} />
             <XAxis
               dataKey="date"
               tick={{ fill: "#94a3b8", fontSize: 11 }}
@@ -173,7 +173,7 @@ export default function SprintTrendPanel({
               }}
               labelStyle={{ color: "#a3e635", fontWeight: 600 }}
             />
-            <Legend wrapperStyle={{ fontSize: 11, color: "#94a3b8" }} />
+            <Legend wrapperStyle={{ fontSize: 11, color: "#64748b" }} />
             {activeList.map((m) => (
               <Line
                 key={m.key}
@@ -192,10 +192,10 @@ export default function SprintTrendPanel({
         </ResponsiveContainer>
       </div>
 
-      <div className="f2p-dark-tile overflow-x-auto rounded-xl border">
+      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
         <table className="min-w-full text-left">
           <thead>
-            <tr className="border-b border-slate-800 text-[0.7rem] font-medium uppercase tracking-widest text-slate-500">
+            <tr className="border-b border-slate-200 text-[0.7rem] font-medium uppercase tracking-widest text-slate-500">
               <th className="py-3 pl-5 pr-4 font-medium">Date</th>
               <th className="py-3 px-4 font-medium">Top Speed (m/s)</th>
               <th className="py-3 px-4 font-medium">0–5 m Time (s)</th>
@@ -205,10 +205,10 @@ export default function SprintTrendPanel({
               {hasPower ? <th className="py-3 pr-5 pl-4 font-medium">Peak Power (W)</th> : null}
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-800/60">
+          <tbody className="divide-y divide-slate-100">
             {rows.map((row, i) => (
-              <tr key={i} className="transition-colors hover:bg-slate-800/40">
-                <td className="py-3 pl-5 pr-4 text-xs font-medium text-slate-200">
+              <tr key={i} className="transition-colors hover:bg-slate-50">
+                <td className="py-3 pl-5 pr-4 text-xs font-medium text-slate-700">
                   {row.date}
                 </td>
                 <MC value={row.topSpeed} avg={avg.topSpeed} lb={false} dp={2} />
@@ -225,9 +225,9 @@ export default function SprintTrendPanel({
             ))}
           </tbody>
           <tfoot>
-            <tr className="border-t-2 border-slate-700 bg-slate-900/60 text-[0.72rem] font-semibold text-slate-300">
-              <td className="py-3 pl-5 pr-4 text-slate-400">Average</td>
-              <td className="py-3 px-4 text-lime-300">{fmt(avg.topSpeed)}</td>
+            <tr className="border-t-2 border-slate-200 bg-slate-50 text-[0.72rem] font-semibold text-slate-600">
+              <td className="py-3 pl-5 pr-4 text-slate-500">Average</td>
+              <td className="py-3 px-4 text-lime-600">{fmt(avg.topSpeed)}</td>
               <td className="py-3 px-4">{fmt(avg.split5m)}</td>
               <td className="py-3 px-4">{fmt(avg.totalTime)}</td>
               <td className="py-3 px-4">{fmt(avg.maxAcceleration)}</td>
@@ -265,7 +265,7 @@ function MC({
 }) {
   if (value == null || Number.isNaN(value))
     return <td className="py-3 px-4 text-xs text-slate-400">—</td>;
-  let color = "text-slate-200";
+  let color = "text-slate-700";
   if (avg != null && !Number.isNaN(avg) && avg !== 0) {
     if (lb ? value < avg : value > avg) color = "text-emerald-400";
     else if (lb ? value > avg : value < avg) color = "text-red-400";
