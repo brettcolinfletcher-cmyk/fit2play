@@ -66,6 +66,7 @@ export default function AvailabilityPage() {
   const [week, setWeek] = useState<Record<number, WindowRow[]>>({});
   const [exceptions, setExceptions] = useState<ExceptionRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loaded, setLoaded] = useState(false);
   const [savingWeek, setSavingWeek] = useState(false);
   const [weekMsg, setWeekMsg] = useState<string | null>(null);
 
@@ -116,6 +117,7 @@ export default function AvailabilityPage() {
     }
     setWeek(map);
     setExceptions((ex ?? []) as ExceptionRow[]);
+    setLoaded(true);
     setLoading(false);
   }, []);
 
@@ -139,6 +141,10 @@ export default function AvailabilityPage() {
 
   async function saveWeek() {
     if (!profileId || !orgId) return;
+    if (!loaded) {
+      setWeekMsg("Still loading your hours — give it a second and try again.");
+      return;
+    }
     // validate
     for (const { wd, label } of WEEKDAYS) {
       for (const w of week[wd] ?? []) {
