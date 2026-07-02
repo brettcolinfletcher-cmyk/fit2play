@@ -15,6 +15,7 @@ const btnPrimary =
   "inline-flex items-center justify-center rounded-full bg-lime-400 px-4 py-1.5 text-xs font-semibold text-slate-950 shadow-md hover:brightness-110 md:text-sm";
 
 const NAV_LINKS = [
+  { label: "Home", href: "/" },
   { label: "About", href: "/about" },
   { label: "Services", href: "/services" },
   { label: "Research", href: "/research" },
