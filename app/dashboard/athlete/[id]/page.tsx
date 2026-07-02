@@ -430,7 +430,9 @@ export default function AthleteProfilePage() {
           rawDate: d,
           distLeft: bilateral ? get("total_distance", null) : get("total_distance", "left"),
           distRight: bilateral ? null : get("total_distance", "right"),
-          peakForce: get("peak_force", bilateral ? null : null),
+          peakForce: bilateral ? get("peak_force", null) : null,
+          peakForceLeft: bilateral ? null : get("peak_force", "left"),
+          peakForceRight: bilateral ? null : get("peak_force", "right"),
         };
       });
     }

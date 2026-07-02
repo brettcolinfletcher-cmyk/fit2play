@@ -23,9 +23,11 @@ import {
 export type HopJumpRow = {
   date: string;
   rawDate: string;
-  distLeft: number | null;   // m
-  distRight: number | null;  // m — null for bilateral (broad jump)
-  peakForce: number | null;  // N
+  distLeft: number | null;       // m
+  distRight: number | null;      // m — null for bilateral (broad jump)
+  peakForce: number | null;      // N — bilateral (broad jump)
+  peakForceLeft: number | null;  // N — single-leg L (1080 attached)
+  peakForceRight: number | null; // N — single-leg R (1080 attached)
 };
 
 export type HopJumpRows = {
@@ -70,6 +72,21 @@ function BilateralSubPanel({ label, rows }: { label: string; rows: HopJumpRow[] 
           <Line type="monotone" dataKey="distLeft" name="Distance (m)" stroke="#a3e635" strokeWidth={2.5} dot={{ fill: "#a3e635", r: 5, strokeWidth: 0 }} activeDot={{ r: 7 }} connectNulls />
         </LineChart>
       </ResponsiveContainer>
+      {/* Bilateral peak force if 1080 attached */}
+      {rows.some((r) => r.peakForce != null) && (
+        <div className="mt-3 flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-4 py-2">
+          <span className="text-[0.65rem] uppercase tracking-wide text-slate-500">Peak Force</span>
+          {(() => {
+            const latest = rows[rows.length - 1];
+            return latest?.peakForce != null ? (
+              <span className="text-sm font-semibold tabular-nums text-slate-700">
+                {latest.peakForce.toFixed(0)}
+                <span className="ml-1 text-xs font-normal text-slate-400">N</span>
+              </span>
+            ) : null;
+          })()}
+        </div>
+      )}
     </div>
   );
 }
@@ -120,6 +137,39 @@ function AsymmetrySubPanel({ label, rows }: { label: string; rows: HopJumpRow[] 
           <Line type="monotone" dataKey="distRight" name="Right (m)" stroke="#a3e635" strokeWidth={2.5} dot={{ fill: "#a3e635", r: 5, strokeWidth: 0 }} activeDot={{ r: 7 }} connectNulls />
         </LineChart>
       </ResponsiveContainer>
+
+      {/* Per-leg peak force (L/R) if 1080 attached during hop */}
+      {rows.some((r) => r.peakForceLeft != null || r.peakForceRight != null) && (() => {
+        const latest = rows[rows.length - 1];
+        const lv = latest?.peakForceLeft ?? null;
+        const rv = latest?.peakForceRight ?? null;
+        const lsiPct = lv != null && rv != null
+          ? Math.round((Math.min(lv, rv) / Math.max(lv, rv)) * 100)
+          : null;
+        return (
+          <div className="mt-4 space-y-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[0.65rem] uppercase tracking-wide text-slate-500">Peak Force (N)</span>
+              {lsiPct != null && (
+                <span className={`text-xs font-semibold tabular-nums ${lsiColor(lsiPct)}`}>
+                  LSI {lsiPct}%
+                </span>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              {[{ side: "L", val: lv, color: "#60a5fa" }, { side: "R", val: rv, color: "#a3e635" }].map(({ side, val, color }) => (
+                <div key={side} className="flex items-center gap-2">
+                  <span className="text-[0.6rem] font-bold" style={{ color }}>{side}</span>
+                  <span className="text-sm font-semibold tabular-nums text-slate-700">
+                    {val != null ? val.toFixed(0) : "—"}
+                  </span>
+                  <span className="text-xs text-slate-400">N</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

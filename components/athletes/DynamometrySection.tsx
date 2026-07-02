@@ -330,18 +330,18 @@ function MetricPicker({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-300 hover:border-slate-600 hover:text-slate-100"
+        className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:border-slate-300 hover:text-slate-800"
       >
         Metrics ({selected.size}) ▼
       </button>
       {open ? (
-        <div className="absolute right-0 z-20 mt-2 w-64 rounded-lg border border-slate-700 bg-slate-950 p-3 shadow-xl">
+        <div className="absolute right-0 z-20 mt-2 w-64 rounded-lg border border-slate-200 bg-white p-3 shadow-lg">
           <ul className="max-h-64 space-y-1 overflow-y-auto">
             {AVAILABLE_METRICS.map((m) => {
               const checked = selected.has(m.key);
               return (
                 <li key={m.key}>
-                  <label className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-xs text-slate-200 hover:bg-slate-900/80">
+                  <label className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-xs text-slate-700 hover:bg-slate-50">
                     <input
                       type="checkbox"
                       checked={checked}
@@ -359,11 +359,11 @@ function MetricPicker({
               );
             })}
           </ul>
-          <div className="mt-3 flex justify-end gap-2 border-t border-slate-800 pt-3">
+          <div className="mt-3 flex justify-end gap-2 border-t border-slate-100 pt-3">
             <button
               type="button"
               onClick={() => onChange(new Set(DEFAULT_SELECTED))}
-              className="rounded px-2 py-1 text-xs text-slate-400 hover:text-slate-200"
+              className="rounded px-2 py-1 text-xs text-slate-500 hover:text-slate-700"
             >
               Reset
             </button>
@@ -564,14 +564,14 @@ export default function DynamometrySection({
                                 {label}
                                 {unit ? ` (${unit})` : ""}
                               </p>
-                              <div className="h-[130px] w-full rounded border border-slate-800 bg-[#0f172a]">
+                              <div className="h-[130px] w-full rounded-xl border border-slate-200 bg-white">
                                 <ResponsiveContainer width="100%" height="100%">
                                   {chartType === "bar" ? (
                                     <BarChart
                                       data={trendData}
                                       margin={{ top: 4, right: 8, left: -16, bottom: 0 }}
                                     >
-                                      <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.25)" />
                                       <XAxis dataKey="date" tick={AXIS_TICK} />
                                       <YAxis tick={AXIS_TICK} width={36} />
                                       <Tooltip
@@ -590,7 +590,7 @@ export default function DynamometrySection({
                                       data={trendData}
                                       margin={{ top: 4, right: 8, left: -16, bottom: 0 }}
                                     >
-                                      <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.25)" />
                                       <XAxis dataKey="date" tick={AXIS_TICK} />
                                       <YAxis tick={AXIS_TICK} width={36} />
                                       <Tooltip
@@ -809,14 +809,14 @@ export default function DynamometrySection({
                               {label}
                               {unit ? ` (${unit})` : ""}
                             </p>
-                            <div className="h-[130px] w-full rounded border border-slate-800 bg-[#0f172a]">
+                            <div className="h-[130px] w-full rounded-xl border border-slate-200 bg-white">
                               <ResponsiveContainer width="100%" height="100%">
                                 {chartType === "bar" ? (
                                   <BarChart
                                     data={trendData}
                                     margin={{ top: 4, right: 4, left: -16, bottom: 0 }}
                                   >
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.25)" />
                                     <XAxis dataKey="date" tick={AXIS_TICK} />
                                     <YAxis tick={AXIS_TICK} width={32} />
                                     <Tooltip
@@ -857,7 +857,7 @@ export default function DynamometrySection({
                                     data={trendData}
                                     margin={{ top: 4, right: 4, left: -16, bottom: 0 }}
                                   >
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.25)" />
                                     <XAxis dataKey="date" tick={AXIS_TICK} />
                                     <YAxis
                                       yAxisId="value"
