@@ -174,7 +174,7 @@ body {
 [data-theme="light"] .shadow-2xl.rounded-2xl,
 [data-theme="bordered"] .shadow-2xl.rounded-2xl,
 [data-theme="tinted"] .shadow-2xl.rounded-2xl {
-  background-color: rgba(2,6,23,0.7) !important;
+  background-color: #0f172a !important;
   border-color: #334155 !important;
   border-width: 1px !important;
   box-shadow: 0 20px 25px -5px rgba(0,0,0,0.15), 0 8px 10px -6px rgba(0,0,0,0.10), 0 0 50px -12px rgba(163,230,53,0.18) !important;
@@ -591,7 +591,7 @@ body {
 [data-theme="bordered"] .f2p-dark-panel,
 [data-theme="tinted"] .f2p-dark-panel,
 .f2p-dark-panel {
-  background-color: rgba(2,6,23,0.7) !important;
+  background-color: #0f172a !important;
   border-color: #334155 !important;
   border-top-color: #334155 !important;
   box-shadow: 0 20px 25px -5px rgba(0,0,0,0.15), 0 8px 10px -6px rgba(0,0,0,0.10), 0 0 50px -12px rgba(163,230,53,0.18) !important;
