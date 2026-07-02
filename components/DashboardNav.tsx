@@ -92,6 +92,11 @@ export default function DashboardNav({ lightTheme = false }: { lightTheme?: bool
         active: pathname.startsWith("/dashboard/availability"),
       },
       {
+        href: "/dashboard/practitioners",
+        label: "Practitioners",
+        active: pathname.startsWith("/dashboard/practitioners"),
+      },
+      {
         href: "/dashboard/sprint-report",
         label: "Sprint Report",
         active: pathname.startsWith("/dashboard/sprint-report"),
