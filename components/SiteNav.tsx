@@ -5,12 +5,6 @@ import Image from "next/image";
 import { useState } from "react";
 import { usePathname } from "next/navigation";
 
-// Public marketing email. NOTE: domain decision pending — currently fit2play.com.au
-// while the site domain is fit2perform.com.au. Single source of truth lives here;
-// update this one constant once the domain is confirmed.
-const CONTACT_EMAIL = "info@fit2play.com.au";
-const MAIL_BOOK = `mailto:${CONTACT_EMAIL}?subject=Testing%20session%20booking`;
-
 const btnPrimary =
   "inline-flex items-center justify-center rounded-full bg-lime-400 px-4 py-1.5 text-xs font-semibold text-slate-950 shadow-md hover:brightness-110 md:text-sm";
 
@@ -58,18 +52,18 @@ export default function SiteNav({ dark = false }: { dark?: boolean }) {
           <Link href="/login" className={linkClass("/login")}>
             Login
           </Link>
-          <a href={MAIL_BOOK} className={`ml-2 ${btnPrimary}`}>
-            Book a testing session
-          </a>
+          <Link href="/book" className={`ml-2 ${btnPrimary}`}>
+            Book now
+          </Link>
         </nav>
 
         <div className="flex items-center gap-2 md:hidden">
-          <a
-            href={MAIL_BOOK}
+          <Link
+            href="/book"
             className="inline-flex items-center justify-center rounded-full bg-lime-400 px-3 py-1.5 text-[0.65rem] font-semibold text-slate-950 shadow-md hover:brightness-110"
           >
             Book
-          </a>
+          </Link>
           <button
             type="button"
             aria-expanded={menuOpen}
@@ -101,9 +95,9 @@ export default function SiteNav({ dark = false }: { dark?: boolean }) {
             <Link href="/login" className={linkClass("/login")} onClick={closeMenu}>
               Login
             </Link>
-            <a href={MAIL_BOOK} className={`mt-1 w-fit ${btnPrimary}`} onClick={closeMenu}>
-              Book a testing session
-            </a>
+            <Link href="/book" className={`mt-1 w-fit ${btnPrimary}`} onClick={closeMenu}>
+              Book now
+            </Link>
           </nav>
         </div>
       ) : null}

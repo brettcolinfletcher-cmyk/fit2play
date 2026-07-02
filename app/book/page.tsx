@@ -75,6 +75,7 @@ export default function BookPage() {
   const [phone, setPhone] = useState("");
   const [notes, setNotes] = useState("");
   const [website, setWebsite] = useState(""); // honeypot
+  const [consent, setConsent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -183,7 +184,11 @@ export default function BookPage() {
   }
 
   const detailsValid =
-    firstName.trim() && lastName.trim() && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && phone.trim();
+    firstName.trim() &&
+    lastName.trim() &&
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) &&
+    phone.trim() &&
+    consent;
 
   return (
     <main className="min-h-screen bg-slate-50 text-slate-900">
@@ -439,6 +444,20 @@ export default function BookPage() {
                   aria-hidden="true"
                 />
               </div>
+
+              <label className="mt-4 flex items-start gap-2 text-xs text-slate-500">
+                <input
+                  type="checkbox"
+                  checked={consent}
+                  onChange={(e) => setConsent(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-slate-300"
+                />
+                <span>
+                  I consent to {clinic?.name ?? "the clinic"} collecting and storing the details
+                  I've provided for the purpose of managing my appointment, in line with their
+                  privacy practices.
+                </span>
+              </label>
 
               {formError ? <p className="mt-3 text-sm text-rose-600">{formError}</p> : null}
 
