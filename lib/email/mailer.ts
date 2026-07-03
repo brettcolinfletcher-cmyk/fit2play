@@ -2,13 +2,13 @@ import { Resend } from "resend";
 
 /**
  * Shared email helpers. All outbound mail goes through Resend.
- * Sending domain: fit2perform.com.au (verified).
- * From address: info@fit2perform.com.au
- * Reply-to: info@fit2perform.com.au (patient replies land in your inbox)
+ * Sending domain: f2p.au (verified).
+ * From address: info@f2p.au
+ * Reply-to: info@f2p.au (patient replies land in your inbox)
  */
 
-export const FROM = "Fit2Perform <info@fit2perform.com.au>";
-export const REPLY_TO = "info@fit2perform.com.au";
+export const FROM = "Fit2Perform <info@f2p.au>";
+export const REPLY_TO = "info@f2p.au";
 export const SITE_URL = "https://fit2perform.com.au";
 
 export function getResend(): Resend {
