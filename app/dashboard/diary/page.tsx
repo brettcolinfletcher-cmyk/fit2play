@@ -100,6 +100,11 @@ function mondayOf(dateStr: string): string {
 function firstOfMonth(dateStr: string): string {
   return `${dateStr.slice(0, 7)}-01`;
 }
+function nextMonth(dateStr: string): string {
+  const d = calDate(firstOfMonth(dateStr));
+  d.setUTCMonth(d.getUTCMonth() + 1);
+  return d.toISOString().slice(0, 10);
+}
 function todayPerth(): string {
   return perthParts(new Date()).dateStr;
 }
@@ -396,7 +401,19 @@ export default function DiaryPage() {
   return (
     <main className="min-h-screen bg-[#f8fafc] text-slate-900 athlete-frosted" data-theme="light">
       <DashboardNav lightTheme />
-      <section className="mx-auto max-w-6xl px-4 pt-8 pb-20">
+      <section className="mx-auto max-w-7xl px-4 pt-8 pb-20">
+        <div className="flex gap-5">
+          <aside className="hidden w-56 shrink-0 lg:block">
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Week beginning</div>
+            <div className="mb-3 text-lg font-semibold text-slate-100">
+              {calDate(mondayOf(anchor)).toLocaleDateString("en-AU", { day: "numeric", month: "long", timeZone: "UTC" })}
+            </div>
+            <MiniMonth monthStart={firstOfMonth(anchor)} anchor={anchor} today={today} onPick={setAnchor} />
+            <div className="mt-4">
+              <MiniMonth monthStart={nextMonth(anchor)} anchor={anchor} today={today} onPick={setAnchor} />
+            </div>
+          </aside>
+          <div className="min-w-0 flex-1">
         {/* Toolbar */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
@@ -502,6 +519,8 @@ export default function DiaryPage() {
         )}
 
         {loading ? <p className="mt-3 text-xs text-slate-500">Loading…</p> : null}
+          </div>
+        </div>
       </section>
 
       {modal ? (
@@ -711,6 +730,58 @@ function MonthGrid({
                 ))}
                 {items.length > 3 ? <div className="text-[10px] text-slate-500">+{items.length - 3} more</div> : null}
               </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function MiniMonth({
+  monthStart,
+  anchor,
+  today,
+  onPick,
+}: {
+  monthStart: string;
+  anchor: string;
+  today: string;
+  onPick: (d: string) => void;
+}) {
+  const label = calDate(monthStart).toLocaleDateString("en-AU", { month: "long", year: "numeric", timeZone: "UTC" });
+  const gridStart = mondayOf(monthStart);
+  const cells = Array.from({ length: 42 }, (_, i) => addDays(gridStart, i));
+  const month = monthStart.slice(0, 7);
+  return (
+    <div>
+      <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-300">{label}</div>
+      <div className="grid grid-cols-7 gap-0.5 text-center text-[10px] text-slate-500">
+        {["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"].map((d) => (
+          <div key={d}>{d}</div>
+        ))}
+      </div>
+      <div className="mt-0.5 grid grid-cols-7 gap-0.5">
+        {cells.map((d) => {
+          const inMonth = d.slice(0, 7) === month;
+          const isToday = d === today;
+          const isSel = d === anchor;
+          return (
+            <button
+              key={d}
+              type="button"
+              onClick={() => onPick(d)}
+              className={`h-6 rounded text-[11px] ${
+                isSel
+                  ? "bg-lime-400 font-semibold text-slate-950"
+                  : isToday
+                  ? "text-slate-100 ring-1 ring-lime-400"
+                  : inMonth
+                  ? "text-slate-300 hover:bg-slate-800"
+                  : "text-slate-600 hover:bg-slate-800"
+              }`}
+            >
+              {dayNum(d)}
             </button>
           );
         })}
