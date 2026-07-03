@@ -10,6 +10,7 @@ import {
   MAX_ADVANCE_DAYS,
   type PublicApptType,
 } from "@/lib/booking/publicBooking";
+import { sendBookingConfirmation } from "@/lib/email/mailer";
 
 export const dynamic = "force-dynamic";
 
@@ -114,6 +115,24 @@ export async function POST(req: NextRequest) {
       const status = result.error === "slot_taken" || result.error === "slot_unavailable" ? 409 : 400;
       return NextResponse.json({ error: result.message }, { status });
     }
+
+    // Fire confirmation email — non-blocking, never fails the booking.
+    try {
+      const types = await listPublicTypes(admin, clinic.organisationId);
+      const type = types.find((t) => t.id === body.typeId);
+      await sendBookingConfirmation({
+        clientName: `${input.firstName} ${input.lastName}`.trim(),
+        clientEmail: input.email,
+        serviceName: type?.name ?? "Appointment",
+        startAt: input.startIso,
+        endAt: new Date(new Date(input.startIso).getTime() + (type?.duration_min ?? 60) * 60000).toISOString(),
+        practitionerName: clinic.clinicianName,
+        cancelToken: result.cancelToken,
+      });
+    } catch {
+      // Email failure is non-fatal — booking is already saved.
+    }
+
     return NextResponse.json({ ok: true, bookingId: result.bookingId, label: result.label });
   } catch {
     return NextResponse.json({ error: "Something went wrong." }, { status: 500 });

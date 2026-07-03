@@ -6,12 +6,6 @@ import PracticeSidebar from "@/components/PracticeSidebar";
 import { useRequireDashboardStaff } from "@/lib/useRequireDashboardStaff";
 import { supabase } from "@/lib/supabaseClient";
 
-/**
- * Invoices + payment recording. Create an invoice (athlete or manual client)
- * with line items priced from services, then record split payments by method.
- * Status auto-derives from payments vs total. (Email is added separately.)
- */
-
 const METHODS: { v: string; label: string }[] = [
   { v: "health_fund", label: "Health fund" },
   { v: "medicare", label: "Medicare" },
@@ -42,30 +36,21 @@ type Line = { description: string; qty: number; unit: string };
 type Payment = { id: string; method: string; amount_cents: number; paid_at: string; reference: string | null };
 type Item = { id: string; description: string; quantity: number; unit_price_cents: number; amount_cents: number };
 
-function money(c: number): string {
-  return `$${(c / 100).toFixed(2)}`;
-}
-function parseMoney(s: string): number {
-  const n = parseFloat(s);
-  return isNaN(n) ? 0 : Math.round(n * 100);
-}
+function money(c: number): string { return `$${(c / 100).toFixed(2)}`; }
+function parseMoney(s: string): number { const n = parseFloat(s); return isNaN(n) ? 0 : Math.round(n * 100); }
 function today(): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Perth", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 }
-function athleteName(a: AthleteLite): string {
-  return `${a.first_name ?? ""} ${a.last_name ?? ""}`.trim() || "Athlete";
-}
+function athleteName(a: AthleteLite): string { return `${a.first_name ?? ""} ${a.last_name ?? ""}`.trim() || "Athlete"; }
 function statusBadge(s: string): string {
-  return s === "paid"
-    ? "bg-lime-500/20 text-lime-200"
-    : s === "part_paid"
-    ? "bg-amber-500/20 text-amber-200"
-    : s === "void"
-    ? "bg-slate-600/40 text-slate-300"
-    : s === "sent"
-    ? "bg-sky-500/20 text-sky-200"
+  return s === "paid" ? "bg-lime-500/20 text-lime-200"
+    : s === "part_paid" ? "bg-amber-500/20 text-amber-200"
+    : s === "void" ? "bg-slate-600/40 text-slate-300"
+    : s === "sent" ? "bg-sky-500/20 text-sky-200"
     : "bg-slate-700/50 text-slate-300";
 }
+
+// ---- Page --------------------------------------------------------------------
 
 export default function InvoicesPage() {
   const staffOk = useRequireDashboardStaff();
@@ -77,24 +62,18 @@ export default function InvoicesPage() {
   const [types, setTypes] = useState<ApptType[]>([]);
   const [pracs, setPracs] = useState<Practitioner[]>([]);
   const [loading, setLoading] = useState(true);
-
   const [showCreate, setShowCreate] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     const { data: profile } = await supabase.from("profiles").select("id, organisation_id").eq("id", user.id).single();
     const org = (profile?.organisation_id as string) ?? null;
     setProfileId(profile?.id as string);
     setOrgId(org);
-    if (!org) {
-      setLoading(false);
-      return;
-    }
+    if (!org) { setLoading(false); return; }
     const [{ data: inv }, { data: pay }, { data: ath }, { data: t }, { data: pr }] = await Promise.all([
       supabase.from("invoices").select("id, invoice_number, client_name, client_email, status, issued_date, due_date, total_cents, athlete_id, practitioner_id").eq("organisation_id", org).order("issued_date", { ascending: false }),
       supabase.from("payments").select("invoice_id, amount_cents").eq("organisation_id", org),
@@ -112,26 +91,22 @@ export default function InvoicesPage() {
     setLoading(false);
   }, []);
 
-  useEffect(() => {
-    if (staffOk) void load();
-  }, [staffOk, load]);
+  useEffect(() => { if (staffOk) void load(); }, [staffOk, load]);
 
-  const totals = useMemo(() => {
-    let outstanding = 0;
+  const outstanding = useMemo(() => {
+    let total = 0;
     for (const i of invoices) {
       if (i.status === "void") continue;
-      outstanding += Math.max(0, i.total_cents - (paidById[i.id] ?? 0));
+      total += Math.max(0, i.total_cents - (paidById[i.id] ?? 0));
     }
-    return { outstanding };
+    return total;
   }, [invoices, paidById]);
 
-  if (!staffOk) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-[#f8fafc] text-slate-900 athlete-frosted" data-theme="light">
-        <p className="text-xs text-slate-400">Checking access…</p>
-      </main>
-    );
-  }
+  if (!staffOk) return (
+    <main className="flex min-h-screen items-center justify-center bg-[#f8fafc] text-slate-900 athlete-frosted" data-theme="light">
+      <p className="text-xs text-slate-400">Checking access…</p>
+    </main>
+  );
 
   return (
     <main className="min-h-screen bg-[#f8fafc] text-slate-900 athlete-frosted" data-theme="light">
@@ -140,84 +115,62 @@ export default function InvoicesPage() {
         <div className="flex flex-col gap-4 lg:flex-row lg:gap-5">
           <aside className="w-full shrink-0 lg:w-48"><PracticeSidebar /></aside>
           <div className="min-w-0 flex-1">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-semibold tracking-tight text-slate-50">INVOICES</h1>
-            <p className="mt-1 text-sm text-slate-400">Outstanding: <span className="font-semibold text-slate-200">{money(totals.outstanding)}</span></p>
-          </div>
-          <button type="button" onClick={() => setShowCreate(true)} className="rounded-full bg-lime-400 px-4 py-2 text-xs font-semibold text-slate-950 hover:brightness-110">
-            + New invoice
-          </button>
-        </div>
-
-        <div className="mt-6 overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/50">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-slate-800 text-left text-xs uppercase tracking-wide text-slate-400">
-                <th className="px-3 py-2">Invoice</th>
-                <th className="px-3 py-2">Client</th>
-                <th className="px-3 py-2">Date</th>
-                <th className="px-3 py-2 text-right">Total</th>
-                <th className="px-3 py-2 text-right">Owing</th>
-                <th className="px-3 py-2">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan={6} className="px-3 py-4 text-xs text-slate-500">Loading…</td></tr>
-              ) : invoices.length === 0 ? (
-                <tr><td colSpan={6} className="px-3 py-4 text-xs text-slate-500">No invoices yet.</td></tr>
-              ) : (
-                invoices.map((i) => {
-                  const paid = paidById[i.id] ?? 0;
-                  const owing = Math.max(0, i.total_cents - paid);
-                  return (
-                    <tr key={i.id} onClick={() => setDetailId(i.id)} className="cursor-pointer border-b border-slate-800/60 text-slate-200 hover:bg-slate-800/40">
-                      <td className="px-3 py-2 font-medium">{i.invoice_number}</td>
-                      <td className="px-3 py-2">{i.client_name ?? "—"}</td>
-                      <td className="px-3 py-2 text-slate-400">{i.issued_date}</td>
-                      <td className="px-3 py-2 text-right">{money(i.total_cents)}</td>
-                      <td className="px-3 py-2 text-right">{owing > 0 ? money(owing) : "—"}</td>
-                      <td className="px-3 py-2"><span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${statusBadge(i.status)}`}>{i.status.replace("_", " ")}</span></td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-xl font-semibold tracking-tight text-slate-50">INVOICES</h1>
+                <p className="mt-1 text-sm text-slate-400">Outstanding: <span className="font-semibold text-slate-200">{money(outstanding)}</span></p>
+              </div>
+              <button type="button" onClick={() => setShowCreate(true)} className="rounded-full bg-lime-400 px-4 py-2 text-xs font-semibold text-slate-950 hover:brightness-110">+ New invoice</button>
+            </div>
+            <div className="mt-6 overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/50">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-800 text-left text-xs uppercase tracking-wide text-slate-400">
+                    <th className="px-3 py-2">Invoice</th>
+                    <th className="px-3 py-2">Client</th>
+                    <th className="px-3 py-2">Date</th>
+                    <th className="px-3 py-2 text-right">Total</th>
+                    <th className="px-3 py-2 text-right">Owing</th>
+                    <th className="px-3 py-2">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr><td colSpan={6} className="px-3 py-4 text-xs text-slate-500">Loading…</td></tr>
+                  ) : invoices.length === 0 ? (
+                    <tr><td colSpan={6} className="px-3 py-4 text-xs text-slate-500">No invoices yet.</td></tr>
+                  ) : invoices.map((i) => {
+                    const paid = paidById[i.id] ?? 0;
+                    const owing = Math.max(0, i.total_cents - paid);
+                    return (
+                      <tr key={i.id} onClick={() => setDetailId(i.id)} className="cursor-pointer border-b border-slate-800/60 text-slate-200 hover:bg-slate-800/40">
+                        <td className="px-3 py-2 font-medium">{i.invoice_number}</td>
+                        <td className="px-3 py-2">{i.client_name ?? "—"}</td>
+                        <td className="px-3 py-2 text-slate-400">{i.issued_date}</td>
+                        <td className="px-3 py-2 text-right">{money(i.total_cents)}</td>
+                        <td className="px-3 py-2 text-right">{owing > 0 ? money(owing) : "—"}</td>
+                        <td className="px-3 py-2"><span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${statusBadge(i.status)}`}>{i.status.replace("_", " ")}</span></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </section>
 
-      {showCreate ? (
-        <CreateInvoice orgId={orgId} profileId={profileId} athletes={athletes} types={types} pracs={pracs} onClose={() => setShowCreate(false)} onSaved={() => { setShowCreate(false); void load(); }} />
-      ) : null}
-      {detailId ? (
-        <InvoiceDetail invoiceId={detailId} orgId={orgId} profileId={profileId} onClose={() => setDetailId(null)} onChanged={() => void load()} />
-      ) : null}
+      {showCreate ? <CreateInvoice orgId={orgId} profileId={profileId} athletes={athletes} types={types} pracs={pracs} onClose={() => setShowCreate(false)} onSaved={() => { setShowCreate(false); void load(); }} /> : null}
+      {detailId ? <InvoiceDetail invoiceId={detailId} orgId={orgId} profileId={profileId} onClose={() => setDetailId(null)} onChanged={() => void load()} /> : null}
     </main>
   );
 }
 
 // ---- Create ------------------------------------------------------------------
 
-function CreateInvoice({
-  orgId,
-  profileId,
-  athletes,
-  types,
-  pracs,
-  onClose,
-  onSaved,
-}: {
-  orgId: string | null;
-  profileId: string | null;
-  athletes: AthleteLite[];
-  types: ApptType[];
-  pracs: Practitioner[];
-  onClose: () => void;
-  onSaved: () => void;
+function CreateInvoice({ orgId, profileId, athletes, types, pracs, onClose, onSaved }: {
+  orgId: string | null; profileId: string | null; athletes: AthleteLite[];
+  types: ApptType[]; pracs: Practitioner[]; onClose: () => void; onSaved: () => void;
 }) {
   const [athleteId, setAthleteId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -229,19 +182,15 @@ function CreateInvoice({
   const [lines, setLines] = useState<Line[]>([{ description: "", qty: 1, unit: "" }]);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const inp = "rounded-lg border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-200";
 
   const matches = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return [];
-    return athletes.filter((a) => athleteName(a).toLowerCase().includes(q)).slice(0, 6);
+    return q ? athletes.filter((a) => athleteName(a).toLowerCase().includes(q)).slice(0, 6) : [];
   }, [search, athletes]);
 
   const total = lines.reduce((s, l) => s + Math.round(l.qty * parseMoney(l.unit)), 0);
-  const inp = "rounded-lg border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-200";
 
-  function addLine() {
-    setLines((p) => [...p, { description: "", qty: 1, unit: "" }]);
-  }
   function addFromType(id: string) {
     const t = types.find((x) => x.id === id);
     if (t) setLines((p) => [...p, { description: t.name, qty: 1, unit: t.price_cents != null ? (t.price_cents / 100).toFixed(2) : "" }]);
@@ -253,52 +202,25 @@ function CreateInvoice({
   async function save() {
     if (!orgId) return;
     const client = athleteId ? athleteName(athletes.find((a) => a.id === athleteId)!) : clientName.trim();
-    if (!client) {
-      setErr("Choose an athlete or enter a client name.");
-      return;
-    }
+    if (!client) { setErr("Choose an athlete or enter a client name."); return; }
     const valid = lines.filter((l) => l.description.trim() && parseMoney(l.unit) >= 0 && l.qty > 0);
-    if (valid.length === 0) {
-      setErr("Add at least one line item.");
-      return;
-    }
-    setSaving(true);
-    setErr(null);
-    const { data: inv, error: e } = await supabase
-      .from("invoices")
-      .insert({
-        organisation_id: orgId,
-        athlete_id: athleteId,
-        practitioner_id: pracId || null,
-        client_name: client,
-        client_email: clientEmail.trim() || null,
-        status: "draft",
-        issued_date: issued,
-        due_date: due || null,
-        total_cents: total,
-        created_by: profileId,
-      })
-      .select("id")
-      .single();
-    if (e || !inv) {
-      setSaving(false);
-      setErr(e?.message ?? "Could not create invoice.");
-      return;
-    }
-    const items = valid.map((l) => ({
-      invoice_id: inv.id,
-      organisation_id: orgId,
-      description: l.description.trim(),
-      quantity: l.qty,
+    if (valid.length === 0) { setErr("Add at least one line item."); return; }
+    setSaving(true); setErr(null);
+    const { data: inv, error: e } = await supabase.from("invoices").insert({
+      organisation_id: orgId, athlete_id: athleteId, practitioner_id: pracId || null,
+      client_name: client, client_email: clientEmail.trim() || null,
+      status: "draft", issued_date: issued, due_date: due || null,
+      total_cents: total, created_by: profileId,
+    }).select("id").single();
+    if (e || !inv) { setSaving(false); setErr(e?.message ?? "Could not create invoice."); return; }
+    const { error: ie } = await supabase.from("invoice_items").insert(valid.map((l) => ({
+      invoice_id: inv.id, organisation_id: orgId,
+      description: l.description.trim(), quantity: l.qty,
       unit_price_cents: parseMoney(l.unit),
       amount_cents: Math.round(l.qty * parseMoney(l.unit)),
-    }));
-    const { error: ie } = await supabase.from("invoice_items").insert(items);
+    })));
     setSaving(false);
-    if (ie) {
-      setErr(ie.message);
-      return;
-    }
+    if (ie) { setErr(ie.message); return; }
     onSaved();
   }
 
@@ -325,49 +247,31 @@ function CreateInvoice({
             </>
           )}
         </div>
-
         {!athleteId ? (
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-slate-400">Client name</label>
-              <input value={clientName} onChange={(e) => setClientName(e.target.value)} className={`mt-1 w-full ${inp}`} />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-400">Email</label>
-              <input value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} className={`mt-1 w-full ${inp}`} />
-            </div>
+            <div><label className="block text-xs font-medium text-slate-400">Client name</label><input value={clientName} onChange={(e) => setClientName(e.target.value)} className={`mt-1 w-full ${inp}`} /></div>
+            <div><label className="block text-xs font-medium text-slate-400">Email</label><input value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} className={`mt-1 w-full ${inp}`} /></div>
           </div>
         ) : (
-          <div>
-            <label className="block text-xs font-medium text-slate-400">Email <span className="text-slate-600">(for sending)</span></label>
-            <input value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} className={`mt-1 w-full ${inp}`} />
-          </div>
+          <div><label className="block text-xs font-medium text-slate-400">Email <span className="text-slate-600">(for sending)</span></label><input value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} className={`mt-1 w-full ${inp}`} /></div>
         )}
-
         <div className="grid grid-cols-3 gap-3">
           <div>
             <label className="block text-xs font-medium text-slate-400">Practitioner</label>
             <select value={pracId} onChange={(e) => setPracId(e.target.value)} className={`mt-1 w-full ${inp}`}>
               <option value="">—</option>
-              {pracs.map((p) => (<option key={p.id} value={p.id}>{p.full_name}</option>))}
+              {pracs.map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}
             </select>
           </div>
-          <div>
-            <label className="block text-xs font-medium text-slate-400">Issued</label>
-            <input type="date" value={issued} onChange={(e) => setIssued(e.target.value)} className={`mt-1 w-full ${inp}`} />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-slate-400">Due</label>
-            <input type="date" value={due} onChange={(e) => setDue(e.target.value)} className={`mt-1 w-full ${inp}`} />
-          </div>
+          <div><label className="block text-xs font-medium text-slate-400">Issued</label><input type="date" value={issued} onChange={(e) => setIssued(e.target.value)} className={`mt-1 w-full ${inp}`} /></div>
+          <div><label className="block text-xs font-medium text-slate-400">Due</label><input type="date" value={due} onChange={(e) => setDue(e.target.value)} className={`mt-1 w-full ${inp}`} /></div>
         </div>
-
         <div>
           <div className="flex items-center justify-between">
             <label className="block text-xs font-medium text-slate-400">Line items</label>
             <select value="" onChange={(e) => { if (e.target.value) addFromType(e.target.value); }} className={inp}>
               <option value="">+ from service…</option>
-              {types.map((t) => (<option key={t.id} value={t.id}>{t.name}</option>))}
+              {types.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
           </div>
           <div className="mt-2 space-y-2">
@@ -380,18 +284,15 @@ function CreateInvoice({
                 <button type="button" onClick={() => setLines((p) => p.filter((_, idx) => idx !== i))} className="text-slate-500 hover:text-rose-300">×</button>
               </div>
             ))}
-            <button type="button" onClick={addLine} className="text-xs text-lime-300 hover:text-lime-200">+ Add line</button>
+            <button type="button" onClick={() => setLines((p) => [...p, { description: "", qty: 1, unit: "" }])} className="text-xs text-lime-300 hover:text-lime-200">+ Add line</button>
           </div>
         </div>
-
         <div className="flex items-center justify-between border-t border-slate-800 pt-3 text-sm">
           <span className="text-slate-400">Total</span>
           <span className="font-semibold text-slate-100">{money(total)}</span>
         </div>
-
         {err ? <p className="text-xs text-rose-400">{err}</p> : null}
       </div>
-
       <ModalActions>
         <button type="button" onClick={onClose} className="rounded-lg border border-slate-700 px-4 py-2 text-xs text-slate-300 hover:bg-slate-800">Close</button>
         <button type="button" onClick={() => void save()} disabled={saving} className="rounded-lg border border-lime-500/50 bg-lime-500/15 px-4 py-2 text-xs font-medium text-lime-200 hover:bg-lime-500/25 disabled:opacity-50">{saving ? "Saving…" : "Create invoice"}</button>
@@ -402,18 +303,9 @@ function CreateInvoice({
 
 // ---- Detail + payments -------------------------------------------------------
 
-function InvoiceDetail({
-  invoiceId,
-  orgId,
-  profileId,
-  onClose,
-  onChanged,
-}: {
-  invoiceId: string;
-  orgId: string | null;
-  profileId: string | null;
-  onClose: () => void;
-  onChanged: () => void;
+function InvoiceDetail({ invoiceId, orgId, profileId, onClose, onChanged }: {
+  invoiceId: string; orgId: string | null; profileId: string | null;
+  onClose: () => void; onChanged: () => void;
 }) {
   const [inv, setInv] = useState<Invoice | null>(null);
   const [items, setItems] = useState<Item[]>([]);
@@ -424,6 +316,8 @@ function InvoiceDetail({
   const [reference, setReference] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [emailMsg, setEmailMsg] = useState<string | null>(null);
+  const inp = "rounded-lg border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-200";
 
   const reload = useCallback(async () => {
     const [{ data: i }, { data: it }, { data: p }] = await Promise.all([
@@ -436,9 +330,7 @@ function InvoiceDetail({
     setPayments((p ?? []) as Payment[]);
   }, [invoiceId]);
 
-  useEffect(() => {
-    void reload();
-  }, [reload]);
+  useEffect(() => { void reload(); }, [reload]);
 
   const paid = payments.reduce((s, p) => s + p.amount_cents, 0);
   const owing = inv ? Math.max(0, inv.total_cents - paid) : 0;
@@ -455,63 +347,62 @@ function InvoiceDetail({
       else if (newPaid > 0) status = "part_paid";
       else status = inv.status === "sent" ? "sent" : "draft";
     }
-    if (status !== inv.status) {
-      await supabase.from("invoices").update({ status }).eq("id", inv.id);
+    if (status !== inv.status) await supabase.from("invoices").update({ status }).eq("id", inv.id);
+  }
+
+  async function sendEmail() {
+    if (!inv) return;
+    if (!inv.client_email) { setEmailMsg("No email address on this invoice."); return; }
+    setBusy(true); setEmailMsg(null);
+    try {
+      const res = await fetch("/api/invoices/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ invoiceId: inv.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Failed to send.");
+      setEmailMsg("Email sent ✓");
+      await reload(); onChanged();
+    } catch (e) {
+      setEmailMsg(e instanceof Error ? e.message : "Failed to send.");
+    } finally {
+      setBusy(false);
     }
   }
 
   async function addPayment() {
     if (!orgId || !inv) return;
     const cents = parseMoney(amount);
-    if (cents <= 0) {
-      setErr("Enter an amount.");
-      return;
-    }
-    setBusy(true);
-    setErr(null);
+    if (cents <= 0) { setErr("Enter an amount."); return; }
+    setBusy(true); setErr(null);
     const { error: e } = await supabase.from("payments").insert({
-      organisation_id: orgId,
-      invoice_id: inv.id,
-      method,
+      organisation_id: orgId, invoice_id: inv.id, method,
       amount_cents: cents,
       paid_at: new Date(`${paidAt}T12:00:00+08:00`).toISOString(),
-      reference: reference.trim() || null,
-      created_by: profileId,
+      reference: reference.trim() || null, created_by: profileId,
     });
-    if (e) {
-      setBusy(false);
-      setErr(e.message);
-      return;
-    }
+    if (e) { setBusy(false); setErr(e.message); return; }
     await deriveStatus(paid + cents);
-    setAmount("");
-    setReference("");
-    setBusy(false);
-    await reload();
-    onChanged();
+    setAmount(""); setReference(""); setBusy(false);
+    await reload(); onChanged();
   }
 
   async function removePayment(id: string, amt: number) {
     await supabase.from("payments").delete().eq("id", id);
     await deriveStatus(paid - amt);
-    await reload();
-    onChanged();
+    await reload(); onChanged();
   }
 
   async function setStatus(status: string) {
     if (!inv) return;
     await supabase.from("invoices").update({ status }).eq("id", inv.id);
-    await reload();
-    onChanged();
+    await reload(); onChanged();
   }
-
-  const inp = "rounded-lg border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-200";
 
   return (
     <Modal title={inv ? inv.invoice_number : "Invoice"} onClose={onClose}>
-      {!inv ? (
-        <p className="text-xs text-slate-500">Loading…</p>
-      ) : (
+      {!inv ? <p className="text-xs text-slate-500">Loading…</p> : (
         <div className="space-y-4">
           <div className="flex items-center justify-between text-sm">
             <div>
@@ -534,7 +425,6 @@ function InvoiceDetail({
             </div>
           </div>
 
-          {/* payments */}
           <div>
             <div className="flex items-center justify-between text-sm">
               <span className="font-medium text-slate-200">Payments</span>
@@ -550,11 +440,10 @@ function InvoiceDetail({
                 ))}
               </ul>
             ) : null}
-
             {inv.status !== "void" ? (
               <div className="mt-2 flex flex-wrap items-end gap-2">
                 <select value={method} onChange={(e) => setMethod(e.target.value)} className={inp}>
-                  {METHODS.map((m) => (<option key={m.v} value={m.v}>{m.label}</option>))}
+                  {METHODS.map((m) => <option key={m.v} value={m.v}>{m.label}</option>)}
                 </select>
                 <input value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="$" className={`w-20 ${inp}`} />
                 <input type="date" value={paidAt} onChange={(e) => setPaidAt(e.target.value)} className={inp} />
@@ -566,10 +455,19 @@ function InvoiceDetail({
           </div>
         </div>
       )}
-
       <ModalActions>
-        {inv && inv.status === "draft" ? <button type="button" onClick={() => void setStatus("sent")} className="rounded-lg border border-sky-500/40 px-3 py-2 text-xs text-sky-200 hover:bg-sky-500/10">Mark sent</button> : null}
-        {inv && inv.status !== "void" ? <button type="button" onClick={() => void setStatus("void")} className="rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-300 hover:bg-slate-800">Void</button> : null}
+        {inv?.client_email ? (
+          <button type="button" onClick={() => void sendEmail()} disabled={busy} className="rounded-lg border border-sky-500/40 px-3 py-2 text-xs text-sky-200 hover:bg-sky-500/10 disabled:opacity-50">
+            {busy ? "Sending…" : inv.status === "paid" ? "Email receipt" : "Email invoice"}
+          </button>
+        ) : null}
+        {inv?.status === "draft" ? (
+          <button type="button" onClick={() => void setStatus("sent")} className="rounded-lg border border-sky-500/40 px-3 py-2 text-xs text-sky-200 hover:bg-sky-500/10">Mark sent</button>
+        ) : null}
+        {emailMsg ? <p className="w-full text-left text-xs text-slate-300">{emailMsg}</p> : null}
+        {inv?.status !== "void" ? (
+          <button type="button" onClick={() => void setStatus("void")} className="rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-300 hover:bg-slate-800">Void</button>
+        ) : null}
         <button type="button" onClick={onClose} className="rounded-lg border border-slate-700 px-4 py-2 text-xs text-slate-300 hover:bg-slate-800">Close</button>
       </ModalActions>
     </Modal>
