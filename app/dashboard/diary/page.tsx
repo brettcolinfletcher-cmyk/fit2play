@@ -185,6 +185,7 @@ export default function DiaryPage() {
   const today = todayPerth();
   const activePracs = pracs;
   const isAll = pracId === "all";
+  const [notice, setNotice] = useState<string | null>(null);
 
   // visible date range
   const days = useMemo(() => {
@@ -358,6 +359,25 @@ export default function DiaryPage() {
     else openEditEvent(it.raw);
   }
 
+  async function moveItem(it: Item, newStartMin: number, dateStr: string) {
+    setNotice(null);
+    const dur = durMin(it.start, it.end);
+    const startIso = toInstant(dateStr, newStartMin);
+    const endIso = toInstant(dateStr, newStartMin + dur);
+    if (it.type === "booking") {
+      const { error } = await supabase
+        .from("bookings")
+        .update({ start_at: startIso, end_at: endIso, updated_at: new Date().toISOString() })
+        .eq("id", it.id);
+      if (error && (error.code === "23P01" || /bookings_no_overlap/.test(error.message))) {
+        setNotice("That move overlaps another booking — it wasn't changed.");
+      }
+    } else {
+      await supabase.from("diary_events").update({ start_at: startIso, end_at: endIso }).eq("id", it.id);
+    }
+    void loadRange();
+  }
+
   function changeView(v: View) {
     if (v !== "day" && isAll && activePracs[0]) setPracId(activePracs[0].id);
     setView(v);
@@ -510,6 +530,7 @@ export default function DiaryPage() {
                     items={itemsByCell.get(`${c.date}|${c.prac.id}`) ?? []}
                     openWindows={openWindowsFor(availRows, excRows, c.prac.id, c.date)}
                     onCreate={(s, e) => openCreate(c.prac.id, c.date, s, e)}
+                    onMove={(it, ns) => moveItem(it, ns, c.date)}
                     onItemClick={onItemClick}
                   />
                 ))}
@@ -518,6 +539,7 @@ export default function DiaryPage() {
           </div>
         )}
 
+        {notice ? <p className="mt-3 text-xs text-amber-300">{notice}</p> : null}
         {loading ? <p className="mt-3 text-xs text-slate-500">Loading…</p> : null}
           </div>
         </div>
@@ -545,17 +567,48 @@ function DragColumn({
   items,
   openWindows,
   onCreate,
+  onMove,
   onItemClick,
 }: {
   isToday: boolean;
   items: Item[];
   openWindows: { s: number; e: number }[];
   onCreate: (startMin: number, endMin: number) => void;
+  onMove: (it: Item, newStartMin: number) => void;
   onItemClick: (it: Item) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [sel, setSel] = useState<{ a: number; b: number } | null>(null);
+  const [moveTop, setMoveTop] = useState<{ id: string; top: number } | null>(null);
   const dragging = useRef(false);
+
+  function onItemDown(e: React.MouseEvent, it: Item) {
+    e.stopPropagation();
+    const rect = ref.current!.getBoundingClientRect();
+    const itemTop = Math.max(0, minsFromDayStart(it.start)) * PX;
+    const grab = e.clientY - rect.top - itemTop;
+    const startY = e.clientY;
+    const dur = durMin(it.start, it.end);
+    let moved = false;
+    const move = (ev: MouseEvent) => {
+      if (Math.abs(ev.clientY - startY) > 4) moved = true;
+      const t = snap15((ev.clientY - rect.top - grab) / PX);
+      setMoveTop({ id: it.id, top: Math.max(0, Math.min(GRID_MIN - dur, t)) });
+    };
+    const up = (ev: MouseEvent) => {
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up);
+      setMoveTop(null);
+      if (!moved) {
+        onItemClick(it);
+        return;
+      }
+      const t = Math.max(0, Math.min(GRID_MIN - dur, snap15((ev.clientY - rect.top - grab) / PX)));
+      onMove(it, t + DAY_START * 60);
+    };
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", up);
+  }
 
   function yToMin(clientY: number): number {
     const rect = ref.current!.getBoundingClientRect();
@@ -616,31 +669,30 @@ function DragColumn({
       ) : null}
 
       {items.map((it) => {
-        const top = Math.max(0, minsFromDayStart(it.start)) * PX;
+        const baseTop = Math.max(0, minsFromDayStart(it.start)) * PX;
+        const top = moveTop && moveTop.id === it.id ? moveTop.top * PX : baseTop;
         const height = Math.max(18, durMin(it.start, it.end) * PX - 2);
         if (it.type === "note") {
           return (
-            <button
+            <div
               key={it.id}
               data-item
-              type="button"
-              onClick={() => onItemClick(it)}
-              className="absolute inset-x-1 overflow-hidden rounded-md border-l-4 border-amber-400 bg-amber-100/90 px-2 py-1 text-left text-[11px] text-amber-900 hover:brightness-105"
+              onMouseDown={(e) => onItemDown(e, it)}
+              className="absolute inset-x-1 cursor-grab overflow-hidden rounded-md border-l-4 border-amber-400 bg-amber-100/90 px-2 py-1 text-left text-[11px] text-amber-900 hover:brightness-105 active:cursor-grabbing"
               style={{ top, height }}
               title={it.title}
             >
               <div className="truncate font-medium">📌 {it.title}</div>
-            </button>
+            </div>
           );
         }
         if (it.type === "block") {
           return (
-            <button
+            <div
               key={it.id}
               data-item
-              type="button"
-              onClick={() => onItemClick(it)}
-              className="absolute inset-x-1 overflow-hidden rounded-md px-2 py-1 text-left text-[11px] text-slate-100 hover:brightness-110"
+              onMouseDown={(e) => onItemDown(e, it)}
+              className="absolute inset-x-1 cursor-grab overflow-hidden rounded-md px-2 py-1 text-left text-[11px] text-slate-100 hover:brightness-110 active:cursor-grabbing"
               style={{
                 top,
                 height,
@@ -651,23 +703,22 @@ function DragColumn({
               title={it.title}
             >
               <div className="truncate font-medium">{fmtTime(it.start)} · {it.title}</div>
-            </button>
+            </div>
           );
         }
         return (
-          <button
+          <div
             key={it.id}
             data-item
-            type="button"
-            onClick={() => onItemClick(it)}
-            className="absolute inset-x-1 overflow-hidden rounded-md px-2 py-1 text-left text-[11px] leading-tight shadow-sm ring-1 ring-black/5 hover:brightness-105"
+            onMouseDown={(e) => onItemDown(e, it)}
+            className="absolute inset-x-1 cursor-grab overflow-hidden rounded-md px-2 py-1 text-left text-[11px] leading-tight shadow-sm ring-1 ring-black/5 hover:brightness-105 active:cursor-grabbing"
             style={{ top, height, backgroundColor: `${it.colour}22`, borderLeft: `3px solid ${it.colour}` }}
             title={`${fmtTime(it.start)}–${fmtTime(it.end)} · ${it.title}`}
           >
             <div className="font-semibold text-slate-800">{fmtTime(it.start)}</div>
             <div className="truncate text-slate-700">{it.title}</div>
             {it.sub ? <div className="truncate text-slate-500">{it.sub}</div> : null}
-          </button>
+          </div>
         );
       })}
     </div>
