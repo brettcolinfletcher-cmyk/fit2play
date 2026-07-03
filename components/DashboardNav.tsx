@@ -83,28 +83,13 @@ export default function DashboardNav({ lightTheme = false }: { lightTheme?: bool
       },
       {
         href: "/dashboard/diary",
-        label: "Diary",
-        active: pathname.startsWith("/dashboard/diary"),
-      },
-      {
-        href: "/dashboard/availability",
-        label: "Availability",
-        active: pathname.startsWith("/dashboard/availability"),
-      },
-      {
-        href: "/dashboard/practitioners",
-        label: "Practitioners",
-        active: pathname.startsWith("/dashboard/practitioners"),
-      },
-      {
-        href: "/dashboard/appointment-types",
-        label: "Services",
-        active: pathname.startsWith("/dashboard/appointment-types"),
-      },
-      {
-        href: "/dashboard/invoices",
-        label: "Invoices",
-        active: pathname.startsWith("/dashboard/invoices"),
+        label: "Scheduling",
+        active:
+          pathname.startsWith("/dashboard/diary") ||
+          pathname.startsWith("/dashboard/availability") ||
+          pathname.startsWith("/dashboard/practitioners") ||
+          pathname.startsWith("/dashboard/appointment-types") ||
+          pathname.startsWith("/dashboard/invoices"),
       },
       {
         href: "/dashboard/sprint-report",

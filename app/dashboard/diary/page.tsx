@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import DashboardNav from "@/components/DashboardNav";
+import PracticeSidebar from "@/components/PracticeSidebar";
 import { useRequireDashboardStaff } from "@/lib/useRequireDashboardStaff";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -424,7 +425,8 @@ export default function DiaryPage() {
       <section className="mx-auto max-w-7xl px-4 pt-8 pb-20">
         <div className="flex gap-5">
           <aside className="hidden w-56 shrink-0 lg:block">
-            <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Week beginning</div>
+            <PracticeSidebar />
+            <div className="mt-5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Week beginning</div>
             <div className="mb-3 text-lg font-semibold text-slate-100">
               {calDate(mondayOf(anchor)).toLocaleDateString("en-AU", { day: "numeric", month: "long", timeZone: "UTC" })}
             </div>
@@ -434,6 +436,7 @@ export default function DiaryPage() {
             </div>
           </aside>
           <div className="min-w-0 flex-1">
+            <div className="mb-4 lg:hidden"><PracticeSidebar /></div>
         {/* Toolbar */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">

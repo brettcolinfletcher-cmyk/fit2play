@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import DashboardNav from "@/components/DashboardNav";
+import PracticeSidebar from "@/components/PracticeSidebar";
 import { useRequireDashboardStaff } from "@/lib/useRequireDashboardStaff";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -242,7 +243,10 @@ export default function AvailabilityPage() {
   return (
     <main className="min-h-screen bg-[#f8fafc] text-slate-900 athlete-frosted" data-theme="light">
       <DashboardNav lightTheme />
-      <section className="mx-auto max-w-3xl px-4 pt-8 pb-20">
+      <section className="mx-auto max-w-5xl px-4 pt-8 pb-20">
+        <div className="flex flex-col gap-4 lg:flex-row lg:gap-5">
+          <aside className="w-full shrink-0 lg:w-48"><PracticeSidebar /></aside>
+          <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-xl font-semibold tracking-tight text-slate-50">AVAILABILITY</h1>
@@ -368,6 +372,8 @@ export default function AvailabilityPage() {
                 ))}
               </ul>
             )}
+          </div>
+        </div>
           </div>
         </div>
       </section>

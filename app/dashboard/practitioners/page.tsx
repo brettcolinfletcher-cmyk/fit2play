@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import DashboardNav from "@/components/DashboardNav";
+import PracticeSidebar from "@/components/PracticeSidebar";
 import { useRequireDashboardStaff } from "@/lib/useRequireDashboardStaff";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -148,7 +149,10 @@ export default function PractitionersPage() {
   return (
     <main className="min-h-screen bg-[#f8fafc] text-slate-900 athlete-frosted" data-theme="light">
       <DashboardNav lightTheme />
-      <section className="mx-auto max-w-3xl px-4 pt-8 pb-20">
+      <section className="mx-auto max-w-5xl px-4 pt-8 pb-20">
+        <div className="flex flex-col gap-4 lg:flex-row lg:gap-5">
+          <aside className="w-full shrink-0 lg:w-48"><PracticeSidebar /></aside>
+          <div className="min-w-0 flex-1">
         <h1 className="text-xl font-semibold tracking-tight text-slate-50">PRACTITIONERS</h1>
         <p className="mt-1 text-sm text-slate-400">
           Each practitioner gets their own diary and availability. "Link to login" connects to an existing staff account;
@@ -234,6 +238,8 @@ export default function PractitionersPage() {
               </div>
             ))
           )}
+        </div>
+          </div>
         </div>
       </section>
     </main>
