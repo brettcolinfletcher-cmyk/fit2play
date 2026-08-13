@@ -31,6 +31,7 @@ import {
   computePerformanceSummary,
   type SummaryCategory,
 } from "@/lib/performanceSummary";
+import { fetchTargetOverridesForAthlete } from "@/lib/performanceTargets";
 import type { CriteriaResolver, ReportVisibility } from "@/lib/reportSections";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -42,6 +43,7 @@ type AthleteForPdf = {
   primary_sport?: string | null;
   team?: string | null;
   date_of_birth?: string | null;
+  target_profile_id?: string | null;
 };
 
 type Props = {
@@ -238,7 +240,13 @@ export default function PdfExportModal({
             )
           : null;
       const performanceSummary: SummaryCategory[] | null =
-        mode === "best" ? computePerformanceSummary(scopeSessions, metricsBySession) : null;
+        mode === "best"
+          ? computePerformanceSummary(
+              scopeSessions,
+              metricsBySession,
+              (await fetchTargetOverridesForAthlete(supabase, athlete.target_profile_id ?? null)).targets
+            )
+          : null;
       const dateComparisonData =
         mode === "date_comparison"
           ? computeDateComparisonData(
@@ -310,6 +318,7 @@ export default function PdfExportModal({
     athlete.primary_sport,
     athlete.team,
     athlete.date_of_birth,
+    athlete.target_profile_id,
     athleteName,
     bands,
     compareDateALabel,

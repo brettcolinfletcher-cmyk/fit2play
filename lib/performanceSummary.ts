@@ -3,9 +3,10 @@ import {
   formatChartAxisDate,
   isLinearSprintSession,
   metricAggregate,
+  parseHhdMovement,
   type ReportMetricRow,
   type ReportSessionRow,
-} from "@/lib/athleteReportData";
+} from "@/lib/reportCore";
 
 /** Legacy 3-state read, kept for anything that only needs pass/warn/fail. */
 export type SummaryStatus = "pass" | "warn" | "fail" | "no_data";
@@ -40,14 +41,63 @@ export type SummaryCategory = {
   metrics: SummaryMetric[];
 };
 
-type Direction = "higher" | "lower";
+export type Direction = "higher" | "lower";
 
-// ─── Starter RTP targets ───────────────────────────────────────────────
-// These are generic placeholder thresholds, NOT validated clinical cutoffs.
-// They exist so the dashboard has something sensible to traffic-light
-// against on day one. Brett should tune every one of these to his own
-// population/sport/return-to-sport protocol — treat them as a starting
-// point, not a diagnosis.
+export type MetricTarget = {
+  target: number;
+  direction: Direction;
+};
+
+/**
+ * Canonical registry of every metric the Performance Summary can show —
+ * id, label, unit, decimal places, direction, and a starter default target.
+ * This is the single source of truth for both the dashboard and the target
+ * profile editor (so the editor always has a full row list to render, even
+ * before a clinic has customised anything).
+ *
+ * Defaults are generic placeholder thresholds, NOT validated clinical
+ * cutoffs — a starting point to tune per population/sport, not a diagnosis.
+ * They're mirrored in the `performance_targets` "Default" profile seed row
+ * (supabase/migrations) — keep the two in sync if you change one.
+ */
+export const METRIC_REGISTRY: {
+  id: string;
+  categoryId: string;
+  categoryLabel: string;
+  label: string;
+  unit: string;
+  decimals: number;
+  direction: Direction;
+  defaultTarget: number;
+}[] = [
+  { id: "cmj_jump_height", categoryId: "cmj", categoryLabel: "CMJ", label: "Jump Height", unit: "cm", decimals: 1, direction: "higher", defaultTarget: 30 },
+  { id: "cmj_conc_peak_force", categoryId: "cmj", categoryLabel: "CMJ", label: "Conc. Peak Force", unit: "N", decimals: 0, direction: "higher", defaultTarget: 1500 },
+  { id: "cmj_propulsive_impulse", categoryId: "cmj", categoryLabel: "CMJ", label: "Propulsive Impulse", unit: "N·s", decimals: 0, direction: "higher", defaultTarget: 220 },
+  { id: "power_cmj_peak_power", categoryId: "power", categoryLabel: "Power", label: "CMJ Peak Power", unit: "W", decimals: 0, direction: "higher", defaultTarget: 3500 },
+  { id: "power_cmj_rsi_mod", categoryId: "power", categoryLabel: "Power", label: "CMJ RSI (mod)", unit: "", decimals: 2, direction: "higher", defaultTarget: 0.35 },
+  { id: "power_1080_peak_power", categoryId: "power", categoryLabel: "Power", label: "1080 Peak Power", unit: "W", decimals: 0, direction: "higher", defaultTarget: 500 },
+  { id: "speed_40m", categoryId: "speed", categoryLabel: "Speed", label: "1080 40m Sprint", unit: "s", decimals: 2, direction: "lower", defaultTarget: 5.6 },
+  { id: "accel_5m", categoryId: "accel", categoryLabel: "Accel", label: "1080 5m Sprint Time", unit: "s", decimals: 2, direction: "lower", defaultTarget: 1.05 },
+  { id: "accel_10m", categoryId: "accel", categoryLabel: "Accel", label: "1080 10m Sprint Time", unit: "s", decimals: 2, direction: "lower", defaultTarget: 1.85 },
+  { id: "accel_505_max_accel", categoryId: "accel", categoryLabel: "Accel", label: "5-0-5 Max Accel", unit: "m/s²", decimals: 2, direction: "higher", defaultTarget: 5.0 },
+  { id: "decel_cmj_rfd", categoryId: "decel", categoryLabel: "Decel", label: "CMJ Ecc. Decel RFD", unit: "N/s", decimals: 0, direction: "higher", defaultTarget: 4000 },
+  { id: "decel_505_max_decel", categoryId: "decel", categoryLabel: "Decel", label: "1080 5-0-5 Max Decel", unit: "m/s²", decimals: 2, direction: "higher", defaultTarget: 5.0 },
+  { id: "cod_505_total_time", categoryId: "cod", categoryLabel: "Change of Direction", label: "5-0-5 Total Time", unit: "s", decimals: 2, direction: "lower", defaultTarget: 2.5 },
+  { id: "strength_hip_abduction", categoryId: "strength", categoryLabel: "Strength (Isometric)", label: "Hip Abduction", unit: "N", decimals: 0, direction: "higher", defaultTarget: 200 },
+  { id: "strength_hip_adduction", categoryId: "strength", categoryLabel: "Strength (Isometric)", label: "Hip Adduction", unit: "N", decimals: 0, direction: "higher", defaultTarget: 200 },
+  { id: "strength_knee_extension", categoryId: "strength", categoryLabel: "Strength (Isometric)", label: "Knee Extension", unit: "N", decimals: 0, direction: "higher", defaultTarget: 300 },
+  { id: "strength_knee_flexion", categoryId: "strength", categoryLabel: "Strength (Isometric)", label: "Knee Flexion", unit: "N", decimals: 0, direction: "higher", defaultTarget: 200 },
+];
+
+const METRIC_BY_ID = new Map(METRIC_REGISTRY.map((m) => [m.id, m]));
+
+/** Canonical HHD movement names the Strength card looks for (matches DynamometryTrendPanel's sub-tests). */
+const STRENGTH_MOVEMENTS: { movement: string; metricId: string }[] = [
+  { movement: "Hip Abduction", metricId: "strength_hip_abduction" },
+  { movement: "Hip Adduction", metricId: "strength_hip_adduction" },
+  { movement: "Knee Extension", metricId: "strength_knee_extension" },
+  { movement: "Knee Flexion", metricId: "strength_knee_flexion" },
+];
 
 export const TIER_LABELS: Record<SummaryTier, string> = {
   needs_work: "Needs Work",
@@ -79,6 +129,11 @@ function statusForTier(tier: SummaryTier): SummaryStatus {
 function fmt(value: number | null, decimals: number, unit: string): string {
   if (value == null || !Number.isFinite(value)) return "—";
   return `${value.toFixed(decimals)}${unit ? ` ${unit}` : ""}`;
+}
+
+function ratioOf(value: number | null, target: number, direction: Direction): number | null {
+  if (value == null || !Number.isFinite(value)) return null;
+  return direction === "higher" ? value / target : target / value;
 }
 
 function is505Session(s: ReportSessionRow): boolean {
@@ -166,10 +221,117 @@ function sourceLabel(s: ReportSessionRow | null): string | null {
   return `${sub || "Session"} · ${formatChartAxisDate(s.session_date)}`;
 }
 
+/**
+ * Latest isometric session(s) for a given HHD movement — returns the max
+ * peak_force per side recorded on the most recent test date for that
+ * movement, plus a representative session for the source label.
+ */
+function latestIsoForMovement(
+  sessions: ReportSessionRow[],
+  metricsBySession: Map<string, ReportMetricRow[]>,
+  movement: string
+): { left: number | null; right: number | null; source: ReportSessionRow | null } {
+  const matching = sessions.filter(
+    (s) => s.test_type === "force_plate_isometric" && parseHhdMovement(s.test_sub_type) === movement
+  );
+
+  let latestDate: string | null = null;
+  for (const s of matching) {
+    if (!s.session_date) continue;
+    const d = s.session_date.slice(0, 10);
+    if (!latestDate || d > latestDate) latestDate = d;
+  }
+  if (!latestDate) return { left: null, right: null, source: null };
+
+  const onDate = matching.filter((s) => s.session_date && s.session_date.slice(0, 10) === latestDate);
+  let left: number | null = null;
+  let right: number | null = null;
+  for (const s of onDate) {
+    const rows = metricsBySession.get(s.id) ?? [];
+    for (const r of rows) {
+      if (r.key !== "peak_force" || r.value == null || !Number.isFinite(r.value)) continue;
+      const side = (r.side ?? "").toLowerCase();
+      if (side === "left") left = left == null ? r.value : Math.max(left, r.value);
+      if (side === "right") right = right == null ? r.value : Math.max(right, r.value);
+    }
+  }
+  return { left, right, source: onDate[0] ?? null };
+}
+
 export function computePerformanceSummary(
   sessions: ReportSessionRow[],
-  metricsBySession: Map<string, ReportMetricRow[]>
+  metricsBySession: Map<string, ReportMetricRow[]>,
+  targetOverrides?: Record<string, MetricTarget>
 ): SummaryCategory[] {
+  function resolveTarget(id: string): { target: number; direction: Direction } {
+    const override = targetOverrides?.[id];
+    if (override) return override;
+    const def = METRIC_BY_ID.get(id);
+    return { target: def?.defaultTarget ?? 0, direction: def?.direction ?? "higher" };
+  }
+
+  function metric(id: string, value: number | null, source: ReportSessionRow | null): SummaryMetric {
+    const def = METRIC_BY_ID.get(id);
+    if (!def) throw new Error(`Unknown performance summary metric id: ${id}`);
+    const { target, direction } = resolveTarget(id);
+    const ratio = ratioOf(value, target, direction);
+    const tier = tierForRatio(ratio);
+    return {
+      id,
+      label: def.label,
+      unit: def.unit,
+      value,
+      displayValue: fmt(value, def.decimals, def.unit),
+      target,
+      targetLabel: `${direction === "higher" ? "≥" : "≤"} ${target}${def.unit ? ` ${def.unit}` : ""}`,
+      ratio,
+      status: statusForTier(tier),
+      tier,
+      tierLabel: TIER_LABELS[tier],
+      sourceDate: sourceDate(source),
+      sourceLabel: sourceLabel(source),
+    };
+  }
+
+  /** L/R pair as one metric row — tier/ratio driven by the weaker (limiting) side. */
+  function metricLR(
+    id: string,
+    left: number | null,
+    right: number | null,
+    source: ReportSessionRow | null
+  ): SummaryMetric {
+    const def = METRIC_BY_ID.get(id);
+    if (!def) throw new Error(`Unknown performance summary metric id: ${id}`);
+    const { target, direction } = resolveTarget(id);
+    const weaker = left != null && right != null ? Math.min(left, right) : left ?? right ?? null;
+    const ratio = ratioOf(weaker, target, direction);
+    const tier = tierForRatio(ratio);
+    const lStr = left != null ? left.toFixed(def.decimals) : "—";
+    const rStr = right != null ? right.toFixed(def.decimals) : "—";
+    const displayValue = left == null && right == null ? "—" : `L ${lStr} · R ${rStr}${def.unit ? ` ${def.unit}` : ""}`;
+    return {
+      id,
+      label: def.label,
+      unit: def.unit,
+      value: weaker,
+      displayValue,
+      target,
+      targetLabel: `${direction === "higher" ? "≥" : "≤"} ${target}${def.unit ? ` ${def.unit}` : ""} (weaker side)`,
+      ratio,
+      status: statusForTier(tier),
+      tier,
+      tierLabel: TIER_LABELS[tier],
+      sourceDate: sourceDate(source),
+      sourceLabel: sourceLabel(source),
+    };
+  }
+
+  function withCommonSource(id: string, label: string, metrics: SummaryMetric[]): SummaryCategory {
+    const labels = new Set(metrics.map((m) => m.sourceLabel).filter((s): s is string => s != null));
+    const commonSourceLabel = labels.size === 1 ? [...labels][0]! : null;
+    return { id, label, commonSourceLabel, metrics };
+  }
+
   const cmjSession = latestSessionOf(
     sessions,
     (s) => bucket(s.source) === "hawkins" && s.test_type === "force_plate_cmj"
@@ -203,148 +365,44 @@ export function computePerformanceSummary(
   const jumpHeightM = cmj("fp_jump_height");
   const jumpHeightCm = jumpHeightM != null && Number.isFinite(jumpHeightM) ? jumpHeightM * 100 : null;
 
-  function metric(
-    id: string,
-    label: string,
-    unit: string,
-    value: number | null,
-    target: number,
-    direction: Direction,
-    decimals: number,
-    source: ReportSessionRow | null
-  ): SummaryMetric {
-    const ratio =
-      value == null || !Number.isFinite(value)
-        ? null
-        : direction === "higher"
-        ? value / target
-        : target / value;
-    const tier = tierForRatio(ratio);
-    return {
-      id,
-      label,
-      unit,
-      value,
-      displayValue: fmt(value, decimals, unit),
-      target,
-      targetLabel: `${direction === "higher" ? "≥" : "≤"} ${target}${unit ? ` ${unit}` : ""}`,
-      ratio,
-      status: statusForTier(tier),
-      tier,
-      tierLabel: TIER_LABELS[tier],
-      sourceDate: sourceDate(source),
-      sourceLabel: sourceLabel(source),
-    };
-  }
-
-  function withCommonSource(id: string, label: string, metrics: SummaryMetric[]): SummaryCategory {
-    const labels = new Set(metrics.map((m) => m.sourceLabel).filter((s): s is string => s != null));
-    const commonSourceLabel = labels.size === 1 ? [...labels][0]! : null;
-    return { id, label, commonSourceLabel, metrics };
-  }
-
   const categories: SummaryCategory[] = [
     withCommonSource("cmj", "CMJ", [
-      metric("cmj_jump_height", "Jump Height", "cm", jumpHeightCm, 30, "higher", 1, cmjSession),
-      metric(
-        "cmj_conc_peak_force",
-        "Conc. Peak Force",
-        "N",
-        cmj("fp_peak_propulsive_force"),
-        1500,
-        "higher",
-        0,
-        cmjSession
-      ),
-      metric(
-        "cmj_propulsive_impulse",
-        "Propulsive Impulse",
-        "N·s",
-        cmj("fp_propulsive_impulse"),
-        220,
-        "higher",
-        0,
-        cmjSession
-      ),
+      metric("cmj_jump_height", jumpHeightCm, cmjSession),
+      metric("cmj_conc_peak_force", cmj("fp_peak_propulsive_force"), cmjSession),
+      metric("cmj_propulsive_impulse", cmj("fp_propulsive_impulse"), cmjSession),
     ]),
     withCommonSource("power", "Power", [
-      metric(
-        "power_cmj_peak_power",
-        "CMJ Peak Power",
-        "W",
-        cmj("fp_peak_propulsive_power"),
-        3500,
-        "higher",
-        0,
-        cmjSession
-      ),
-      metric("power_cmj_rsi_mod", "CMJ RSI (mod)", "", cmj("fp_mrsi"), 0.35, "higher", 2, cmjSession),
+      metric("power_cmj_peak_power", cmj("fp_peak_propulsive_power"), cmjSession),
+      metric("power_cmj_rsi_mod", cmj("fp_mrsi"), cmjSession),
       metric(
         "power_1080_peak_power",
-        "1080 Peak Power",
-        "W",
-        peakPowerSession
-          ? metricAggregate(metricsBySession, peakPowerSession.id, "peak_power", "max")
-          : null,
-        500,
-        "higher",
-        0,
+        peakPowerSession ? metricAggregate(metricsBySession, peakPowerSession.id, "peak_power", "max") : null,
         peakPowerSession
       ),
     ]),
     withCommonSource("speed", "Speed", [
       metric(
         "speed_40m",
-        "1080 40m Sprint",
-        "s",
-        fortyMSession
-          ? metricAggregate(metricsBySession, fortyMSession.id, "total_time", "min")
-          : null,
-        5.6,
-        "lower",
-        2,
+        fortyMSession ? metricAggregate(metricsBySession, fortyMSession.id, "total_time", "min") : null,
         fortyMSession
       ),
     ]),
     withCommonSource("accel", "Accel", [
       metric(
         "accel_5m",
-        "1080 5m Sprint Time",
-        "s",
-        fiveMSession
-          ? metricAggregate(metricsBySession, fiveMSession.id, "split_5m_time", "min")
-          : null,
-        1.05,
-        "lower",
-        2,
+        fiveMSession ? metricAggregate(metricsBySession, fiveMSession.id, "split_5m_time", "min") : null,
         fiveMSession
       ),
       metric(
         "accel_10m",
-        "1080 10m Sprint Time",
-        "s",
-        tenMSession
-          ? metricAggregate(metricsBySession, tenMSession.id, "total_time", "min")
-          : null,
-        1.85,
-        "lower",
-        2,
+        tenMSession ? metricAggregate(metricsBySession, tenMSession.id, "total_time", "min") : null,
         tenMSession
       ),
-      metric("accel_505_max_accel", "5-0-5 Max Accel", "m/s²", codMax("accel_max"), 5.0, "higher", 2, codSession),
+      metric("accel_505_max_accel", codMax("accel_max"), codSession),
     ]),
     withCommonSource("decel", "Decel", [
-      metric(
-        "decel_cmj_rfd",
-        "CMJ Ecc. Decel RFD",
-        "N/s",
-        cmj("fp_braking_rfd"),
-        4000,
-        "higher",
-        0,
-        cmjSession
-      ),
-      metric("decel_505_max_decel", "1080 5-0-5 Max Decel", "m/s²", codMax("decel_max"), 5.0, "higher", 2, codSession),
+      metric("decel_cmj_rfd", cmj("fp_braking_rfd"), cmjSession),
+      metric("decel_505_max_decel", codMax("decel_max"), codSession),
     ]),
     withCommonSource("cod", "Change of Direction", [
       // TODO: Brett asked for this "corrected for distance" — the exact
@@ -352,8 +410,16 @@ export function computePerformanceSummary(
       // total_time for now. Confirm what "corrected" should mean
       // (e.g. normalised against the session's recorded total_distance)
       // and adjust here.
-      metric("cod_505_total_time", "5-0-5 Total Time", "s", codMin("total_time"), 2.5, "lower", 2, codSession),
+      metric("cod_505_total_time", codMin("total_time"), codSession),
     ]),
+    withCommonSource(
+      "strength",
+      "Strength (Isometric)",
+      STRENGTH_MOVEMENTS.map(({ movement, metricId }) => {
+        const { left, right, source } = latestIsoForMovement(sessions, metricsBySession, movement);
+        return metricLR(metricId, left, right, source);
+      })
+    ),
   ];
 
   return categories;

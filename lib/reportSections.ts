@@ -1,4 +1,10 @@
 import { supabase } from "@/lib/supabaseClient";
+import { normaliseSubType, parseHhdMovement } from "@/lib/reportCore";
+
+// Re-exported for backward compatibility — these now live in the
+// dependency-free lib/reportCore.ts so server routes can use them without
+// pulling in the Supabase browser client this file imports.
+export { normaliseSubType, parseHhdMovement };
 
 export type ReportSection = {
   key: string;
@@ -16,47 +22,6 @@ export const REPORT_SECTIONS: ReportSection[] = [
   { key: "dynamometry", label: "Strength (HHD)", source: "hawkins" },
   { key: "hop_tests", label: "Hop tests", source: "mixed" },
 ];
-
-const HHD_SKIP_TOKENS = new Set([
-  "left",
-  "right",
-  "bilateral",
-  "supine",
-  "prone",
-  "seated",
-  "standing",
-]);
-
-function titleCase(value: string): string {
-  return value
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-    .join(" ");
-}
-
-export function normaliseSubType(raw: string | null | undefined): string {
-  if (raw == null) return "";
-  return raw.trim().replace(/\s+/g, " ");
-}
-
-export function parseHhdMovement(subType: string | null | undefined): string {
-  const normalised = normaliseSubType(subType);
-  if (!normalised) return "";
-
-  const remainder = normalised.replace(/^TS\s+Isometric\s+Test-/i, "");
-  const parts = remainder.split("-").map((part) => part.trim()).filter(Boolean);
-
-  for (const part of parts) {
-    const token = part.replace(/:\d+$/, "").trim();
-    if (!token) continue;
-    if (HHD_SKIP_TOKENS.has(token.toLowerCase())) continue;
-    if (/^\d+$/.test(token)) continue;
-    return titleCase(token);
-  }
-
-  return titleCase(normalised);
-}
 
 function visibilityMapKey(section: string, subKey: string): string {
   return `${section}|${subKey}`;

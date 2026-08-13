@@ -1173,8 +1173,14 @@ export default function AthleteDetailPage() {
 
             <div className="mt-6">
               <PerformanceSummaryGrid
+                athleteId={id}
+                targetProfileId={(athlete?.target_profile_id as string | null) ?? null}
                 sessions={filteredSessions}
                 metricsBySession={metricsBySession}
+                sectionComment={sectionNote("performance_summary")}
+                onProfileChange={(pid) =>
+                  setAthlete((a) => (a ? { ...a, target_profile_id: pid } : a))
+                }
               />
             </div>
 

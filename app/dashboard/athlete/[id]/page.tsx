@@ -23,6 +23,8 @@ import SlDjTrendPanel, { type SlDjRow } from "@/components/SlDjTrendPanel";
 import AthleteAvatar from "@/components/AthleteAvatar";
 import DynamometryTrendPanel, { type DynamometryRows } from "@/components/DynamometryTrendPanel";
 import HopJumpTrendPanel, { type HopJumpRows } from "@/components/HopJumpTrendPanel";
+import PerformanceSummaryCategories from "@/components/athletes/PerformanceSummaryCategories";
+import type { SummaryCategory } from "@/lib/performanceSummary";
 import type { NormalizedSession } from "@/lib/athleteDashboardData";
 import { formatDisplayDate } from "@/lib/dateDisplay";
 import {
@@ -100,6 +102,7 @@ export default function AthleteProfilePage() {
   const [metricPrev, setMetricPrev] = useState<Record<string, number>>({});
   const [metricSides, setMetricSides] = useState<Record<string, number>>({});
   const [sectionComments, setSectionComments] = useState<Record<string, string>>({});
+  const [performanceSummary, setPerformanceSummary] = useState<SummaryCategory[]>([]);
   const [fpTrendMetrics, setFpTrendMetrics] = useState<{
     session_date: string;
     test_type: string;
@@ -184,6 +187,7 @@ export default function AthleteProfilePage() {
       setSectionComments((json.sectionComments as Record<string, string>) ?? {});
       setFpTrendMetrics((json.fpTrendMetrics as typeof fpTrendMetrics) ?? []);
       setHopJumpMetrics((json.hopJumpMetrics as typeof hopJumpMetrics) ?? []);
+      setPerformanceSummary((json.performanceSummary as SummaryCategory[]) ?? []);
     } catch {
       setLoadError("Failed to load athlete");
       setAthlete(null);
@@ -588,6 +592,23 @@ export default function AthleteProfilePage() {
               sectionComments={sectionComments}
               isoLatest={isoLatest}
             />
+
+            {/* ── Performance summary (read-only; targets set by your clinician) ── */}
+            {performanceSummary.length > 0 ? (
+              <div className="mt-6 space-y-3">
+                <PerformanceSummaryCategories categories={performanceSummary} />
+                {sectionComments.performance_summary?.trim() ? (
+                  <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-4">
+                    <p className="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">
+                      Clinician note
+                    </p>
+                    <p className="mt-2 whitespace-pre-wrap text-sm text-slate-300">
+                      {sectionComments.performance_summary}
+                    </p>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
 
             {/* ── Trend data ──────────────────────────────────────────── */}
             <div className="mt-12 space-y-10">

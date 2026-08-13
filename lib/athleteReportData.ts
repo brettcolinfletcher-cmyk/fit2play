@@ -5,26 +5,28 @@ import {
 } from "@/components/athletes/ForcePlateCMJSection";
 import { buildDjDataPoints, type DJDataPoint } from "@/components/athletes/ForcePlateDJSection";
 import type { HopTestTableRow, HopTestTypeBlock } from "@/components/athletes/HopTestsSection";
+import {
+  bucket,
+  formatChartAxisDate,
+  is1080Session,
+  isLinearSprintSession,
+  metricAggregate,
+  type ReportMetricRow,
+  type ReportSessionRow,
+} from "@/lib/reportCore";
 
-export type ReportSessionRow = {
-  id: string;
-  session_date: string | null;
-  test_type: string | null;
-  test_sub_type: string | null;
-  source: string | null;
-  /** Phase D: athlete's anatomical leg that started a Left-Right protocol. */
-  lr_starting_leg?: "left" | "right" | null;
-  /** Phase D-C: when true, swap metrics.side left↔right for this session at read time. */
-  lr_side_swap?: boolean;
-};
-
-export type ReportMetricRow = {
-  session_id: string;
-  key: string;
-  value: number | null;
-  rep_index: number | null;
-  /** Present when 1080 stores metrics per lateral rep */
-  side?: string | null;
+// Re-exported for backward compatibility — these now live in lib/reportCore.ts
+// (a dependency-free module, safe to import from server routes) since this
+// file pulls in "use client" chart components that shouldn't be dragged into
+// a server bundle just to reuse a date formatter.
+export {
+  bucket,
+  formatChartAxisDate,
+  is1080Session,
+  isLinearSprintSession,
+  metricAggregate,
+  type ReportMetricRow,
+  type ReportSessionRow,
 };
 
 export type ReportHopTestRow = {
@@ -80,37 +82,6 @@ export function hopTestDisplayName(testType: string): string {
   return HOP_TEST_LABELS[testType] ?? testType.replace(/_/g, " ");
 }
 
-export function formatChartAxisDate(iso: string | null): string {
-  if (!iso) return "—";
-  try {
-    return new Date(iso).toLocaleDateString("en-AU", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      timeZone: "Australia/Sydney",
-    });
-  } catch {
-    return "—";
-  }
-}
-
-export function bucket(source: string | null): "hawkins" | "1080" | "csv" {
-  const s = (source ?? "").toLowerCase();
-  if (s === "hawkins" || s === "hawkins_csv") return "hawkins";
-  if (s === "1080" || s === "1080_csv") return "1080";
-  return "csv";
-}
-
-export function is1080Session(s: ReportSessionRow): boolean {
-  return bucket(s.source) === "1080";
-}
-
-export function isLinearSprintSession(s: ReportSessionRow): boolean {
-  if (!is1080Session(s)) return false;
-  const sub = (s.test_sub_type ?? "").toLowerCase();
-  return !sub.includes("5-10-5") && !sub.includes("5-0-5") && !sub.includes("shuttle");
-}
-
 export function isCmjSessionRow(s: ReportSessionRow): boolean {
   const tt = (s.test_type ?? "").toLowerCase();
   const st = (s.test_sub_type ?? "").toLowerCase();
@@ -139,18 +110,6 @@ export function sessionsChronological(sess: ReportSessionRow[]): ReportSessionRo
     const tb = b.session_date ? new Date(b.session_date).getTime() : 0;
     return ta - tb;
   });
-}
-
-export function metricAggregate(
-  map: Map<string, ReportMetricRow[]>,
-  sessionId: string,
-  key: string,
-  mode: "max" | "min"
-): number | null {
-  const rows = map.get(sessionId)?.filter((r) => r.key === key && r.value != null) ?? [];
-  if (rows.length === 0) return null;
-  const vals = rows.map((r) => r.value!);
-  return mode === "max" ? Math.max(...vals) : Math.min(...vals);
 }
 
 export function sessionOptionLabel(s: ReportSessionRow): string {

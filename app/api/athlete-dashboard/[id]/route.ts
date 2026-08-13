@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { normalizeSessionRow } from "@/lib/athleteDashboardData";
 import type { NormalizedSession } from "@/lib/athleteDashboardData";
+import { computePerformanceSummary } from "@/lib/performanceSummary";
+import { fetchTargetOverridesForAthlete } from "@/lib/performanceTargets";
+import type { ReportMetricRow, ReportSessionRow } from "@/lib/athleteReportData";
 
 export const dynamic = "force-dynamic";
 
@@ -167,6 +170,39 @@ export async function GET(
     p_athlete: id,
   });
 
+  // Performance Summary (CMJ/Power/Speed/Accel/Decel/COD/Strength) — computed
+  // server-side here so the athlete-facing page can render it read-only
+  // without needing raw sessions/metrics client-side.
+  let performanceSummary: ReturnType<typeof computePerformanceSummary> = [];
+  {
+    const { data: rawSessions } = await supabase
+      .from("sessions")
+      .select("id, session_date, test_type, test_sub_type, source")
+      .eq("athlete_id", id);
+    const sessionRows = (rawSessions ?? []) as ReportSessionRow[];
+    const sessionIds = sessionRows.map((s) => s.id);
+
+    let metricsBySession = new Map<string, ReportMetricRow[]>();
+    if (sessionIds.length > 0) {
+      const { data: rawMetrics } = await supabase
+        .from("metrics")
+        .select("session_id, key, value, rep_index, side")
+        .in("session_id", sessionIds);
+      metricsBySession = new Map();
+      for (const row of (rawMetrics ?? []) as ReportMetricRow[]) {
+        const list = metricsBySession.get(row.session_id) ?? [];
+        list.push(row);
+        metricsBySession.set(row.session_id, list);
+      }
+    }
+
+    const { targets } = await fetchTargetOverridesForAthlete(
+      supabase,
+      (athlete as { target_profile_id?: string | null }).target_profile_id ?? null
+    );
+    performanceSummary = computePerformanceSummary(sessionRows, metricsBySession, targets);
+  }
+
   return NextResponse.json({
     athlete,
     sessions,
@@ -177,5 +213,6 @@ export async function GET(
     sectionComments,
     fpTrendMetrics: fpRows ?? [],
     hopJumpMetrics: hopRows ?? [],
+    performanceSummary,
   });
 }

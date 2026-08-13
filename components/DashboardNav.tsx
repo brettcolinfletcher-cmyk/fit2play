@@ -107,6 +107,11 @@ export default function DashboardNav({ lightTheme = false }: { lightTheme?: bool
         active:
           pathname.startsWith("/dashboard/upload") ||
           pathname.startsWith("/dashboard/add-test"),
+      },
+      {
+        href: "/dashboard/performance-targets",
+        label: "Targets",
+        active: pathname.startsWith("/dashboard/performance-targets"),
       }
     );
   }
