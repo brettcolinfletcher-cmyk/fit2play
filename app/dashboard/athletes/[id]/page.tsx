@@ -32,6 +32,7 @@ import PdfExportModal from "@/components/athletes/PdfExportModal";
 import SectionComment from "@/components/athletes/SectionComment";
 import SectionJumpNav from "@/components/athletes/SectionJumpNav";
 import SnapshotHeader from "@/components/athletes/SnapshotHeader";
+import PerformanceSummaryGrid from "@/components/athletes/PerformanceSummaryGrid";
 import TimepointSummary from "@/components/athletes/TimepointSummary";
 import AthleteRingPanel from "@/components/AthleteRingPanel";
 import AthleteTestSummary from "@/components/AthleteTestSummary";
@@ -1169,6 +1170,13 @@ export default function AthleteDetailPage() {
                 criteria={criteria}
               />
             )}
+
+            <div className="mt-6">
+              <PerformanceSummaryGrid
+                sessions={filteredSessions}
+                metricsBySession={metricsBySession}
+              />
+            </div>
 
             <SectionJumpNav sectionsWithData={sectionsWithData} />
 

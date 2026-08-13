@@ -27,6 +27,10 @@ import {
   computeAthleteSnapshot,
   type AthleteSnapshot,
 } from "@/lib/athleteSnapshot";
+import {
+  computePerformanceSummary,
+  type SummaryCategory,
+} from "@/lib/performanceSummary";
 import type { CriteriaResolver, ReportVisibility } from "@/lib/reportSections";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -233,6 +237,8 @@ export default function PdfExportModal({
               criteria
             )
           : null;
+      const performanceSummary: SummaryCategory[] | null =
+        mode === "best" ? computePerformanceSummary(scopeSessions, metricsBySession) : null;
       const dateComparisonData =
         mode === "date_comparison"
           ? computeDateComparisonData(
@@ -280,6 +286,7 @@ export default function PdfExportModal({
           pdfCharts={pdfCharts}
           pdfContext={pdfContext}
           snapshot={snapshot}
+          performanceSummary={performanceSummary}
           visibility={visibility}
         />
       ).toBlob();

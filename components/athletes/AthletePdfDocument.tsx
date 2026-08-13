@@ -16,6 +16,7 @@ import type {
   PdfTestIncluded,
 } from "@/lib/pdfReportChartData";
 import type { AthleteSnapshot } from "@/lib/athleteSnapshot";
+import type { SummaryCategory, SummaryStatus } from "@/lib/performanceSummary";
 import type { ReportVisibility } from "@/lib/reportSections";
 import { PDF_FONT } from "@/components/athletes/pdf/charts/pdfChartTheme";
 
@@ -355,6 +356,70 @@ const styles = StyleSheet.create({
     fontSize: 6.5,
     color: "#9ca3af",
   },
+  // ─── Performance summary (CMJ/Power/Speed/Accel/Decel/COD) ───
+  perfSummaryGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    marginHorizontal: -4,
+  },
+  perfSummaryCard: {
+    width: "50%",
+    paddingHorizontal: 4,
+    marginBottom: 8,
+  },
+  perfSummaryCardInner: {
+    borderWidth: 0.75,
+    borderColor: "#e5e7eb",
+    borderRadius: 6,
+    padding: 8,
+    backgroundColor: "#fafafa",
+  },
+  perfSummaryCardTitle: {
+    fontSize: 7.5,
+    fontWeight: 700,
+    color: "#6b7280",
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+    marginBottom: 4,
+  },
+  perfSummaryRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 2,
+    borderBottomWidth: 0.5,
+    borderBottomColor: "#eef2f7",
+  },
+  perfSummaryLabel: {
+    fontSize: 7.5,
+    color: "#374151",
+    width: "48%",
+  },
+  perfSummaryValue: {
+    fontSize: 8,
+    fontWeight: 700,
+    color: "#111827",
+    width: "26%",
+    textAlign: "right",
+  },
+  perfSummaryTarget: {
+    fontSize: 7,
+    color: "#9ca3af",
+    width: "20%",
+    textAlign: "right",
+  },
+  perfSummaryDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginLeft: 4,
+  },
+  perfSummaryNote: {
+    fontSize: 6.5,
+    color: "#9ca3af",
+    marginBottom: 4,
+    fontStyle: "italic",
+  },
   // ─── Footer ───
   footer: {
     position: "absolute",
@@ -479,6 +544,48 @@ function DeltaArrow({ delta }: { delta: PdfDelta }) {
   );
 }
 
+const PERF_STATUS_COLOR: Record<SummaryStatus, string> = {
+  pass: "#16a34a",
+  warn: "#d97706",
+  fail: "#dc2626",
+  no_data: "#cbd5e1",
+};
+
+function PerformanceSummarySection({ categories }: { categories: SummaryCategory[] }) {
+  const hasAnyData = categories.some((c) => c.metrics.some((m) => m.value != null));
+  if (!hasAnyData) return null;
+  return (
+    <View>
+      <Text style={styles.sectionBanner}>PERFORMANCE SUMMARY</Text>
+      <Text style={styles.perfSummaryNote}>
+        Targets are starter defaults, not validated clinical cutoffs — tune to your population.
+      </Text>
+      <View style={styles.perfSummaryGrid}>
+        {categories.map((cat) => (
+          <View key={cat.id} style={styles.perfSummaryCard} wrap={false}>
+            <View style={styles.perfSummaryCardInner}>
+              <Text style={styles.perfSummaryCardTitle}>{cat.label}</Text>
+              {cat.metrics.map((m) => (
+                <View key={m.id} style={styles.perfSummaryRow}>
+                  <Text style={styles.perfSummaryLabel}>{m.label}</Text>
+                  <Text style={styles.perfSummaryValue}>{m.displayValue}</Text>
+                  <Text style={styles.perfSummaryTarget}>{m.targetLabel}</Text>
+                  <View
+                    style={[
+                      styles.perfSummaryDot,
+                      { backgroundColor: PERF_STATUS_COLOR[m.status] },
+                    ]}
+                  />
+                </View>
+              ))}
+            </View>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 function FindingTile({ finding }: { finding: PdfKeyFinding }) {
   return (
     <View style={styles.findingTile} wrap={false}>
@@ -567,6 +674,8 @@ export type PdfProps = {
   pdfContext?: PdfReportContext | null;
   /** Computed athlete snapshot (readiness + symmetry gauges); "best" mode only. */
   snapshot?: AthleteSnapshot | null;
+  /** CMJ/Power/Speed/Accel/Decel/COD "at a glance" summary; "best" mode only. */
+  performanceSummary?: SummaryCategory[] | null;
   /** Report visibility resolver — gates which modality sections render. */
   visibility?: ReportVisibility | null;
 };
@@ -655,6 +764,7 @@ export default function AthletePdfDocument({
   pdfCharts = null,
   pdfContext = null,
   snapshot = null,
+  performanceSummary = null,
   visibility = null,
 }: PdfProps) {
   const rangeLine =
@@ -794,6 +904,11 @@ export default function AthletePdfDocument({
               </View>
             ) : null}
           </View>
+        ) : null}
+
+        {/* PERFORMANCE SUMMARY — CMJ/Power/Speed/Accel/Decel/COD at a glance. */}
+        {isBest && performanceSummary ? (
+          <PerformanceSummarySection categories={performanceSummary} />
         ) : null}
 
         {/* SNAPSHOT — only in "best" mode and only when context is provided. */}
