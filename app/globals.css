@@ -721,6 +721,14 @@ body {
 [data-theme="tinted"] .f2p-dark-panel .bg-slate-950\/60,
 [data-theme="tinted"] .f2p-dark-tile .bg-slate-950\/60 { background-color: rgba(2,6,23,0.6) !important; }
 
+/* bg-slate-950 (solid, no opacity): Performance Summary target-profile select */
+[data-theme="light"] .f2p-dark-panel .bg-slate-950,
+[data-theme="light"] .f2p-dark-tile .bg-slate-950,
+[data-theme="bordered"] .f2p-dark-panel .bg-slate-950,
+[data-theme="bordered"] .f2p-dark-tile .bg-slate-950,
+[data-theme="tinted"] .f2p-dark-panel .bg-slate-950,
+[data-theme="tinted"] .f2p-dark-tile .bg-slate-950 { background-color: #020617 !important; }
+
 /* border-slate-700/40, border-slate-700/60, border-slate-800/80 inside dark tiles */
 [data-theme="light"] .f2p-dark-panel .border-slate-700\/40,
 [data-theme="light"] .f2p-dark-tile .border-slate-700\/40,
