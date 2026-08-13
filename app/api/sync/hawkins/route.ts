@@ -80,7 +80,8 @@ export async function GET(request: Request) {
   }
 
   const supabase = serviceClient();
-  const result = await runHawkinsSync(supabase);
+  const range = parseBackfillRange(request);
+  const result = await runHawkinsSync(supabase, range);
   return NextResponse.json(result);
 }
 
@@ -89,6 +90,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const supabase = serviceClient();
-  const result = await runHawkinsSync(supabase);
+  const range = parseBackfillRange(request);
+  const result = await runHawkinsSync(supabase, range);
   return NextResponse.json(result);
+}
+
+// Manual backfill: /api/sync/hawkins?secret=...&from=<unixSeconds>&to=<unixSeconds>
+// Keep each call's window narrow (a few days) — Hawkins' /tests endpoint 500s
+// on large windows, which is exactly the bug this parameter exists to work
+// around for historical gaps instead of the automatic (small) daily window.
+function parseBackfillRange(
+  request: Request
+): { fromUnix: number; toUnix: number } | undefined {
+  const url = new URL(request.url);
+  const fromStr = url.searchParams.get("from");
+  const toStr = url.searchParams.get("to");
+  if (!fromStr || !toStr) return undefined;
+  const fromUnix = Number(fromStr);
+  const toUnix = Number(toStr);
+  if (!Number.isFinite(fromUnix) || !Number.isFinite(toUnix)) return undefined;
+  return { fromUnix, toUnix };
 }

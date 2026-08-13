@@ -451,8 +451,8 @@ export async function runMotion1080Sync(
         : { first_name: "", last_name: "" };
 
       const { error: upErr } = await supabase.from("athletes").upsert(
-        { external_id: extId, first_name: first_name || null, last_name: last_name || null },
-        { onConflict: "external_id" }
+        { motion1080_external_id: extId, first_name: first_name || null, last_name: last_name || null },
+        { onConflict: "motion1080_external_id" }
       );
       if (upErr) errors.push(`athlete ${extId}: ${upErr.message}`);
     }
@@ -483,7 +483,7 @@ export async function runMotion1080Sync(
         const { data: ath } = await supabase
           .from("athletes")
           .select("id")
-          .eq("external_id", clientId)
+          .eq("motion1080_external_id", clientId)
           .maybeSingle();
         if (!ath?.id) {
           errors.push(`session ${wid}: no athlete for clientId ${clientId}`);

@@ -93,8 +93,13 @@ export type HawkinsSyncResult = {
   error?: string;
 };
 
+// Optional explicit window, in unix seconds — used for manual backfill runs.
+// When provided, the automatic watermark lookup below is skipped entirely.
+export type HawkinsSyncRange = { fromUnix: number; toUnix: number };
+
 export async function runHawkinsSync(
-  supabase: SupabaseClient
+  supabase: SupabaseClient,
+  range?: HawkinsSyncRange
 ): Promise<HawkinsSyncResult> {
   const errors: string[] = [];
   let sessionsProcessed = 0;
@@ -160,43 +165,60 @@ export async function runHawkinsSync(
       const { first_name, last_name } = splitAthleteName(nameStr);
       const { error: upErr } = await supabase.from("athletes").upsert(
         {
-          external_id: extId,
+          hawkins_external_id: extId,
           first_name: first_name || null,
           last_name: last_name || null,
         },
-        { onConflict: "external_id" }
+        { onConflict: "hawkins_external_id" }
       );
       if (upErr) {
         errors.push(`athlete ${extId}: ${upErr.message}`);
       }
     }
 
-    // Watermark = last SUCCESSFUL sync only (errors IS NULL). A failed run must
-    // never advance the window: otherwise one failure stamps sync_log with "now"
-    // and every subsequent run asks Hawkins for a near-empty recent window.
-    const { data: lastLog } = await supabase
-      .from("sync_log")
-      .select("synced_at")
-      .eq("source", "hawkins")
-      .is("errors", null)
-      .order("synced_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    let fromUnix: number;
+    let nowUnix: number;
 
-    // Re-sync a small overlap so boundary tests are never missed; duplicates are
-    // idempotent via sync_dedupe_key (upsert onConflict).
-    const OVERLAP_SECONDS = 3600;
-    const fromUnix = lastLog?.synced_at
-      ? Math.floor(new Date(lastLog.synced_at as string).getTime() / 1000) -
-        OVERLAP_SECONDS
-      : Math.floor(Date.now() / 1000) - 86400 * 365;
+    if (range) {
+      // Manual backfill call — use the caller's explicit window verbatim.
+      fromUnix = range.fromUnix;
+      nowUnix = range.toUnix;
+    } else {
+      // Watermark = last SUCCESSFUL sync only (errors IS NULL). A failed run must
+      // never advance the window: otherwise one failure stamps sync_log with "now"
+      // and every subsequent run asks Hawkins for a near-empty recent window.
+      const { data: lastLog } = await supabase
+        .from("sync_log")
+        .select("synced_at")
+        .eq("source", "hawkins")
+        .is("errors", null)
+        .order("synced_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      // Re-sync a small overlap so boundary tests are never missed; duplicates are
+      // idempotent via sync_dedupe_key (upsert onConflict).
+      const OVERLAP_SECONDS = 3600;
+      nowUnix = Math.floor(Date.now() / 1000);
+      // IMPORTANT: this fallback only fires when there has NEVER been a
+      // successful sync yet, so it must stay small. Hawkins' /tests endpoint
+      // 500s (empty body) once the requested window's response gets too large
+      // — a full year (the old value here) reliably triggers that, which meant
+      // this fallback ran on *every* cron tick forever and could never
+      // succeed once, so the watermark could never advance either. 7 days is
+      // safe for normal daily testing volume. Anything older than 7 days at
+      // the time this ships needs an explicit backfill call with `range`.
+      fromUnix = lastLog?.synced_at
+        ? Math.floor(new Date(lastLog.synced_at as string).getTime() / 1000) -
+          OVERLAP_SECONDS
+        : nowUnix - 86400 * 7;
+    }
 
     // Hawkins' documented query params are from/to/sync. `syncFrom` is NOT a
     // real param — it gets ignored, so the endpoint returns the ENTIRE test
     // database, which 500s (empty body) once that exceeds Hawkins' response-size
     // limit. sync=true returns tests created OR updated since `from`, bounded by
     // `to` — the correct incremental pull against our watermark.
-    const nowUnix = Math.floor(Date.now() / 1000);
     const testsUrl = `${apiBase}?from=${fromUnix}&to=${nowUnix}&sync=true`;
     const testsRes = await fetch(testsUrl, { headers: authHeaders });
     if (!testsRes.ok) {
@@ -228,7 +250,7 @@ export async function runHawkinsSync(
         const { data: ath, error: aErr } = await supabase
           .from("athletes")
           .select("id")
-          .eq("external_id", extAthleteId)
+          .eq("hawkins_external_id", extAthleteId)
           .maybeSingle();
         if (aErr || !ath?.id) {
           errors.push(`test ${hawkinsTestId}: no local athlete for ${extAthleteId}`);

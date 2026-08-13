@@ -119,13 +119,13 @@ export async function POST(req: NextRequest) {
     // Fire confirmation email — non-blocking, never fails the booking.
     try {
       const types = await listPublicTypes(admin, clinic.organisationId);
-      const type = types.find((t) => t.id === body.typeId);
+      const type = types.find((t) => t.id === typeId);
       await sendBookingConfirmation({
-        clientName: `${input.firstName} ${input.lastName}`.trim(),
-        clientEmail: input.email,
+        clientName: `${firstName} ${lastName}`.trim(),
+        clientEmail: email,
         serviceName: type?.name ?? "Appointment",
-        startAt: input.startIso,
-        endAt: new Date(new Date(input.startIso).getTime() + (type?.duration_min ?? 60) * 60000).toISOString(),
+        startAt: startIso,
+        endAt: new Date(new Date(startIso).getTime() + (type?.duration_min ?? 60) * 60000).toISOString(),
         practitionerName: clinic.clinicianName,
         cancelToken: result.cancelToken,
       });

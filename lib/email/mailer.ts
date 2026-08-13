@@ -135,7 +135,7 @@ export async function sendBookingConfirmation(data: BookingConfirmationData) {
 
   return resend.emails.send({
     from: FROM,
-    reply_to: REPLY_TO,
+    replyTo: REPLY_TO,
     to: data.clientEmail,
     subject: `Appointment request received — ${data.serviceName} on ${date}`,
     html,
@@ -184,7 +184,7 @@ export async function sendBookingReminder(data: BookingReminderData) {
 
   return resend.emails.send({
     from: FROM,
-    reply_to: REPLY_TO,
+    replyTo: REPLY_TO,
     to: data.clientEmail,
     subject: `Reminder: ${data.serviceName} tomorrow at ${time}`,
     html,
@@ -265,7 +265,7 @@ export async function sendInvoiceEmail(data: InvoiceEmailData) {
 
   return resend.emails.send({
     from: FROM,
-    reply_to: REPLY_TO,
+    replyTo: REPLY_TO,
     to: data.clientEmail,
     subject,
     html,
