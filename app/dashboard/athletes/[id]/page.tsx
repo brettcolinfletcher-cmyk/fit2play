@@ -831,28 +831,37 @@ export default function AthleteDetailPage() {
   );
   const has505 = filteredSessions.some(is505Session);
   const hasLinearSprint = filteredSessions.some(isLinearSprintSession);
+  // The COD protocol actually recorded (5-0-5 vs 5-10-5) varies by athlete/device —
+  // derive the label from the real test_sub_type instead of hardcoding one.
+  const codProtocolLabel = useMemo(() => {
+    const sample = filteredSessions.find(is505Session);
+    const sub = (sample?.test_sub_type ?? "").toLowerCase();
+    if (sub.includes("5-10-5")) return "5-10-5";
+    if (sub.includes("5-0-5")) return "5-0-5";
+    return "COD";
+  }, [filteredSessions]);
 
-  const hawkinsCsvSessions = useMemo(
+  const hawkinsSessions = useMemo(
     () =>
       sessionsChronological(
-        filteredSessions.filter((s) => (s.source ?? "").toLowerCase() === "hawkins_csv")
+        filteredSessions.filter((s) => bucket(s.source) === "hawkins")
       ),
     [filteredSessions]
   );
 
   const cmjSeries = useMemo(
-    () => buildCmjDataPoints(hawkinsCsvSessions, metricsBySession),
-    [hawkinsCsvSessions, metricsBySession]
+    () => buildCmjDataPoints(hawkinsSessions, metricsBySession),
+    [hawkinsSessions, metricsBySession]
   );
 
   const djSeries = useMemo(
-    () => buildDjDataPoints(hawkinsCsvSessions, metricsBySession),
-    [hawkinsCsvSessions, metricsBySession]
+    () => buildDjDataPoints(hawkinsSessions, metricsBySession),
+    [hawkinsSessions, metricsBySession]
   );
 
   const slDjSeries = useMemo(
-    () => buildSingleLegDjSeries(hawkinsCsvSessions, metricsBySession),
-    [hawkinsCsvSessions, metricsBySession]
+    () => buildSingleLegDjSeries(hawkinsSessions, metricsBySession),
+    [hawkinsSessions, metricsBySession]
   );
 
   const hopTestBlocks = useMemo(
@@ -1245,13 +1254,13 @@ export default function AthleteDetailPage() {
               </section>
             )}
 
-            {/* ── 5-10-5 COD trends ── */}
+            {/* ── COD trends (5-0-5 / 5-10-5) ── */}
             {has505 && visibility.isSectionVisible("cod") && (
               <section id="cod" className="scroll-mt-28 mt-10">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <h2 className="text-sm font-semibold uppercase tracking-wide text-lime-300">
-                      COD trends — 5-10-5
+                      COD trends — {codProtocolLabel}
                     </h2>
                     <p className="mt-1 text-xs text-slate-500">
                       Best rep per session. Top speed and peak re-acceleration higher is better; peak
@@ -1271,7 +1280,7 @@ export default function AthleteDetailPage() {
                 <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
                   {COD_METRICS.filter((m) => visibleCodCharts.has(m.key)).map((metric) => {
                     const trend = codTrendByKey[metric.key as CodChartId];
-                    const title = `${metric.label} — 5-10-5 (best rep)`;
+                    const title = `${metric.label} — ${codProtocolLabel} (best rep)`;
                     return (
                       <ChartShell
                         key={metric.key}

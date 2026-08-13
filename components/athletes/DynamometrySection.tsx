@@ -399,11 +399,19 @@ export default function DynamometrySection({
   useEffect(() => {
     async function load() {
       setLoading(true);
+      // Scoped to handheld-dynamometry (isometric) sessions only — CMJ/DJ share
+      // source="hawkins" but use a completely different metric vocabulary
+      // (fp_jump_height, fp_peak_propulsive_force, ...) and already have their
+      // own sections (ForcePlateCMJSection / ForcePlateDJSection). Without this
+      // filter every CMJ/DJ session also showed up here as an empty chart with
+      // a raw 80+ metric dump, since none of AVAILABLE_METRICS' keys exist on
+      // jump-test metrics.
       let query = supabase
         .from("sessions")
         .select("id, session_date, test_sub_type, metrics(key, value, side)")
         .eq("athlete_id", athleteId)
         .eq("source", "hawkins")
+        .eq("test_type", "force_plate_isometric")
         .order("session_date", { ascending: true });
 
       if (dateFrom) query = query.gte("session_date", dateFrom.toISOString().slice(0, 10));

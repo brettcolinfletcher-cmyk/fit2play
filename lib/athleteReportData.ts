@@ -354,12 +354,12 @@ export function computeBestInRangeData(
   metricsBySession: Map<string, ReportMetricRow[]>,
   hopTests: ReportHopTestRow[]
 ): BestInRangeData {
-  const hawkinsCsv = sessionsChronological(
-    sessions.filter((s) => (s.source ?? "").toLowerCase() === "hawkins_csv")
+  const hawkinsSessions = sessionsChronological(
+    sessions.filter((s) => bucket(s.source) === "hawkins")
   );
   const metricMap = metricsBySession as Map<string, MetricLite[]>;
-  const cmjPts = buildCmjDataPoints(hawkinsCsv, metricMap);
-  const djPts = buildDjDataPoints(hawkinsCsv, metricMap);
+  const cmjPts = buildCmjDataPoints(hawkinsSessions, metricMap);
+  const djPts = buildDjDataPoints(hawkinsSessions, metricMap);
   const linearSessions = sessionsChronological(sessions.filter(isLinearSprintSession));
 
   const linear: BestRow[] = [];
@@ -534,7 +534,7 @@ export function computeDateComparisonData(
   if (sessA && sessB) {
     const snap = (sess: ReportSessionRow | null) => {
       if (!sess) return null;
-      if ((sess.source ?? "").toLowerCase() !== "hawkins_csv" || !isCmjSessionRow(sess)) return null;
+      if (bucket(sess.source) !== "hawkins" || !isCmjSessionRow(sess)) return null;
       const pts = buildCmjDataPoints([sess], metricMap);
       return pts[0] ?? null;
     };
@@ -564,7 +564,7 @@ export function computeDateComparisonData(
   if (sessA && sessB) {
     const snap = (sess: ReportSessionRow | null) => {
       if (!sess) return null;
-      if ((sess.source ?? "").toLowerCase() !== "hawkins_csv" || !isDjSessionRow(sess)) return null;
+      if (bucket(sess.source) !== "hawkins" || !isDjSessionRow(sess)) return null;
       const pts = buildDjDataPoints([sess], metricMap);
       return pts[0] ?? null;
     };

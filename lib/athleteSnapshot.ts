@@ -1,6 +1,7 @@
 import { buildCmjDataPoints, type MetricLite } from "@/components/athletes/ForcePlateCMJSection";
 import { buildDjDataPoints } from "@/components/athletes/ForcePlateDJSection";
 import {
+  bucket,
   formatChartAxisDate,
   hopTestDisplayName,
   isLinearSprintSession,
@@ -159,8 +160,8 @@ function hhdLsiForMovementOnDate(
   return lsi(maxLeft, maxRight);
 }
 
-function hawkinsCsvSessions(sessions: ReportSessionRow[]): ReportSessionRow[] {
-  return sessions.filter((s) => (s.source ?? "").toLowerCase() === "hawkins_csv");
+function hawkinsSessions(sessions: ReportSessionRow[]): ReportSessionRow[] {
+  return sessions.filter((s) => bucket(s.source) === "hawkins");
 }
 
 function gaugeColorClass(lsi: number, pass: number, warn: number): string {
@@ -206,7 +207,7 @@ export function computeAthleteSnapshot(
     const latestCmj = latestSessionOf(
       sessions,
       (s) =>
-        (s.source ?? "").toLowerCase() === "hawkins_csv" &&
+        bucket(s.source) === "hawkins" &&
         s.test_type === "force_plate_cmj"
     );
     if (latestCmj) {
@@ -231,7 +232,7 @@ export function computeAthleteSnapshot(
     const latestDj = latestSessionOf(
       sessions,
       (s) =>
-        (s.source ?? "").toLowerCase() === "hawkins_csv" &&
+        bucket(s.source) === "hawkins" &&
         s.test_type === "force_plate_dj"
     );
     if (latestDj) {
@@ -256,7 +257,7 @@ export function computeAthleteSnapshot(
     const latestSldj = latestSessionOf(
       sessions,
       (s) =>
-        (s.source ?? "").toLowerCase() === "hawkins_csv" &&
+        bucket(s.source) === "hawkins" &&
         s.test_type === "force_plate_dj_single"
     );
     if (latestSldj) {
@@ -435,7 +436,7 @@ export function computeAthleteSnapshot(
   }
 
   if (visibility.isSectionVisible("cmj")) {
-    const cmjPoints = buildCmjDataPoints(hawkinsCsvSessions(sessions), metricsLite);
+    const cmjPoints = buildCmjDataPoints(hawkinsSessions(sessions), metricsLite);
     const latest = cmjPoints[cmjPoints.length - 1];
     const prev = cmjPoints[cmjPoints.length - 2];
     if (latest?.jump_height != null) {
@@ -453,7 +454,7 @@ export function computeAthleteSnapshot(
   }
 
   if (visibility.isSectionVisible("drop_jump")) {
-    const djPoints = buildDjDataPoints(hawkinsCsvSessions(sessions), metricsLite);
+    const djPoints = buildDjDataPoints(hawkinsSessions(sessions), metricsLite);
     const latest = djPoints[djPoints.length - 1];
     const prev = djPoints[djPoints.length - 2];
     if (latest?.rsi != null) {
@@ -500,7 +501,7 @@ export function computeAthleteSnapshot(
   let hero: HeroSeries | null = null;
 
   if (visibility.isSectionVisible("cmj")) {
-    const cmjPoints = buildCmjDataPoints(hawkinsCsvSessions(sessions), metricsLite);
+    const cmjPoints = buildCmjDataPoints(hawkinsSessions(sessions), metricsLite);
     const heroPoints = cmjPoints
       .filter((p) => p.jump_height != null)
       .map((p) => ({

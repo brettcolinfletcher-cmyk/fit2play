@@ -882,7 +882,7 @@ export default function AthletePdfDocument({
             {showSection("cod") && pdfCharts?.cod != null ? (
               <View style={styles.modalitySection}>
                 <Text style={styles.sectionBanner} minPresenceAhead={260}>
-                  CHANGE OF DIRECTION (5-10-5)
+                  CHANGE OF DIRECTION ({pdfCharts.cod.title.split(" — ")[0]})
                 </Text>
                 <PdfGroupedBarChart
                   title={pdfCharts.cod.title}

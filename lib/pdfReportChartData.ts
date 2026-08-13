@@ -30,6 +30,14 @@ function is505Session(s: ReportSessionRow): boolean {
   return is1080(s) && (sub.includes("5-10-5") || sub.includes("5-0-5"));
 }
 
+/** Which COD protocol was actually recorded — don't assume 5-10-5. */
+function codProtocolLabel(testSubType: string | null | undefined): string {
+  const sub = (testSubType ?? "").toLowerCase();
+  if (sub.includes("5-10-5")) return "5-10-5";
+  if (sub.includes("5-0-5")) return "5-0-5";
+  return "COD";
+}
+
 function latestSession(
   sessions: ReportSessionRow[],
   pred: (s: ReportSessionRow) => boolean
@@ -180,7 +188,7 @@ export function buildPdfReportCharts(
     const right = minTotalTimeForSide(rows, "right");
     if (left != null && right != null) {
       cod = {
-        title: "5-10-5 — latest session",
+        title: `${codProtocolLabel(codLatest.test_sub_type)} — latest session`,
         dateCaption: codLatest.session_date
           ? formatChartAxisDate(codLatest.session_date)
           : "—",
@@ -192,11 +200,11 @@ export function buildPdfReportCharts(
     }
   }
 
-  const hawkinsCsv = sessionsChronological(
-    sessions.filter((s) => (s.source ?? "").toLowerCase() === "hawkins_csv")
+  const hawkinsSessions = sessionsChronological(
+    sessions.filter((s) => bucket(s.source) === "hawkins")
   );
-  const cmjPts = buildCmjDataPoints(hawkinsCsv, metricsNorm as Map<string, { key: string; value: number | null; rep_index: number | null }[]>);
-  const djPts = buildDjDataPoints(hawkinsCsv, metricsNorm as Map<string, { key: string; value: number | null; rep_index: number | null }[]>);
+  const cmjPts = buildCmjDataPoints(hawkinsSessions, metricsNorm as Map<string, { key: string; value: number | null; rep_index: number | null }[]>);
+  const djPts = buildDjDataPoints(hawkinsSessions, metricsNorm as Map<string, { key: string; value: number | null; rep_index: number | null }[]>);
 
   const merged: { t: number; xLabel: string; jumpCm: number | null; rsi: number | null }[] = [];
   const byT = new Map<number, { t: number; xLabel: string; jumpCm: number | null; rsi: number | null }>();
@@ -564,7 +572,7 @@ export function buildPdfReportContext(
   );
 
   pushTest("sprint", "Linear sprint (1080)", linearSessions);
-  pushTest("cod", "5-10-5 (1080)", codSessions);
+  pushTest("cod", `${codProtocolLabel(codSessions[0]?.test_sub_type)} (1080)`, codSessions);
   pushTest("cmj", "Force plate \u2014 CMJ", cmjSessions);
   pushTest("dj", "Force plate \u2014 drop jump", djSessions);
   pushTest("strength", "Dynamometry", dynoSessions);
@@ -629,11 +637,11 @@ export function buildPdfReportContext(
   );
   if (split5mF) findings.push(split5mF);
 
-  // COD: total time for the slower side at latest 5-10-5 (lower is better)
+  // COD: total time for the slower side at the latest 5-0-5/5-10-5 session (lower is better)
   const codF = findingFromSeries(
     "cod_total_time",
     "cod",
-    "5-10-5 total time",
+    `${codProtocolLabel(sessions.find(is505Session)?.test_sub_type)} total time`,
     "s",
     "total_time",
     "5-10-5",
@@ -654,11 +662,11 @@ export function buildPdfReportContext(
   if (codF) findings.push(codF);
 
   // Force plate CMJ: jump height
-  const hawkinsCsv = sessionsChronological(
-    sessions.filter((s) => (s.source ?? "").toLowerCase() === "hawkins_csv")
+  const hawkinsSessions = sessionsChronological(
+    sessions.filter((s) => bucket(s.source) === "hawkins")
   );
   const cmjPts = buildCmjDataPoints(
-    hawkinsCsv,
+    hawkinsSessions,
     metricsNorm as Map<string, { key: string; value: number | null; rep_index: number | null }[]>
   );
   if (cmjPts.length > 0) {
@@ -697,7 +705,7 @@ export function buildPdfReportContext(
 
   // Drop jump: RSI
   const djPts = buildDjDataPoints(
-    hawkinsCsv,
+    hawkinsSessions,
     metricsNorm as Map<string, { key: string; value: number | null; rep_index: number | null }[]>
   );
   if (djPts.length > 0) {
