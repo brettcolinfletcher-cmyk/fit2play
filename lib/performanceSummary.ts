@@ -197,10 +197,14 @@ function latestSessionWithMetric(
 }
 
 // The 1080 device doesn't tag sessions with a fixed test distance — "40m
-// sprint" sessions are identified by the actual distance recorded
-// (total_distance), not by test_sub_type. Tolerance allows for a device
-// stopping a metre or two short/long of the configured 40m.
+// sprint" sessions are best identified by the actual distance recorded
+// (total_distance), tolerating a device stopping a metre or two short/long
+// of the configured 40m. But several synced sessions never got a
+// total_distance metric captured at all, so as a fallback we accept a
+// "Linear bilateral" / "Running (LR)" session by name alone (these are the
+// two 1080 protocols actually used for a full-length sprint, per Brett).
 const FORTY_M_TOLERANCE = 5;
+const FORTY_M_SUB_TYPE_FALLBACKS = ["linear bilateral", "running (lr)"];
 
 function latest40mSession(
   sessions: ReportSessionRow[],
@@ -209,10 +213,20 @@ function latest40mSession(
   const candidates = sessions
     .filter((s) => isLinearSprintSession(s) && s.session_date)
     .sort((a, b) => new Date(b.session_date!).getTime() - new Date(a.session_date!).getTime());
+
   for (const s of candidates) {
     const dist = metricAggregate(metricsBySession, s.id, "total_distance", "max");
     if (dist != null && Math.abs(dist - 40) <= FORTY_M_TOLERANCE) return s;
   }
+
+  // Fallback: no session had a confirmed ~40m distance reading (sync gap) —
+  // take the latest by-name match that actually has a time to show.
+  for (const s of candidates) {
+    const sub = (s.test_sub_type ?? "").toLowerCase();
+    if (!FORTY_M_SUB_TYPE_FALLBACKS.some((name) => sub.includes(name))) continue;
+    if (metricAggregate(metricsBySession, s.id, "total_time", "min") != null) return s;
+  }
+
   return null;
 }
 
