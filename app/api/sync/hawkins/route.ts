@@ -45,9 +45,12 @@ export async function GET(request: Request) {
     const authHeaders = { Authorization: `Bearer ${accessToken}`, Accept: "application/json" };
     const fromUnix = Math.floor(Date.now() / 1000) - 86400 * 90;
     const nowUnix = Math.floor(Date.now() / 1000);
-    // Probe candidate param schemes. from/to/sync are Hawkins' documented
-    // params; syncFrom (ignored by the API) is kept for comparison.
+    // Probe candidate param schemes. syncFrom/syncTo (paired) is the
+    // documented incremental-sync mode per connect.hawkindynamics.com/api —
+    // from/to alone is for month-granularity bulk export, and syncFrom
+    // without syncTo fetches unbounded-to-now (both were confirmed to 500).
     const probes = [
+      `${apiBase}?syncFrom=${fromUnix}&syncTo=${nowUnix}`,
       `${apiBase}?from=${fromUnix}&to=${nowUnix}&sync=true`,
       `${apiBase}?from=${fromUnix}&to=${nowUnix}`,
       `${apiBase}?syncFrom=${fromUnix}`,
@@ -64,7 +67,7 @@ export async function GET(request: Request) {
     let firstTest: unknown = null;
     let fullStatus: number | null = null;
     try {
-      const fullRes = await fetch(`${apiBase}?from=${fromUnix}&to=${nowUnix}&sync=true`, { headers: authHeaders });
+      const fullRes = await fetch(`${apiBase}?syncFrom=${fromUnix}&syncTo=${nowUnix}`, { headers: authHeaders });
       fullStatus = fullRes.status;
       const fullText = await fullRes.text();
       try {

@@ -214,12 +214,15 @@ export async function runHawkinsSync(
         : nowUnix - 86400 * 7;
     }
 
-    // Hawkins' documented query params are from/to/sync. `syncFrom` is NOT a
-    // real param — it gets ignored, so the endpoint returns the ENTIRE test
-    // database, which 500s (empty body) once that exceeds Hawkins' response-size
-    // limit. sync=true returns tests created OR updated since `from`, bounded by
-    // `to` — the correct incremental pull against our watermark.
-    const testsUrl = `${apiBase}?from=${fromUnix}&to=${nowUnix}&sync=true`;
+    // CORRECTED (per Hawkin Dynamics' public API reference at
+    // connect.hawkindynamics.com/api): incremental sync uses `syncFrom` /
+    // `syncTo` as a bounded pair — NOT `from`/`to`/`sync=true`, which is what
+    // this used to send. `from`/`to` alone is documented for month-granularity
+    // historical bulk export, and `syncFrom` without a paired `syncTo` fetches
+    // unbounded-to-now, which is almost certainly why every previous attempt
+    // — including small windows and the "full export" probe — 500'd with an
+    // empty body: none of the old param combinations match a real API mode.
+    const testsUrl = `${apiBase}?syncFrom=${fromUnix}&syncTo=${nowUnix}`;
     const testsRes = await fetch(testsUrl, { headers: authHeaders });
     if (!testsRes.ok) {
       const t = await testsRes.text();
