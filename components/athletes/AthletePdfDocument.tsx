@@ -16,7 +16,7 @@ import type {
   PdfTestIncluded,
 } from "@/lib/pdfReportChartData";
 import type { AthleteSnapshot } from "@/lib/athleteSnapshot";
-import type { SummaryCategory, SummaryStatus } from "@/lib/performanceSummary";
+import type { SummaryCategory, SummaryTier } from "@/lib/performanceSummary";
 import type { ReportVisibility } from "@/lib/reportSections";
 import { PDF_FONT } from "@/components/athletes/pdf/charts/pdfChartTheme";
 
@@ -374,45 +374,69 @@ const styles = StyleSheet.create({
     padding: 8,
     backgroundColor: "#fafafa",
   },
+  perfSummaryCardTitleRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    justifyContent: "space-between",
+    marginBottom: 5,
+  },
   perfSummaryCardTitle: {
     fontSize: 7.5,
     fontWeight: 700,
     color: "#6b7280",
     textTransform: "uppercase",
     letterSpacing: 0.3,
-    marginBottom: 4,
+  },
+  perfSummaryCardSource: {
+    fontSize: 6.5,
+    color: "#9ca3af",
   },
   perfSummaryRow: {
+    paddingVertical: 3,
+    borderBottomWidth: 0.5,
+    borderBottomColor: "#eef2f7",
+  },
+  perfSummaryRowTop: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: 2,
-    borderBottomWidth: 0.5,
-    borderBottomColor: "#eef2f7",
   },
   perfSummaryLabel: {
     fontSize: 7.5,
     color: "#374151",
-    width: "48%",
+    fontWeight: 700,
+  },
+  perfSummaryDate: {
+    fontSize: 6.5,
+    color: "#9ca3af",
+    marginTop: 1,
+  },
+  perfSummaryRowBottom: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    justifyContent: "space-between",
+    marginTop: 2,
   },
   perfSummaryValue: {
-    fontSize: 8,
+    fontSize: 9.5,
     fontWeight: 700,
     color: "#111827",
-    width: "26%",
-    textAlign: "right",
   },
   perfSummaryTarget: {
     fontSize: 7,
     color: "#9ca3af",
-    width: "20%",
-    textAlign: "right",
   },
-  perfSummaryDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    marginLeft: 4,
+  perfBadge: {
+    paddingVertical: 1,
+    paddingHorizontal: 5,
+    borderRadius: 9999,
+    borderWidth: 0.75,
+  },
+  perfBadgeText: {
+    fontSize: 6,
+    fontWeight: 700,
+    textTransform: "uppercase",
+    letterSpacing: 0.2,
   },
   perfSummaryNote: {
     fontSize: 6.5,
@@ -544,11 +568,13 @@ function DeltaArrow({ delta }: { delta: PdfDelta }) {
   );
 }
 
-const PERF_STATUS_COLOR: Record<SummaryStatus, string> = {
-  pass: "#16a34a",
-  warn: "#d97706",
-  fail: "#dc2626",
-  no_data: "#cbd5e1",
+const PERF_TIER_COLOR: Record<SummaryTier, string> = {
+  needs_work: "#dc2626",
+  developing: "#ea580c",
+  building: "#d97706",
+  good: "#65a30d",
+  excellent: "#16a34a",
+  no_data: "#9ca3af",
 };
 
 function PerformanceSummarySection({ categories }: { categories: SummaryCategory[] }) {
@@ -564,20 +590,39 @@ function PerformanceSummarySection({ categories }: { categories: SummaryCategory
         {categories.map((cat) => (
           <View key={cat.id} style={styles.perfSummaryCard} wrap={false}>
             <View style={styles.perfSummaryCardInner}>
-              <Text style={styles.perfSummaryCardTitle}>{cat.label}</Text>
-              {cat.metrics.map((m) => (
-                <View key={m.id} style={styles.perfSummaryRow}>
-                  <Text style={styles.perfSummaryLabel}>{m.label}</Text>
-                  <Text style={styles.perfSummaryValue}>{m.displayValue}</Text>
-                  <Text style={styles.perfSummaryTarget}>{m.targetLabel}</Text>
-                  <View
-                    style={[
-                      styles.perfSummaryDot,
-                      { backgroundColor: PERF_STATUS_COLOR[m.status] },
-                    ]}
-                  />
-                </View>
-              ))}
+              <View style={styles.perfSummaryCardTitleRow}>
+                <Text style={styles.perfSummaryCardTitle}>{cat.label}</Text>
+                {cat.commonSourceLabel ? (
+                  <Text style={styles.perfSummaryCardSource}>{cat.commonSourceLabel}</Text>
+                ) : null}
+              </View>
+              {cat.metrics.map((m) => {
+                const color = PERF_TIER_COLOR[m.tier];
+                return (
+                  <View key={m.id} style={styles.perfSummaryRow}>
+                    <View style={styles.perfSummaryRowTop}>
+                      <View>
+                        <Text style={styles.perfSummaryLabel}>{m.label}</Text>
+                        {!cat.commonSourceLabel && m.sourceDate ? (
+                          <Text style={styles.perfSummaryDate}>{m.sourceDate}</Text>
+                        ) : null}
+                      </View>
+                      <View
+                        style={[
+                          styles.perfBadge,
+                          { backgroundColor: `${color}1a`, borderColor: color },
+                        ]}
+                      >
+                        <Text style={[styles.perfBadgeText, { color }]}>{m.tierLabel}</Text>
+                      </View>
+                    </View>
+                    <View style={styles.perfSummaryRowBottom}>
+                      <Text style={styles.perfSummaryValue}>{m.displayValue}</Text>
+                      <Text style={styles.perfSummaryTarget}>Target {m.targetLabel}</Text>
+                    </View>
+                  </View>
+                );
+              })}
             </View>
           </View>
         ))}

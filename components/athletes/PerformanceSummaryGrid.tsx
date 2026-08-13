@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { computePerformanceSummary, type SummaryStatus } from "@/lib/performanceSummary";
+import { computePerformanceSummary, type SummaryTier } from "@/lib/performanceSummary";
 import type { ReportMetricRow, ReportSessionRow } from "@/lib/athleteReportData";
 
 type Props = {
@@ -9,28 +9,53 @@ type Props = {
   metricsBySession: Map<string, ReportMetricRow[]>;
 };
 
-const STATUS_COLOR: Record<SummaryStatus, string> = {
-  pass: "#a3e635",
-  warn: "#fbbf24",
-  fail: "#f87171",
+const TIER_COLOR: Record<SummaryTier, string> = {
+  needs_work: "#f87171",
+  developing: "#fb923c",
+  building: "#fbbf24",
+  good: "#a3e635",
+  excellent: "#4ade80",
   no_data: "#475569",
 };
 
-function StatusDot({ status }: { status: SummaryStatus }) {
+function TierBadge({ tier, label }: { tier: SummaryTier; label: string }) {
+  const color = TIER_COLOR[tier];
+  if (tier === "no_data") {
+    return <span className="shrink-0 text-[0.65rem] font-medium text-slate-600">{label}</span>;
+  }
   return (
     <span
-      aria-hidden
-      className="inline-block h-2 w-2 shrink-0 rounded-full"
-      style={{ backgroundColor: STATUS_COLOR[status], boxShadow: `0 0 6px 0 ${STATUS_COLOR[status]}88` }}
-    />
+      className="shrink-0 rounded-full px-2 py-0.5 text-[0.65rem] font-semibold leading-tight"
+      style={{
+        color,
+        backgroundColor: `${color}1f`,
+        border: `1px solid ${color}55`,
+      }}
+    >
+      {label}
+    </span>
+  );
+}
+
+function ProgressBar({ ratio, tier }: { ratio: number | null; tier: SummaryTier }) {
+  const color = TIER_COLOR[tier];
+  const pct = ratio == null ? 0 : Math.max(0.03, Math.min(1, ratio));
+  return (
+    <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-slate-800/80">
+      <div
+        className="h-full rounded-full transition-[width]"
+        style={{ width: `${pct * 100}%`, backgroundColor: color }}
+      />
+    </div>
   );
 }
 
 /**
  * "At a glance" performance summary — CMJ / Power / Speed / Accel / Decel /
  * Change of Direction, each with a couple of key parameters vs a target and
- * a traffic-light status. Modeled on the classic sports-science jump &
- * force test report layout, styled to match Fit2Play's dark snapshot cards.
+ * a 5-point qualitative read (Needs Work → Excellent). Modeled on the
+ * classic sports-science jump & force test report layout, styled to match
+ * Fit2Play's dark snapshot cards.
  *
  * Targets are fixed starter defaults (see lib/performanceSummary.ts) — not
  * validated clinical cutoffs. Treat them as a first pass to tune per athlete
@@ -56,7 +81,7 @@ export default function PerformanceSummaryGrid({ sessions, metricsBySession }: P
         </p>
       </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
         {categories.map((cat) => (
           <div
             key={cat.id}
@@ -66,29 +91,36 @@ export default function PerformanceSummaryGrid({ sessions, metricsBySession }: P
               border: "1px solid rgba(30,41,59,0.9)",
             }}
           >
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-              {cat.label}
-            </p>
-            <div className="mt-3 space-y-2.5">
+            <div className="flex items-baseline justify-between gap-2 border-b border-slate-800/80 pb-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-300">
+                {cat.label}
+              </p>
+              {cat.commonSourceLabel ? (
+                <p className="truncate text-[0.65rem] text-slate-500">{cat.commonSourceLabel}</p>
+              ) : null}
+            </div>
+
+            <div className="mt-1 divide-y divide-slate-800/60">
               {cat.metrics.map((m) => (
-                <div key={m.id} className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="truncate text-xs text-slate-300">{m.label}</p>
-                    {m.sourceLabel ? (
-                      <p className="truncate text-[0.6rem] text-slate-500">{m.sourceLabel}</p>
-                    ) : null}
-                  </div>
-                  <div className="flex shrink-0 items-center gap-1.5 text-right">
-                    <div>
-                      <p className="text-xs font-bold tabular-nums text-slate-50 leading-tight">
-                        {m.displayValue}
-                      </p>
-                      <p className="text-[0.6rem] tabular-nums text-slate-500 leading-tight">
-                        {m.targetLabel}
-                      </p>
+                <div key={m.id} className="py-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-[0.8rem] font-medium text-slate-200">{m.label}</p>
+                      {!cat.commonSourceLabel && m.sourceDate ? (
+                        <p className="mt-0.5 text-[0.62rem] text-slate-500">{m.sourceDate}</p>
+                      ) : null}
                     </div>
-                    <StatusDot status={m.status} />
+                    <TierBadge tier={m.tier} label={m.tierLabel} />
                   </div>
+                  <div className="mt-1.5 flex items-end justify-between gap-3">
+                    <p className="text-xl font-bold tabular-nums leading-none text-slate-50">
+                      {m.displayValue}
+                    </p>
+                    <p className="shrink-0 text-[0.68rem] tabular-nums text-slate-500">
+                      Target {m.targetLabel}
+                    </p>
+                  </div>
+                  <ProgressBar ratio={m.ratio} tier={m.tier} />
                 </div>
               ))}
             </div>
