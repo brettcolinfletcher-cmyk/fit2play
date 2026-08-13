@@ -32,10 +32,24 @@ const HAWKINS_NON_METRIC_KEYS = new Set([
   "id", "timestamp", "segment", "testType", "athlete", "active",
 ]);
 
+// Jump-type tests ("fpPanelKind" === "jump" in SessionTestSummaryPanels.tsx) are read
+// everywhere downstream — ForcePlateCMJSection, ForcePlateDJSection, athleteSnapshot,
+// compareMetrics, qualityModel, pdfReportChartData — via keys prefixed "fp_" (e.g.
+// "fp_jump_height", "fp_left_avg_propulsive_force"). That convention comes from the
+// manual CSV-upload path (lib/uploadForceplateNormalize.ts). Isometric/IMTP/calf tests
+// are read as bare canonical keys by DynamometrySection instead — do NOT prefix those.
+const HAWKINS_JUMP_TEST_TYPES = new Set([
+  "force_plate_cmj",
+  "force_plate_dj",
+  "force_plate",
+]);
+
 function flattenMetrics(
-  test: Record<string, unknown>
+  test: Record<string, unknown>,
+  testType: string
 ): { key: string; value: number }[] {
   const out: { key: string; value: number }[] = [];
+  const prefix = HAWKINS_JUMP_TEST_TYPES.has(testType) ? "fp_" : "";
   for (const [k, v] of Object.entries(test)) {
     if (HAWKINS_NON_METRIC_KEYS.has(k)) continue;
     if (typeof v === "number" && !Number.isNaN(v)) {
@@ -46,7 +60,7 @@ function flattenMetrics(
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, "_")
         .replace(/^_|_$/g, "");
-      out.push({ key: canonicalKey, value: v });
+      out.push({ key: `${prefix}${canonicalKey}`, value: v });
     }
   }
   return out;
@@ -281,7 +295,7 @@ export async function runHawkinsSync(
       // Store segment as test_sub_type (e.g. "TS Isometric Test-Abduction-Right-Supine:1")
       const segment = typeof test.segment === "string" ? test.segment : null;
 
-      const flat = flattenMetrics(test);
+      const flat = flattenMetrics(test, testType);
 
       const syncDedupeKey = `hawkins:${hawkinsTestId}`;
 

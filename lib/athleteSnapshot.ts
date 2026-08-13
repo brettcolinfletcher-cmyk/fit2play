@@ -61,9 +61,10 @@ function is1080Source(source: string | null): boolean {
 }
 
 function is505(s: ReportSessionRow): boolean {
+  const sub = normaliseSubType(s.test_sub_type).toLowerCase();
   return (
     is1080Source(s.source) &&
-    normaliseSubType(s.test_sub_type).toLowerCase().includes("5-10-5")
+    (sub.includes("5-10-5") || sub.includes("5-0-5"))
   );
 }
 

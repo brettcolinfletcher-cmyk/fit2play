@@ -222,7 +222,8 @@ function is1080Session(s: SessionRow): boolean {
 }
 
 function is505Session(s: SessionRow): boolean {
-  return is1080Session(s) && (s.test_sub_type ?? "").includes("5-10-5");
+  const sub = (s.test_sub_type ?? "").toLowerCase();
+  return is1080Session(s) && (sub.includes("5-10-5") || sub.includes("5-0-5"));
 }
 
 function isLinearSprintSession(s: SessionRow): boolean {

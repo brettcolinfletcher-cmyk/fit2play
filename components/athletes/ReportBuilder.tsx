@@ -75,7 +75,8 @@ function subTestsForSection(
       return distinctSubKeys(sessions, (s) => {
         if ((s.source ?? "").toLowerCase() !== "1080") return null;
         const subKey = normaliseSubType(s.test_sub_type);
-        if (!subKey.toLowerCase().includes("5-10-5")) return null;
+        const lower = subKey.toLowerCase();
+        if (!lower.includes("5-10-5") && !lower.includes("5-0-5")) return null;
         return subKey;
       });
     case "dynamometry":

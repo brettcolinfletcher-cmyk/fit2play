@@ -26,7 +26,8 @@ function is1080(s: ReportSessionRow): boolean {
 }
 
 function is505Session(s: ReportSessionRow): boolean {
-  return is1080(s) && (s.test_sub_type ?? "").toLowerCase().includes("5-10-5");
+  const sub = (s.test_sub_type ?? "").toLowerCase();
+  return is1080(s) && (sub.includes("5-10-5") || sub.includes("5-0-5"));
 }
 
 function latestSession(
