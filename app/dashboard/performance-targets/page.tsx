@@ -36,6 +36,12 @@ function groupByCategory() {
 const inputClass =
   "w-full rounded-lg border border-slate-700 bg-slate-950 px-2.5 py-1.5 text-xs text-slate-200 focus:border-lime-500 focus:outline-none";
 
+// macOS Safari/Chrome ignore bg-* on native <select> elements without
+// appearance-none + an explicit color-scheme, rendering a white/invisible
+// control regardless of Tailwind classes — force it with inline styles too.
+const selectClass = `${inputClass} appearance-none [color-scheme:dark]`;
+const selectStyle = { backgroundColor: "#020617", color: "#e2e8f0" };
+
 export default function PerformanceTargetsPage() {
   const staffOk = useRequireDashboardStaff();
   const [profiles, setProfiles] = useState<TargetProfile[]>([]);
@@ -305,10 +311,11 @@ export default function PerformanceTargetsPage() {
                             <select
                               value={row.direction}
                               onChange={(e) => void handleFieldChange(m.id, "direction", e.target.value)}
-                              className={inputClass}
+                              className={selectClass}
+                              style={selectStyle}
                             >
-                              <option value="higher">≥ higher is better</option>
-                              <option value="lower">≤ lower is better</option>
+                              <option value="higher" style={selectStyle}>≥ higher is better</option>
+                              <option value="lower" style={selectStyle}>≤ lower is better</option>
                             </select>
                             <button
                               type="button"

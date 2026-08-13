@@ -3,7 +3,6 @@ import {
   formatChartAxisDate,
   isLinearSprintSession,
   metricAggregate,
-  parseHhdMovement,
   type ReportMetricRow,
   type ReportSessionRow,
 } from "@/lib/reportCore";
@@ -91,13 +90,25 @@ export const METRIC_REGISTRY: {
 
 const METRIC_BY_ID = new Map(METRIC_REGISTRY.map((m) => [m.id, m]));
 
-/** Canonical HHD movement names the Strength card looks for (matches DynamometryTrendPanel's sub-tests). */
-const STRENGTH_MOVEMENTS: { movement: string; metricId: string }[] = [
-  { movement: "Hip Abduction", metricId: "strength_hip_abduction" },
-  { movement: "Hip Adduction", metricId: "strength_hip_adduction" },
-  { movement: "Knee Extension", metricId: "strength_knee_extension" },
-  { movement: "Knee Flexion", metricId: "strength_knee_flexion" },
+/**
+ * Canonical HHD movements the Strength card groups by. Real Hawkins
+ * test_sub_type strings are inconsistent — e.g. "TS Isometric Test-Abduction:1",
+ * "TS Isometric Test-Abduction-Right:1", and "TS Isometric Test-hip supine
+ * adduction:1" have all been seen for the same two movements — so matching
+ * is done by keyword rather than parseHhdMovement's exact-token output
+ * (which is used elsewhere for free-text display, not canonical grouping).
+ */
+const STRENGTH_MOVEMENTS: { metricId: string; keywords: string[] }[] = [
+  { metricId: "strength_hip_abduction", keywords: ["abduction"] },
+  { metricId: "strength_hip_adduction", keywords: ["adduction"] },
+  { metricId: "strength_knee_extension", keywords: ["knee", "extension"] },
+  { metricId: "strength_knee_flexion", keywords: ["knee", "flexion"] },
 ];
+
+function matchesStrengthMovement(subType: string | null | undefined, keywords: string[]): boolean {
+  const s = (subType ?? "").toLowerCase();
+  return keywords.every((k) => s.includes(k));
+}
 
 export const TIER_LABELS: Record<SummaryTier, string> = {
   needs_work: "Needs Work",
@@ -229,10 +240,10 @@ function sourceLabel(s: ReportSessionRow | null): string | null {
 function latestIsoForMovement(
   sessions: ReportSessionRow[],
   metricsBySession: Map<string, ReportMetricRow[]>,
-  movement: string
+  keywords: string[]
 ): { left: number | null; right: number | null; source: ReportSessionRow | null } {
   const matching = sessions.filter(
-    (s) => s.test_type === "force_plate_isometric" && parseHhdMovement(s.test_sub_type) === movement
+    (s) => s.test_type === "force_plate_isometric" && matchesStrengthMovement(s.test_sub_type, keywords)
   );
 
   let latestDate: string | null = null;
@@ -415,8 +426,8 @@ export function computePerformanceSummary(
     withCommonSource(
       "strength",
       "Strength (Isometric)",
-      STRENGTH_MOVEMENTS.map(({ movement, metricId }) => {
-        const { left, right, source } = latestIsoForMovement(sessions, metricsBySession, movement);
+      STRENGTH_MOVEMENTS.map(({ metricId, keywords }) => {
+        const { left, right, source } = latestIsoForMovement(sessions, metricsBySession, keywords);
         return metricLR(metricId, left, right, source);
       })
     ),

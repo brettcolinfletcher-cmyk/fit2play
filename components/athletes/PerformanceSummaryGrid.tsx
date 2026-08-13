@@ -98,18 +98,33 @@ export default function PerformanceSummaryGrid({
         headerRight={
           <label className="flex items-center gap-2 text-[0.7rem] text-slate-400">
             Targets
-            <select
-              value={activeProfileId ?? ""}
-              onChange={(e) => void handleProfileChange(e.target.value)}
-              className="rounded-lg border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-200 focus:border-lime-500 focus:outline-none"
-            >
-              {profiles.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                  {p.is_default ? " (default)" : ""}
-                </option>
-              ))}
-            </select>
+            <span className="relative inline-flex items-center">
+              <select
+                value={activeProfileId ?? ""}
+                onChange={(e) => void handleProfileChange(e.target.value)}
+                className="appearance-none rounded-lg border border-slate-700 bg-slate-950 py-1 pl-2 pr-6 text-xs text-slate-200 focus:border-lime-500 focus:outline-none [color-scheme:dark]"
+                style={{ backgroundColor: "#020617", color: "#e2e8f0" }}
+              >
+                {profiles.map((p) => (
+                  <option key={p.id} value={p.id} style={{ backgroundColor: "#020617", color: "#e2e8f0" }}>
+                    {p.name}
+                    {p.is_default ? " (default)" : ""}
+                  </option>
+                ))}
+              </select>
+              <svg
+                className="pointer-events-none absolute right-1.5 h-3 w-3 text-slate-500"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                aria-hidden="true"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            </span>
             <a
               href="/dashboard/performance-targets"
               className="text-lime-400/90 hover:text-lime-300 hover:underline"
