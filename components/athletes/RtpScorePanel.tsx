@@ -76,7 +76,7 @@ export default function RtpScorePanel({ gauges, readiness }: Props) {
 
         {/* Per-test LSI gauges */}
         {gauges.length > 0 ? (
-          <div className="grid flex-1 grid-cols-3 gap-3 sm:grid-cols-5 lg:grid-cols-5">
+          <div className="grid flex-1 grid-cols-3 gap-3">
             {gauges.map((g) => {
               const color = gaugeRingColor(g);
               return (

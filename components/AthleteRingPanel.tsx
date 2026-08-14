@@ -150,7 +150,7 @@ export default function AthleteRingPanel({ metricLatest, metricPrev }: Props) {
         <div className="hidden h-28 w-px bg-slate-800 lg:block" />
 
         {/* Six quality rings */}
-        <div className="grid flex-1 grid-cols-3 gap-3 sm:grid-cols-6 lg:grid-cols-6">
+        <div className="grid flex-1 grid-cols-3 gap-3">
           {rows.map(({ q, score, prevScore, count }) => {
             const qBand = scoreBand(score);
             return (
