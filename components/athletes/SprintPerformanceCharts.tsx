@@ -9,6 +9,12 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
+  BarChart,
+  Bar,
+  Cell,
+  ComposedChart,
+  Scatter,
+  ReferenceLine,
 } from "recharts";
 import { supabase } from "@/lib/supabaseClient";
 import {
@@ -263,6 +269,25 @@ export default function SprintPerformanceCharts({ athleteId }: Props) {
     [bestRep, massKg, heightCm]
   );
 
+  const fvChartData = useMemo(() => {
+    if (!fvProfile) return null;
+    const scatter = fvProfile.chartPoints.map((p) => ({
+      v: Math.round(p.v * 3.6 * 100) / 100,
+      force: Math.round(p.force * 100) / 100,
+    }));
+    const line = [
+      { v: 0, force: fvProfile.f0 },
+      { v: fvProfile.v0 * 3.6, force: 0 },
+    ];
+    const maxV = Math.max(fvProfile.v0 * 3.6, ...scatter.map((p) => p.v), 1);
+    return { scatter, line, maxV };
+  }, [fvProfile]);
+
+  const symmetryStepData = useMemo(
+    () => symmetry?.steps.map((s) => ({ stepNumber: s.stepNumber, leg: s.leg, peakForce: Math.round(s.peakForce * 10) / 10 })) ?? [],
+    [symmetry]
+  );
+
   if (loading) return null;
   if (!bestRep) return null;
 
@@ -328,6 +353,50 @@ export default function SprintPerformanceCharts({ athleteId }: Props) {
                   <p className="text-sm font-bold tabular-nums text-slate-50">{fvProfile.pmax.toFixed(1)} W/kg</p>
                 </div>
               </div>
+
+              {fvChartData ? (
+                <div className="mt-3" style={{ height: 170 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart margin={{ top: 4, right: 8, bottom: 4, left: -12 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+                      <XAxis
+                        type="number"
+                        dataKey="v"
+                        domain={[0, Math.ceil(fvChartData.maxV)]}
+                        tick={{ fontSize: 9, fill: "#9ca3af" }}
+                        label={{
+                          value: "Velocity (km/h)",
+                          position: "insideBottomRight",
+                          offset: -4,
+                          style: { fontSize: 9, fill: "#9ca3af" },
+                        }}
+                      />
+                      <YAxis
+                        type="number"
+                        dataKey="force"
+                        domain={[0, "dataMax"]}
+                        tick={{ fontSize: 9, fill: "#9ca3af" }}
+                        label={{ value: "Force (N/kg)", angle: -90, position: "insideLeft", style: { fontSize: 9, fill: "#9ca3af" } }}
+                      />
+                      <Tooltip
+                        formatter={(value: number) => [`${Number(value).toFixed(2)} N/kg`, "Force"]}
+                        labelFormatter={(l: number) => `${Number(l).toFixed(2)} km/h`}
+                      />
+                      <Scatter data={fvChartData.scatter} dataKey="force" fill="#facc15" fillOpacity={0.4} />
+                      <Line
+                        data={fvChartData.line}
+                        type="linear"
+                        dataKey="force"
+                        stroke="#f87171"
+                        strokeWidth={2}
+                        dot={false}
+                        isAnimationActive={false}
+                      />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : null}
+
               {massSource === "hawkins" || fvProfile.usedDefaultHeight ? (
                 <p className="mt-2 text-[0.6rem] text-slate-500">
                   {massSource === "hawkins" ? "Mass from Hawkins CMJ force plate (system weight). " : ""}
@@ -399,21 +468,41 @@ export default function SprintPerformanceCharts({ athleteId }: Props) {
 
         <ChartCard
           title="Symmetry"
-          subtitle="Peak force, step length &amp; frequency — estimated from step detection, not a direct 1080 measurement"
+          subtitle="Peak force per step, left vs right — estimated from step detection, not a direct 1080 measurement"
         >
-          <ResponsiveContainer width="100%" height={200}>
-            <LineChart data={speedData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-              <XAxis
-                dataKey="x"
-                tick={{ fontSize: 10, fill: "#9ca3af" }}
-                label={{ value: "Position (m)", position: "insideBottomRight", offset: -4, style: { fontSize: 10, fill: "#9ca3af" } }}
-              />
-              <YAxis tick={{ fontSize: 10, fill: "#9ca3af" }} tickFormatter={(v: number) => v.toFixed(0)} />
-              <Tooltip formatter={(value: number) => [`${value.toFixed(2)} km/h`, "Speed"]} labelFormatter={(l: number) => `${l.toFixed(1)} m`} />
-              <Line type="monotone" dataKey="v" dot={false} stroke="#38bdf8" strokeWidth={2} />
-            </LineChart>
-          </ResponsiveContainer>
+          {symmetryStepData.length ? (
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={symmetryStepData} margin={{ top: 4, right: 8, bottom: 4, left: -12 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+                <XAxis
+                  dataKey="stepNumber"
+                  tick={{ fontSize: 9, fill: "#9ca3af" }}
+                  label={{ value: "Step", position: "insideBottomRight", offset: -4, style: { fontSize: 9, fill: "#9ca3af" } }}
+                />
+                <YAxis tick={{ fontSize: 10, fill: "#9ca3af" }} tickFormatter={(v: number) => v.toFixed(0)} />
+                <Tooltip
+                  formatter={(value: number, _name, item) => [
+                    `${Number(value).toFixed(1)} N`,
+                    item?.payload?.leg === "left" ? "Left" : "Right",
+                  ]}
+                  labelFormatter={(l: number) => `Step ${l}`}
+                />
+                {symmetry?.leftPeakForce != null ? (
+                  <ReferenceLine y={symmetry.leftPeakForce} stroke="#fbbf24" strokeDasharray="3 3" strokeOpacity={0.6} />
+                ) : null}
+                {symmetry?.rightPeakForce != null ? (
+                  <ReferenceLine y={symmetry.rightPeakForce} stroke="#38bdf8" strokeDasharray="3 3" strokeOpacity={0.6} />
+                ) : null}
+                <Bar dataKey="peakForce">
+                  {symmetryStepData.map((d, i) => (
+                    <Cell key={i} fill={d.leg === "left" ? "#fbbf24" : "#38bdf8"} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <p className="text-xs text-slate-500">Could not detect distinct steps in this rep.</p>
+          )}
 
           {symmetry && (symmetry.leftSteps > 0 || symmetry.rightSteps > 0) ? (
             <div className="mt-3 grid grid-cols-2 gap-3 text-center text-[0.7rem]">
@@ -430,9 +519,7 @@ export default function SprintPerformanceCharts({ athleteId }: Props) {
                 <p className="text-slate-300">Frequency {symmetry.rightFrequency?.toFixed(2) ?? "—"} Hz</p>
               </div>
             </div>
-          ) : (
-            <p className="mt-3 text-[0.65rem] text-slate-500">Could not detect distinct steps in this rep.</p>
-          )}
+          ) : null}
         </ChartCard>
       </div>
     </section>

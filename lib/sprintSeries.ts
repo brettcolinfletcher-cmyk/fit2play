@@ -139,6 +139,15 @@ export function detectStepIndices(f: number[]): number[] {
   return peaks.filter((i) => f[i] >= threshold).sort((a, b) => a - b);
 }
 
+export type StepPeak = {
+  /** 1-indexed step number across the whole rep, in chronological order. */
+  stepNumber: number;
+  leg: "left" | "right";
+  peakForce: number;
+  x: number;
+  t: number;
+};
+
 export type SideSymmetry = {
   leftPeakForce: number | null;
   rightPeakForce: number | null;
@@ -149,6 +158,8 @@ export type SideSymmetry = {
   rightFrequency: number | null;
   leftSteps: number;
   rightSteps: number;
+  /** Per-step peak force, in chronological order and tagged by (estimated) leg — feeds the L/R overlay chart. */
+  steps: StepPeak[];
 };
 
 /**
@@ -171,6 +182,7 @@ export function estimateSideSymmetry(samples: SprintSample[], leadLeg: "left" | 
       rightFrequency: null,
       leftSteps: 0,
       rightSteps: 0,
+      steps: [],
     };
   }
 
@@ -187,12 +199,16 @@ export function estimateSideSymmetry(samples: SprintSample[], leadLeg: "left" | 
   const rightStepLens: number[] = [];
   const leftStepTimes: number[] = [];
   const rightStepTimes: number[] = [];
+  const steps: StepPeak[] = [];
 
   for (let i = 0; i < stepIdx.length; i++) {
     const idx = stepIdx[i];
     const leg = legPerStep[i];
     const force = samples[idx]?.f ?? null;
-    if (force != null) (leg === "left" ? leftForces : rightForces).push(force);
+    if (force != null) {
+      (leg === "left" ? leftForces : rightForces).push(force);
+      steps.push({ stepNumber: i + 1, leg, peakForce: force, x: samples[idx].x, t: samples[idx].t });
+    }
 
     if (i > 0) {
       const prevIdx = stepIdx[i - 1];
@@ -218,6 +234,7 @@ export function estimateSideSymmetry(samples: SprintSample[], leadLeg: "left" | 
     rightFrequency: avgFreq(rightStepTimes),
     leftSteps: leftForces.length,
     rightSteps: rightForces.length,
+    steps,
   };
 }
 
@@ -232,6 +249,8 @@ export type ForceVelocityProfile = {
   rSquared: number;
   /** True when no athlete height was available and a population-average default was used for the (small) air-resistance correction term. */
   usedDefaultHeight: boolean;
+  /** The (v, force-per-kg) samples used in the regression — decimated for chart rendering — for drawing the F-v curve. v in m/s, force in N/kg. */
+  chartPoints: { v: number; force: number }[];
 };
 
 const AIR_DENSITY = 1.2; // kg/m^3
@@ -428,11 +447,19 @@ export function computeForceVelocityProfile(
   const rSquared = ssTot > 0 ? 1 - ssRes / ssTot : 0;
   if (rSquared < MIN_FV_R_SQUARED) return null;
 
+  // Decimate to ~120 points for the chart — the raw acceleration-phase
+  // sample count (often 1000+) renders as a solid smear otherwise.
+  const stride = Math.max(1, Math.ceil(points.length / 120));
+  const chartPoints = points
+    .filter((_, i) => i % stride === 0)
+    .map((p) => ({ v: p.v, force: p.force / massKg }));
+
   return {
     f0: f0Total / massKg,
     v0,
     pmax: pmaxTotal / massKg,
     rSquared,
     usedDefaultHeight,
+    chartPoints,
   };
 }

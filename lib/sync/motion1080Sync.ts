@@ -7,6 +7,37 @@ const MAX_TIME_SERIES_SAMPLES = 2000;
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
+// 1080's own Client record field name for height hasn't been confirmed
+// against a live payload (this sandbox can't reach publicapi.1080motion.com
+// to check) — try the plausible field-name variants and normalise
+// meters-vs-centimeters heuristically. Logged once via console.log (not
+// pushed into `errors`, which would incorrectly flip sync `ok` to false)
+// so the real field name is visible in Vercel function logs if none of
+// these guesses match.
+const HEIGHT_FIELD_CANDIDATES = [
+  "height",
+  "heightCm",
+  "height_cm",
+  "Height",
+  "HeightCm",
+  "athleteHeight",
+  "stature",
+  "heightInCentimeters",
+  "heightInMeters",
+];
+
+function extractHeightCm(row: Record<string, unknown>): number | null {
+  for (const key of HEIGHT_FIELD_CANDIDATES) {
+    const raw = row[key];
+    if (raw == null) continue;
+    const n = typeof raw === "number" ? raw : typeof raw === "string" ? Number(raw) : NaN;
+    if (!Number.isFinite(n) || n <= 0) continue;
+    if (n > 1 && n < 2.5) return n * 100; // meters -> cm
+    if (n >= 50 && n <= 250) return n; // already cm
+  }
+  return null;
+}
+
 function splitAthleteName(name: string): { first_name: string; last_name: string } {
   const n = name.trim();
   const comma = n.indexOf(",");
@@ -436,11 +467,20 @@ export async function runMotion1080Sync(
     }
     const motionAthletes = asArray(await athletesRes.json());
 
+    let loggedSampleClient = false;
     for (const raw of motionAthletes) {
       if (!raw || typeof raw !== "object") continue;
       const row = raw as Record<string, unknown>;
       const extId = row.id != null ? String(row.id) : null;
       if (!extId) continue;
+
+      if (!loggedSampleClient) {
+        // One-time diagnostic — not pushed into `errors` (would flip sync
+        // `ok` to false for a non-error). Check Vercel function logs for
+        // this line if height still isn't coming across after a sync.
+        console.log("[1080 sync] sample Client record keys:", Object.keys(row).join(", "));
+        loggedSampleClient = true;
+      }
 
       const nameStr =
         typeof row.displayName === "string"
@@ -450,8 +490,18 @@ export async function runMotion1080Sync(
         ? splitAthleteName(nameStr)
         : { first_name: "", last_name: "" };
 
+      const heightCm = extractHeightCm(row);
+
       const { error: upErr } = await supabase.from("athletes").upsert(
-        { motion1080_external_id: extId, first_name: first_name || null, last_name: last_name || null },
+        {
+          motion1080_external_id: extId,
+          first_name: first_name || null,
+          last_name: last_name || null,
+          // 1080 is treated as the authoritative source for height (per
+          // Brett) — only included when found, so a sync with no match
+          // doesn't null out anything already on file.
+          ...(heightCm != null ? { height_cm: heightCm } : {}),
+        },
         { onConflict: "motion1080_external_id" }
       );
       if (upErr) errors.push(`athlete ${extId}: ${upErr.message}`);
