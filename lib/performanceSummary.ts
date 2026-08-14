@@ -196,38 +196,68 @@ function latestSessionWithMetric(
   return null;
 }
 
-// The 1080 device doesn't tag sessions with a fixed test distance — "40m
-// sprint" sessions are best identified by the actual distance recorded
-// (total_distance), tolerating a device stopping a metre or two short/long
-// of the configured 40m. But several synced sessions never got a
-// total_distance metric captured at all, so as a fallback we accept a
-// "Linear bilateral" / "Running (LR)" session by name alone (these are the
-// two 1080 protocols actually used for a full-length sprint, per Brett).
+// The 1080 device doesn't reliably tag sessions with a fixed test distance
+// or an accurate protocol name — Brett confirmed one athlete's real 40m
+// Running (LR) test synced in with test_sub_type "5-0-5 Assisted start"
+// (the sync takes exerciseName from the first rep in the raw payload, which
+// doesn't represent the whole session when multiple efforts were recorded
+// together). A whole-session min/max aggregate on total_time was also
+// pairing a 40m distance reading from one rep with a total_time from an
+// unrelated rep — physically impossible speeds. So instead of trusting
+// test_sub_type or aggregating across a whole session, we group each
+// session's rows by (rep_index, side) and only accept a total_time that's
+// paired with a total_distance within tolerance of 40 IN THAT SAME GROUP.
 const FORTY_M_TOLERANCE = 5;
 const FORTY_M_SUB_TYPE_FALLBACKS = ["linear bilateral", "running (lr)"];
 
-function latest40mSession(
+function findFortyMBySide(
   sessions: ReportSessionRow[],
   metricsBySession: Map<string, ReportMetricRow[]>
-): ReportSessionRow | null {
+): { left: number | null; right: number | null; source: ReportSessionRow | null } {
   const candidates = sessions
-    .filter((s) => isLinearSprintSession(s) && s.session_date)
+    .filter((s) => bucket(s.source) === "1080" && s.session_date)
     .sort((a, b) => new Date(b.session_date!).getTime() - new Date(a.session_date!).getTime());
 
   for (const s of candidates) {
-    const dist = metricAggregate(metricsBySession, s.id, "total_distance", "max");
-    if (dist != null && Math.abs(dist - 40) <= FORTY_M_TOLERANCE) return s;
+    const rows = metricsBySession.get(s.id) ?? [];
+    const groups = new Map<string, { distance: number | null; time: number | null; side: string | null }>();
+    for (const r of rows) {
+      if ((r.key !== "total_distance" && r.key !== "total_time") || r.value == null || !Number.isFinite(r.value)) {
+        continue;
+      }
+      const gKey = `${r.rep_index ?? "x"}|${r.side ?? ""}`;
+      const g = groups.get(gKey) ?? { distance: null, time: null, side: r.side ?? null };
+      if (r.key === "total_distance") g.distance = g.distance == null ? r.value : Math.max(g.distance, r.value);
+      if (r.key === "total_time") g.time = g.time == null ? r.value : Math.max(g.time, r.value);
+      groups.set(gKey, g);
+    }
+
+    let left: number | null = null;
+    let right: number | null = null;
+    let bilateral: number | null = null;
+    let matched = false;
+    for (const g of groups.values()) {
+      if (g.distance == null || g.time == null || Math.abs(g.distance - 40) > FORTY_M_TOLERANCE) continue;
+      matched = true;
+      const side = (g.side ?? "").toLowerCase();
+      if (side === "left") left = left == null ? g.time : Math.min(left, g.time);
+      else if (side === "right") right = right == null ? g.time : Math.min(right, g.time);
+      else bilateral = bilateral == null ? g.time : Math.min(bilateral, g.time);
+    }
+    if (matched) return { left: left ?? bilateral, right, source: s };
   }
 
-  // Fallback: no session had a confirmed ~40m distance reading (sync gap) —
-  // take the latest by-name match that actually has a time to show.
+  // Fallback: no session had any rep/side group with a confirmed ~40m
+  // distance reading (sync gap) — take the latest by-name match instead.
   for (const s of candidates) {
+    if (!isLinearSprintSession(s)) continue;
     const sub = (s.test_sub_type ?? "").toLowerCase();
     if (!FORTY_M_SUB_TYPE_FALLBACKS.some((name) => sub.includes(name))) continue;
-    if (metricAggregate(metricsBySession, s.id, "total_time", "min") != null) return s;
+    const t = metricAggregate(metricsBySession, s.id, "total_time", "min");
+    if (t != null) return { left: t, right: null, source: s };
   }
 
-  return null;
+  return { left: null, right: null, source: null };
 }
 
 /** Strips Hawkins' rep-count suffix, e.g. "Countermovement Jump:4" → "Countermovement Jump". */
@@ -328,7 +358,15 @@ export function computePerformanceSummary(
     const def = METRIC_BY_ID.get(id);
     if (!def) throw new Error(`Unknown performance summary metric id: ${id}`);
     const { target, direction } = resolveTarget(id);
-    const weaker = left != null && right != null ? Math.min(left, right) : left ?? right ?? null;
+    // "Weaker" side is whichever value is further from the target — for a
+    // higher-is-better metric (force) that's the min; for a lower-is-better
+    // metric (sprint time) the worse side is the *larger* value.
+    const weaker =
+      left != null && right != null
+        ? direction === "higher"
+          ? Math.min(left, right)
+          : Math.max(left, right)
+        : left ?? right ?? null;
     const ratio = ratioOf(weaker, target, direction);
     const tier = tierForRatio(ratio);
     const lStr = left != null ? left.toFixed(def.decimals) : "—";
@@ -363,7 +401,7 @@ export function computePerformanceSummary(
   );
   const codSession = latestSessionOf(sessions, is505Session);
   const tenMSession = latestSessionOf(sessions, isTenMAccelSession);
-  const fortyMSession = latest40mSession(sessions, metricsBySession);
+  const fortyM = findFortyMBySide(sessions, metricsBySession);
   const fiveMSession = latestSessionWithMetric(
     sessions,
     metricsBySession,
@@ -406,11 +444,7 @@ export function computePerformanceSummary(
       ),
     ]),
     withCommonSource("speed", "Speed", [
-      metric(
-        "speed_40m",
-        fortyMSession ? metricAggregate(metricsBySession, fortyMSession.id, "total_time", "min") : null,
-        fortyMSession
-      ),
+      metricLR("speed_40m", fortyM.left, fortyM.right, fortyM.source),
     ]),
     withCommonSource("accel", "Accel", [
       metric(
