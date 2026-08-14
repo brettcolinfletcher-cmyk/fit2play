@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Plus_Jakarta_Sans, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -34,6 +34,21 @@ export const metadata: Metadata = {
     images: [{ url: "/logo_full_original.png", width: 1200, height: 630 }],
     type: "website",
   },
+};
+
+// Without an explicit maximumScale, mobile Safari carries over whatever
+// pinch-zoom level was set on the PREVIOUS page across Next.js client-side
+// (SPA) navigations — a real page load resets zoom to initial-scale, but a
+// pushState-based route change does not. That's what Brett saw: dashboard
+// pages loading pre-cropped/zoomed-in until he manually pinched out to reset
+// it. Capping maximumScale at 1 makes Safari re-clamp to a real 1:1 fit on
+// every navigation instead of persisting stale zoom state. Trade-off: this
+// also disables pinch-zoom-in; acceptable here since this is an internal
+// clinician/staff tool, not a public content site.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
 };
 
 export default function RootLayout({

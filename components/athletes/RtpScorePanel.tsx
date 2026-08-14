@@ -82,7 +82,7 @@ export default function RtpScorePanel({ gauges, readiness }: Props) {
               return (
                 <div
                   key={g.key}
-                  className={`flex flex-col items-center rounded-xl px-2 py-3 text-center transition-colors ${g.isCriterion ? "" : "opacity-40"}`}
+                  className={`flex min-w-0 flex-col items-center rounded-xl px-2 py-3 text-center transition-colors ${g.isCriterion ? "" : "opacity-40"}`}
                   style={{
                     backgroundColor: "rgba(2,6,23,0.5)",
                     border: "1px solid rgba(30,41,59,0.9)",
@@ -97,7 +97,7 @@ export default function RtpScorePanel({ gauges, readiness }: Props) {
                       </span>
                     </div>
                   </div>
-                  <p className="mt-2 text-[0.72rem] font-semibold text-slate-200 leading-tight">
+                  <p className="mt-2 w-full break-words text-[0.72rem] font-semibold text-slate-200 leading-tight">
                     {g.label}
                   </p>
                   {!g.isCriterion ? (

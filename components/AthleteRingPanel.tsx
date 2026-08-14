@@ -156,7 +156,7 @@ export default function AthleteRingPanel({ metricLatest, metricPrev }: Props) {
             return (
               <div
                 key={q.key}
-                className="flex flex-col items-center rounded-xl px-2 py-3 text-center transition-colors"
+                className="flex min-w-0 flex-col items-center rounded-xl px-2 py-3 text-center transition-colors"
                 style={{
                   backgroundColor: "rgba(2,6,23,0.5)",
                   border: "1px solid rgba(30,41,59,0.9)",
@@ -174,7 +174,7 @@ export default function AthleteRingPanel({ metricLatest, metricPrev }: Props) {
                     </span>
                   </div>
                 </div>
-                <p className="mt-2 text-[0.72rem] font-semibold text-slate-200 leading-tight">
+                <p className="mt-2 w-full break-words text-[0.72rem] font-semibold text-slate-200 leading-tight">
                   {q.label}
                 </p>
                 <p className="mt-0.5 text-[0.62rem] text-slate-500">
