@@ -70,8 +70,8 @@ export function parseSprintSeriesValue(raw: unknown): SprintSample[] {
  * negative, doesn't start at 0), so distance must be the displacement from
  * first to last sample, not the max x value.
  */
-export function pickBestRep(reps: SprintRep[]): SprintRep | null {
-  let best: SprintRep | null = null;
+export function pickBestRep<T extends SprintRep>(reps: T[]): T | null {
+  let best: T | null = null;
   let bestDist = -Infinity;
   for (const rep of reps) {
     if (rep.samples.length < 2) continue;
@@ -93,8 +93,8 @@ export function pickBestRep(reps: SprintRep[]): SprintRep | null {
  * phase (real synced data includes short accel-decel drills as distinct
  * reps from the maximal-effort sprint reps).
  */
-export function pickBestDecelRep(reps: SprintRep[]): SprintRep | null {
-  let best: SprintRep | null = null;
+export function pickBestDecelRep<T extends SprintRep>(reps: T[]): T | null {
+  let best: T | null = null;
   let bestDecel = Infinity;
   for (const rep of reps) {
     if (!rep.samples.length) continue;
@@ -146,6 +146,8 @@ export type StepPeak = {
   peakForce: number;
   x: number;
   t: number;
+  /** Velocity (m/s) at the step-contact sample — lets the L/R overlay chart place a marker directly on the speed curve. */
+  v: number;
 };
 
 export type SideSymmetry = {
@@ -207,7 +209,14 @@ export function estimateSideSymmetry(samples: SprintSample[], leadLeg: "left" | 
     const force = samples[idx]?.f ?? null;
     if (force != null) {
       (leg === "left" ? leftForces : rightForces).push(force);
-      steps.push({ stepNumber: i + 1, leg, peakForce: force, x: samples[idx].x, t: samples[idx].t });
+      steps.push({
+        stepNumber: i + 1,
+        leg,
+        peakForce: force,
+        x: samples[idx].x,
+        t: samples[idx].t,
+        v: samples[idx]?.v ?? 0,
+      });
     }
 
     if (i > 0) {
@@ -290,7 +299,7 @@ export function movingAverage(values: number[], window: number): number[] {
 }
 
 /** Median sample interval → Hz. Data comes in at ~200Hz but this is derived rather than assumed, in case a device/firmware ever differs. */
-function estimateSampleRateHz(samples: SprintSample[]): number {
+export function estimateSampleRateHz(samples: SprintSample[]): number {
   if (samples.length < 3) return 0;
   const dts: number[] = [];
   for (let i = 1; i < samples.length; i++) {

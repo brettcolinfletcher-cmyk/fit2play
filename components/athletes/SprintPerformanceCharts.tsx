@@ -9,18 +9,17 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  BarChart,
-  Bar,
-  Cell,
   ComposedChart,
   Scatter,
-  ReferenceLine,
+  Cell,
+  ReferenceDot,
 } from "recharts";
 import { supabase } from "@/lib/supabaseClient";
 import {
   computeForceVelocityProfile,
+  estimateSampleRateHz,
   estimateSideSymmetry,
-  movingAverage,
+  filtfiltLowpass,
   normalizeDisplacement,
   parseSprintSeriesValue,
   pickBestDecelRep,
@@ -31,6 +30,16 @@ import {
 type Props = {
   athleteId: string;
 };
+
+type CandidateRep = SprintRep & { sessionId: string; sessionDate: string | null };
+
+// Cutoff for chart-line / fallback-stat display smoothing (Speed/Acceleration
+// /Deceleration). Separate from the Force-Velocity profile's 1Hz cutoff,
+// which was tuned specifically for regression cleanliness — this one is
+// tuned to look like 1080's own "Smooth"/"Steps" view without blunting the
+// acceleration phase's early peak. See lib/sprintSeries.ts MIN_FV_R_SQUARED
+// for the FV-specific verification.
+const CHART_LOWPASS_HZ = 2.0;
 
 const cardStyle: React.CSSProperties = {
   backgroundColor: "rgba(2,6,23,0.5)",
@@ -72,15 +81,46 @@ function ChartCard({
   );
 }
 
+type SideCompare = { lowerSide: "left" | "right"; pct: number; diff: number; unit: string } | null;
+
+function compareSides(left: number | null, right: number | null, unit: string): SideCompare {
+  if (left == null || right == null) return null;
+  if (left === right) return { lowerSide: "left", pct: 0, diff: 0, unit };
+  const lowerSide = left < right ? "left" : "right";
+  const lowerVal = Math.min(left, right);
+  const higherVal = Math.max(left, right);
+  const diff = higherVal - lowerVal;
+  const pct = higherVal !== 0 ? (diff / higherVal) * 100 : 0;
+  return { lowerSide, pct, diff, unit };
+}
+
+function SideCompareRow({ label, cmp }: { label: string; cmp: SideCompare }) {
+  if (!cmp) return null;
+  const lowerLabel = cmp.lowerSide === "left" ? "Left" : "Right";
+  const higherLabel = cmp.lowerSide === "left" ? "Right" : "Left";
+  const dotColor = cmp.lowerSide === "left" ? "#fbbf24" : "#38bdf8";
+  return (
+    <div className="flex items-center gap-2 text-[0.68rem] text-slate-300">
+      <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: dotColor }} />
+      <span className="text-slate-500">{label}:</span>
+      <span>
+        {lowerLabel} {cmp.pct.toFixed(1)}% lower than {higherLabel} ({cmp.diff.toFixed(2)} {cmp.unit})
+      </span>
+    </div>
+  );
+}
+
 /**
  * Recreates 1080 Motion's own Speed / Acceleration / Deceleration / Symmetry
  * report charts (Brett's reference: 1080's PDF export) using the per-sample
  * time-series data already synced into sprint_time_series, plus a
  * simplified Force-Velocity-Power profile (Samozino et al. 2016 method).
  *
- * Self-fetches: latest 1080 session with time-series data, its raw samples,
- * and athlete mass/height (falling back to a mass derived from the latest
- * Hawkins CMJ system weight when athletes.weight_kg isn't populated).
+ * Self-fetches: the best 1080 sprint effort across the athlete's recent
+ * sessions (not just the latest session — see the rep-selection comment
+ * below for why), and athlete mass/height (falling back to a mass derived
+ * from the latest Hawkins CMJ system weight when athletes.weight_kg isn't
+ * populated).
  */
 export default function SprintPerformanceCharts({ athleteId }: Props) {
   const [loading, setLoading] = useState(true);
@@ -92,9 +132,9 @@ export default function SprintPerformanceCharts({ athleteId }: Props) {
   const [heightCm, setHeightCm] = useState<number | null>(null);
   // Whole-session values already computed by the 1080 sync — preferred over
   // deriving from raw per-sample data for the headline stat tiles, since
-  // the raw acceleration channel is noisy (verified against real data; see
-  // MIN_FV_R_SQUARED in lib/sprintSeries.ts). Chart lines still use the raw
-  // samples (lightly smoothed for display), just not the summary numbers.
+  // the raw acceleration/velocity channels are noisy (verified against real
+  // data; see MIN_FV_R_SQUARED in lib/sprintSeries.ts). Chart lines use the
+  // raw samples (filtered for display), just not the summary numbers.
   const [sessionTopSpeedKmh, setSessionTopSpeedKmh] = useState<number | null>(null);
   const [sessionMaxAccel, setSessionMaxAccel] = useState<number | null>(null);
   const [sessionMaxDecel, setSessionMaxDecel] = useState<number | null>(null);
@@ -115,7 +155,7 @@ export default function SprintPerformanceCharts({ athleteId }: Props) {
       // manually typed profile weight, which may be stale or self-reported.
       // Falls back to athletes.weight_kg only when no CMJ test is on file.
       let mass: number | null = null;
-      let massSource: "hawkins" | "profile" | null = null;
+      let massSourceVal: "hawkins" | "profile" | null = null;
 
       const { data: cmjSessions } = await supabase
         .from("sessions")
@@ -137,44 +177,65 @@ export default function SprintPerformanceCharts({ athleteId }: Props) {
           : null;
         if (weightN != null && Number.isFinite(weightN)) {
           mass = weightN / 9.81; // N -> kg
-          massSource = "hawkins";
+          massSourceVal = "hawkins";
         }
       }
       if (mass == null && athlete?.weight_kg != null) {
         mass = Number(athlete.weight_kg);
-        massSource = "profile";
+        massSourceVal = "profile";
       }
 
       const { data: sessions } = await supabase
         .from("sessions")
-        .select("id, session_date, test_sub_type")
+        .select("id, session_date")
         .eq("athlete_id", athleteId)
         .eq("source", "1080")
         .order("session_date", { ascending: false })
+        .order("id", { ascending: false })
         .limit(10);
 
-      let reps: SprintRep[] = [];
-      let label: string | null = null;
-      let chosenSessionId: string | null = null;
+      // Gather reps from every recent session and pick the best one by net
+      // displacement across ALL of them, instead of trusting "the latest
+      // session" alone. Two real bugs made that unsafe: (1) session_date has
+      // no time component, so same-day 1080 sessions can tie in sort order
+      // with no reliable winner, and (2) 1080's own test_sub_type label is
+      // unreliable — the sync takes it from the first rep in a session, so a
+      // session containing a real 40m sprint can get mislabeled as something
+      // else entirely. Picking at the rep level (like findFortyMBySide in
+      // lib/performanceSummary.ts) sidesteps both. Confirmed against real
+      // data: this is exactly what caused a wrong "Top Speed" (18.09 km/h
+      // instead of the true 25.86 km/h) for one athlete in Aug 2026.
+      const candidateReps: CandidateRep[] = [];
       for (const s of sessions ?? []) {
         const { data: seriesRows } = await supabase
           .from("sprint_time_series")
           .select("rep_index, series")
           .eq("session_id", s.id as string);
-        if (!seriesRows?.length) continue;
-        const parsed = seriesRows
-          .map((r) => ({
-            repIndex: r.rep_index as number | null,
-            samples: parseSprintSeriesValue(r.series),
-          }))
-          .filter((r) => r.samples.length > 1);
-        if (parsed.length) {
-          reps = parsed;
-          label = s.session_date ? new Date(s.session_date as string).toLocaleDateString("en-AU") : null;
-          chosenSessionId = s.id as string;
-          break;
+        for (const r of seriesRows ?? []) {
+          const samples = parseSprintSeriesValue(r.series);
+          if (samples.length > 1) {
+            candidateReps.push({
+              repIndex: r.rep_index as number | null,
+              samples,
+              sessionId: s.id as string,
+              sessionDate: (s.session_date as string | null) ?? null,
+            });
+          }
         }
+        // Stop once a clearly-real sprint effort has been found (net
+        // displacement >= 20m) — keeps this fast in the common case while
+        // still scanning further back when the latest session(s) turn out
+        // to be short drills/blips with no real sprint in them.
+        const hasRealEffort = candidateReps.some(
+          (r) => r.samples.length > 1 && Math.abs(r.samples[r.samples.length - 1].x - r.samples[0].x) >= 20
+        );
+        if (hasRealEffort) break;
       }
+
+      const best = pickBestRep(candidateReps);
+      const decel = pickBestDecelRep(candidateReps);
+      const chosenSessionId = best?.sessionId ?? null;
+      const label = best?.sessionDate ? new Date(best.sessionDate).toLocaleDateString("en-AU") : null;
 
       let topSpeedKmh: number | null = null;
       let maxAccel: number | null = null;
@@ -200,13 +261,11 @@ export default function SprintPerformanceCharts({ athleteId }: Props) {
 
       if (cancelled) return;
 
-      const best = pickBestRep(reps);
-      const decel = pickBestDecelRep(reps);
-      setBestRep(best ? { ...best, samples: normalizeDisplacement(best.samples) } : null);
-      setDecelRep(decel ? { ...decel, samples: normalizeDisplacement(decel.samples) } : null);
+      setBestRep(best ? { repIndex: best.repIndex, samples: normalizeDisplacement(best.samples) } : null);
+      setDecelRep(decel ? { repIndex: decel.repIndex, samples: normalizeDisplacement(decel.samples) } : null);
       setSessionLabel(label);
       setMassKg(mass);
-      setMassSource(massSource);
+      setMassSource(massSourceVal);
       setHeightCm(athlete?.height_cm != null ? Number(athlete.height_cm) : null);
       setSessionTopSpeedKmh(topSpeedKmh);
       setSessionMaxAccel(maxAccel);
@@ -218,23 +277,57 @@ export default function SprintPerformanceCharts({ athleteId }: Props) {
     };
   }, [athleteId]);
 
-  // Raw per-sample acceleration is noisy — smooth it for the chart line
-  // (matches 1080's own app, which defaults to a "Smooth" view for the same
-  // reason). Stat tiles below prefer the session's own computed value.
+  // Zero-phase low-pass filtered velocity — used for the Speed chart line
+  // and as the fallback source for Top Speed / Max Accel / Max Decel when
+  // the device's own session-level metric isn't available. Raw per-sample
+  // velocity is noisy (verified against real data — see MIN_FV_R_SQUARED in
+  // lib/sprintSeries.ts): an unfiltered max(v) overstates top speed by
+  // ~9% from sample jitter alone.
+  const bestSampleRateHz = useMemo(() => (bestRep ? estimateSampleRateHz(bestRep.samples) : 0), [bestRep]);
+  const decelSampleRateHz = useMemo(() => (decelRep ? estimateSampleRateHz(decelRep.samples) : 0), [decelRep]);
+
+  const smoothedSpeed = useMemo(
+    () =>
+      bestRep && bestSampleRateHz > 0
+        ? filtfiltLowpass(bestRep.samples.map((s) => s.v), CHART_LOWPASS_HZ, bestSampleRateHz)
+        : bestRep?.samples.map((s) => s.v) ?? [],
+    [bestRep, bestSampleRateHz]
+  );
   const smoothedAccel = useMemo(
-    () => (bestRep ? movingAverage(bestRep.samples.map((s) => s.a), 15) : []),
-    [bestRep]
+    () =>
+      bestRep && bestSampleRateHz > 0
+        ? filtfiltLowpass(bestRep.samples.map((s) => s.a), CHART_LOWPASS_HZ, bestSampleRateHz)
+        : bestRep?.samples.map((s) => s.a) ?? [],
+    [bestRep, bestSampleRateHz]
   );
   const smoothedDecelSpeed = useMemo(
-    () => (decelRep ? movingAverage(decelRep.samples.map((s) => s.v), 15) : []),
-    [decelRep]
+    () =>
+      decelRep && decelSampleRateHz > 0
+        ? filtfiltLowpass(decelRep.samples.map((s) => s.v), CHART_LOWPASS_HZ, decelSampleRateHz)
+        : decelRep?.samples.map((s) => s.v) ?? [],
+    [decelRep, decelSampleRateHz]
   );
   const smoothedDecelAccel = useMemo(
-    () => (decelRep ? movingAverage(decelRep.samples.map((s) => s.a), 15) : []),
-    [decelRep]
+    () =>
+      decelRep && decelSampleRateHz > 0
+        ? filtfiltLowpass(decelRep.samples.map((s) => s.a), CHART_LOWPASS_HZ, decelSampleRateHz)
+        : decelRep?.samples.map((s) => s.a) ?? [],
+    [decelRep, decelSampleRateHz]
   );
 
-  const speedData = useMemo(
+  // Speed chart (smoothed, matches 1080's own default "Smooth" view — a
+  // clean rising curve). The Symmetry chart below deliberately reuses the
+  // RAW, unsmoothed velocity instead, since 1080's own Symmetry view shows
+  // the step-to-step oscillation rather than hiding it.
+  const speedChartData = useMemo(
+    () =>
+      bestRep?.samples.map((s, i) => ({
+        x: Math.round(s.x * 10) / 10,
+        v: Math.round(smoothedSpeed[i] * 3.6 * 100) / 100,
+      })) ?? [],
+    [bestRep, smoothedSpeed]
+  );
+  const rawSpeedData = useMemo(
     () => bestRep?.samples.map((s) => ({ x: Math.round(s.x * 10) / 10, v: Math.round(s.v * 3.6 * 100) / 100 })) ?? [],
     [bestRep]
   );
@@ -256,13 +349,89 @@ export default function SprintPerformanceCharts({ athleteId }: Props) {
   );
 
   const totalTime = bestRep?.samples.length ? bestRep.samples[bestRep.samples.length - 1].t : null;
-  const topSpeedKmh =
-    sessionTopSpeedKmh ?? (bestRep?.samples.length ? Math.max(...bestRep.samples.map((s) => s.v)) * 3.6 : null);
+  const topSpeedKmh = sessionTopSpeedKmh ?? (smoothedSpeed.length ? Math.max(...smoothedSpeed) * 3.6 : null);
   const maxAccel = sessionMaxAccel ?? (smoothedAccel.length ? Math.max(...smoothedAccel) : null);
   const maxDecel =
     sessionMaxDecel ?? (smoothedDecelAccel.length ? Math.abs(Math.min(...smoothedDecelAccel)) : null);
 
+  // Where to draw the Speed chart's top-speed marker dot — x-position comes
+  // from the local smoothed curve's own peak, y-value from the authoritative
+  // topSpeedKmh (device metric when available).
+  const topSpeedPoint = useMemo(() => {
+    if (!bestRep || !smoothedSpeed.length || topSpeedKmh == null) return null;
+    let idx = 0;
+    for (let i = 1; i < smoothedSpeed.length; i++) {
+      if (smoothedSpeed[i] > smoothedSpeed[idx]) idx = i;
+    }
+    return { x: Math.round(bestRep.samples[idx].x * 10) / 10, v: Math.round(topSpeedKmh * 100) / 100 };
+  }, [bestRep, smoothedSpeed, topSpeedKmh]);
+
+  // 1080's own Acceleration view zooms into just the acceleration phase
+  // (peak accel happens almost immediately, then decays over a much shorter
+  // distance than the whole sprint) rather than showing the full run —
+  // matched here by cropping to where the smoothed curve has decayed to
+  // 25% of its peak, instead of a hardcoded distance.
+  const accelXMax = useMemo(() => {
+    if (!accelData.length) return undefined;
+    let peakIdx = 0;
+    for (let i = 1; i < accelData.length; i++) {
+      if (accelData[i].a > accelData[peakIdx].a) peakIdx = i;
+    }
+    const peakVal = accelData[peakIdx].a;
+    if (!(peakVal > 0)) return undefined;
+    const threshold = peakVal * 0.25;
+    let cutIdx = accelData.length - 1;
+    for (let i = peakIdx; i < accelData.length; i++) {
+      if (accelData[i].a <= threshold) {
+        cutIdx = i;
+        break;
+      }
+    }
+    const xAtCut = accelData[cutIdx]?.x ?? accelData[accelData.length - 1].x;
+    return Math.max(2, Math.ceil(xAtCut * 1.15));
+  }, [accelData]);
+
   const symmetry = useMemo(() => (bestRep ? estimateSideSymmetry(bestRep.samples) : null), [bestRep]);
+
+  const symmetryStepPoints = useMemo(
+    () =>
+      symmetry?.steps.map((s) => ({
+        x: Math.round(s.x * 10) / 10,
+        v: Math.round(s.v * 3.6 * 100) / 100,
+        leg: s.leg,
+      })) ?? [],
+    [symmetry]
+  );
+
+  const symmetryOverview = useMemo(() => {
+    if (!symmetry || !symmetry.steps.length) return null;
+    const allForces = symmetry.steps.map((s) => s.peakForce);
+    const avgPeakForce = allForces.reduce((a, b) => a + b, 0) / allForces.length;
+
+    const totalSteps = symmetry.leftSteps + symmetry.rightSteps;
+    const weightedAvg = (left: number | null, right: number | null) => {
+      if (left != null && right != null && totalSteps > 0) {
+        return (left * symmetry.leftSteps + right * symmetry.rightSteps) / totalSteps;
+      }
+      return left ?? right ?? null;
+    };
+    const avgStepLength = weightedAvg(symmetry.leftStepLength, symmetry.rightStepLength);
+    const avgFrequency = weightedAvg(symmetry.leftFrequency, symmetry.rightFrequency);
+
+    const first = symmetry.steps[0];
+    const last = symmetry.steps[symmetry.steps.length - 1];
+    const totalDistance = Math.abs(last.x - first.x);
+
+    return {
+      avgPeakForce,
+      avgStepLength,
+      avgFrequency,
+      totalDistance,
+      peakForceCompare: compareSides(symmetry.leftPeakForce, symmetry.rightPeakForce, "N"),
+      stepLengthCompare: compareSides(symmetry.leftStepLength, symmetry.rightStepLength, "m"),
+      frequencyCompare: compareSides(symmetry.leftFrequency, symmetry.rightFrequency, "Hz"),
+    };
+  }, [symmetry]);
 
   const fvProfile = useMemo(
     () => (bestRep ? computeForceVelocityProfile(bestRep.samples, massKg, heightCm) : null),
@@ -282,11 +451,6 @@ export default function SprintPerformanceCharts({ athleteId }: Props) {
     const maxV = Math.max(fvProfile.v0 * 3.6, ...scatter.map((p) => p.v), 1);
     return { scatter, line, maxV };
   }, [fvProfile]);
-
-  const symmetryStepData = useMemo(
-    () => symmetry?.steps.map((s) => ({ stepNumber: s.stepNumber, leg: s.leg, peakForce: Math.round(s.peakForce * 10) / 10 })) ?? [],
-    [symmetry]
-  );
 
   if (loading) return null;
   if (!bestRep) return null;
@@ -315,10 +479,12 @@ export default function SprintPerformanceCharts({ athleteId }: Props) {
           }
         >
           <ResponsiveContainer width="100%" height={200}>
-            <LineChart data={speedData}>
+            <LineChart data={speedChartData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
               <XAxis
                 dataKey="x"
+                type="number"
+                domain={[0, "dataMax"]}
                 tick={{ fontSize: 10, fill: "#9ca3af" }}
                 label={{ value: "Position (m)", position: "insideBottomRight", offset: -4, style: { fontSize: 10, fill: "#9ca3af" } }}
               />
@@ -327,7 +493,10 @@ export default function SprintPerformanceCharts({ athleteId }: Props) {
                 formatter={(value: number) => [`${value.toFixed(2)} km/h`, "Speed"]}
                 labelFormatter={(l: number) => `${l.toFixed(1)} m`}
               />
-              <Line type="monotone" dataKey="v" dot={false} stroke="#f87171" strokeWidth={2} />
+              <Line type="monotone" dataKey="v" dot={false} stroke="#f87171" strokeWidth={2} isAnimationActive={false} />
+              {topSpeedPoint ? (
+                <ReferenceDot x={topSpeedPoint.x} y={topSpeedPoint.v} r={4} fill="#ef4444" stroke="#fecaca" strokeWidth={1} />
+              ) : null}
             </LineChart>
           </ResponsiveContainer>
 
@@ -419,6 +588,7 @@ export default function SprintPerformanceCharts({ athleteId }: Props) {
 
         <ChartCard
           title="Acceleration"
+          subtitle="Zoomed to the acceleration phase"
           stats={<StatTile label="Max Acceleration" value={maxAccel != null ? `${maxAccel.toFixed(2)} m/s²` : "—"} />}
         >
           <ResponsiveContainer width="100%" height={200}>
@@ -426,6 +596,8 @@ export default function SprintPerformanceCharts({ athleteId }: Props) {
               <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
               <XAxis
                 dataKey="x"
+                type="number"
+                domain={[0, accelXMax ?? "dataMax"]}
                 tick={{ fontSize: 10, fill: "#9ca3af" }}
                 label={{ value: "Position (m)", position: "insideBottomRight", offset: -4, style: { fontSize: 10, fill: "#9ca3af" } }}
               />
@@ -434,7 +606,7 @@ export default function SprintPerformanceCharts({ athleteId }: Props) {
                 formatter={(value: number) => [`${value.toFixed(2)} m/s²`, "Acceleration"]}
                 labelFormatter={(l: number) => `${l.toFixed(1)} m`}
               />
-              <Line type="monotone" dataKey="a" dot={false} stroke="#a3e635" strokeWidth={2} />
+              <Line type="monotone" dataKey="a" dot={false} stroke="#a3e635" strokeWidth={2} isAnimationActive={false} />
             </LineChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -458,7 +630,7 @@ export default function SprintPerformanceCharts({ athleteId }: Props) {
                   formatter={(value: number) => [`${value.toFixed(2)} km/h`, "Speed"]}
                   labelFormatter={(l: number) => `${l.toFixed(2)} s`}
                 />
-                <Line type="monotone" dataKey="v" dot={false} stroke="#f87171" strokeWidth={2} strokeDasharray="4 3" />
+                <Line type="monotone" dataKey="v" dot={false} stroke="#f87171" strokeWidth={2} strokeDasharray="4 3" isAnimationActive={false} />
               </LineChart>
             </ResponsiveContainer>
           ) : (
@@ -468,41 +640,70 @@ export default function SprintPerformanceCharts({ athleteId }: Props) {
 
         <ChartCard
           title="Symmetry"
-          subtitle="Peak force per step, left vs right — estimated from step detection, not a direct 1080 measurement"
+          subtitle="Left vs right, estimated from step detection — not a direct 1080 measurement"
         >
-          {symmetryStepData.length ? (
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={symmetryStepData} margin={{ top: 4, right: 8, bottom: 4, left: -12 }}>
+          {rawSpeedData.length ? (
+            <ResponsiveContainer width="100%" height={190}>
+              <ComposedChart margin={{ top: 4, right: 8, bottom: 4, left: -12 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
                 <XAxis
-                  dataKey="stepNumber"
-                  tick={{ fontSize: 9, fill: "#9ca3af" }}
-                  label={{ value: "Step", position: "insideBottomRight", offset: -4, style: { fontSize: 9, fill: "#9ca3af" } }}
+                  dataKey="x"
+                  type="number"
+                  domain={[0, "dataMax"]}
+                  tick={{ fontSize: 10, fill: "#9ca3af" }}
+                  label={{ value: "Position (m)", position: "insideBottomRight", offset: -4, style: { fontSize: 10, fill: "#9ca3af" } }}
                 />
                 <YAxis tick={{ fontSize: 10, fill: "#9ca3af" }} tickFormatter={(v: number) => v.toFixed(0)} />
                 <Tooltip
-                  formatter={(value: number, _name, item) => [
-                    `${Number(value).toFixed(1)} N`,
-                    item?.payload?.leg === "left" ? "Left" : "Right",
-                  ]}
-                  labelFormatter={(l: number) => `Step ${l}`}
+                  formatter={(value: number) => [`${Number(value).toFixed(2)} km/h`, "Speed"]}
+                  labelFormatter={(l: number) => `${Number(l).toFixed(1)} m`}
                 />
-                {symmetry?.leftPeakForce != null ? (
-                  <ReferenceLine y={symmetry.leftPeakForce} stroke="#fbbf24" strokeDasharray="3 3" strokeOpacity={0.6} />
-                ) : null}
-                {symmetry?.rightPeakForce != null ? (
-                  <ReferenceLine y={symmetry.rightPeakForce} stroke="#38bdf8" strokeDasharray="3 3" strokeOpacity={0.6} />
-                ) : null}
-                <Bar dataKey="peakForce">
-                  {symmetryStepData.map((d, i) => (
-                    <Cell key={i} fill={d.leg === "left" ? "#fbbf24" : "#38bdf8"} />
+                <Line data={rawSpeedData} type="monotone" dataKey="v" dot={false} stroke="#38bdf8" strokeWidth={1.25} isAnimationActive={false} />
+                <Scatter data={symmetryStepPoints} dataKey="v">
+                  {symmetryStepPoints.map((d, i) => (
+                    <Cell key={i} fill={d.leg === "left" ? "#fbbf24" : "#0f172a"} stroke={d.leg === "left" ? "#fbbf24" : "#38bdf8"} r={3} />
                   ))}
-                </Bar>
-              </BarChart>
+                </Scatter>
+              </ComposedChart>
             </ResponsiveContainer>
           ) : (
             <p className="text-xs text-slate-500">Could not detect distinct steps in this rep.</p>
           )}
+
+          {symmetryOverview ? (
+            <div className="mt-3 grid grid-cols-2 gap-2 text-center text-[0.68rem]">
+              <div className="rounded-lg p-2" style={cardStyle}>
+                <p className="text-slate-500">Average peak force</p>
+                <p className="font-bold tabular-nums text-slate-50">{symmetryOverview.avgPeakForce.toFixed(1)} N</p>
+              </div>
+              <div className="rounded-lg p-2" style={cardStyle}>
+                <p className="text-slate-500">Average step length</p>
+                <p className="font-bold tabular-nums text-slate-50">
+                  {symmetryOverview.avgStepLength?.toFixed(2) ?? "—"} m
+                </p>
+              </div>
+              <div className="rounded-lg p-2" style={cardStyle}>
+                <p className="text-slate-500">Total distance</p>
+                <p className="font-bold tabular-nums text-slate-50">{symmetryOverview.totalDistance.toFixed(2)} m</p>
+              </div>
+              <div className="rounded-lg p-2" style={cardStyle}>
+                <p className="text-slate-500">Average frequency</p>
+                <p className="font-bold tabular-nums text-slate-50">
+                  {symmetryOverview.avgFrequency?.toFixed(2) ?? "—"} Hz
+                </p>
+              </div>
+            </div>
+          ) : null}
+
+          {symmetryOverview &&
+          (symmetryOverview.peakForceCompare || symmetryOverview.stepLengthCompare || symmetryOverview.frequencyCompare) ? (
+            <div className="mt-3 space-y-1.5 rounded-lg p-2" style={cardStyle}>
+              <p className="text-[0.62rem] font-semibold uppercase tracking-wide text-slate-400">Side comparison</p>
+              <SideCompareRow label="Peak force" cmp={symmetryOverview.peakForceCompare} />
+              <SideCompareRow label="Step length" cmp={symmetryOverview.stepLengthCompare} />
+              <SideCompareRow label="Frequency" cmp={symmetryOverview.frequencyCompare} />
+            </div>
+          ) : null}
 
           {symmetry && (symmetry.leftSteps > 0 || symmetry.rightSteps > 0) ? (
             <div className="mt-3 grid grid-cols-2 gap-3 text-center text-[0.7rem]">
