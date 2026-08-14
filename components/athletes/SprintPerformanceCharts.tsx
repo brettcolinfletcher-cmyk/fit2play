@@ -82,7 +82,7 @@ export default function SprintPerformanceCharts({ athleteId }: Props) {
   const [bestRep, setBestRep] = useState<SprintRep | null>(null);
   const [decelRep, setDecelRep] = useState<SprintRep | null>(null);
   const [massKg, setMassKg] = useState<number | null>(null);
-  const [massIsEstimated, setMassIsEstimated] = useState(false);
+  const [massSource, setMassSource] = useState<"hawkins" | "profile" | null>(null);
   const [heightCm, setHeightCm] = useState<number | null>(null);
   // Whole-session values already computed by the 1080 sync — preferred over
   // deriving from raw per-sample data for the headline stat tiles, since
@@ -104,32 +104,39 @@ export default function SprintPerformanceCharts({ athleteId }: Props) {
         .eq("id", athleteId)
         .maybeSingle();
 
-      let mass = athlete?.weight_kg != null ? Number(athlete.weight_kg) : null;
-      let estimated = false;
-      if (mass == null) {
-        const { data: cmjSessions } = await supabase
-          .from("sessions")
-          .select("id, session_date")
-          .eq("athlete_id", athleteId)
-          .eq("source", "hawkins")
-          .eq("test_type", "force_plate_cmj")
-          .order("session_date", { ascending: false })
-          .limit(1);
-        const cmjId = cmjSessions?.[0]?.id as string | undefined;
-        if (cmjId) {
-          const { data: weightRows } = await supabase
-            .from("metrics")
-            .select("value")
-            .eq("session_id", cmjId)
-            .eq("key", "fp_system_weight");
-          const weightN = weightRows?.length
-            ? Math.max(...weightRows.map((r) => Number(r.value)).filter((v) => Number.isFinite(v)))
-            : null;
-          if (weightN != null && Number.isFinite(weightN)) {
-            mass = weightN / 9.81; // N -> kg
-            estimated = true;
-          }
+      // Hawkins force-plate system weight (recorded at the start of a CMJ
+      // test) is a direct force-plate measurement — preferred over a
+      // manually typed profile weight, which may be stale or self-reported.
+      // Falls back to athletes.weight_kg only when no CMJ test is on file.
+      let mass: number | null = null;
+      let massSource: "hawkins" | "profile" | null = null;
+
+      const { data: cmjSessions } = await supabase
+        .from("sessions")
+        .select("id, session_date")
+        .eq("athlete_id", athleteId)
+        .eq("source", "hawkins")
+        .eq("test_type", "force_plate_cmj")
+        .order("session_date", { ascending: false })
+        .limit(1);
+      const cmjId = cmjSessions?.[0]?.id as string | undefined;
+      if (cmjId) {
+        const { data: weightRows } = await supabase
+          .from("metrics")
+          .select("value")
+          .eq("session_id", cmjId)
+          .eq("key", "fp_system_weight");
+        const weightN = weightRows?.length
+          ? Math.max(...weightRows.map((r) => Number(r.value)).filter((v) => Number.isFinite(v)))
+          : null;
+        if (weightN != null && Number.isFinite(weightN)) {
+          mass = weightN / 9.81; // N -> kg
+          massSource = "hawkins";
         }
+      }
+      if (mass == null && athlete?.weight_kg != null) {
+        mass = Number(athlete.weight_kg);
+        massSource = "profile";
       }
 
       const { data: sessions } = await supabase
@@ -193,7 +200,7 @@ export default function SprintPerformanceCharts({ athleteId }: Props) {
       setDecelRep(decel ? { ...decel, samples: normalizeDisplacement(decel.samples) } : null);
       setSessionLabel(label);
       setMassKg(mass);
-      setMassIsEstimated(estimated);
+      setMassSource(massSource);
       setHeightCm(athlete?.height_cm != null ? Number(athlete.height_cm) : null);
       setSessionTopSpeedKmh(topSpeedKmh);
       setSessionMaxAccel(maxAccel);
@@ -321,17 +328,17 @@ export default function SprintPerformanceCharts({ athleteId }: Props) {
                   <p className="text-sm font-bold tabular-nums text-slate-50">{fvProfile.pmax.toFixed(1)} W/kg</p>
                 </div>
               </div>
-              {massIsEstimated || fvProfile.usedDefaultHeight ? (
+              {massSource === "hawkins" || fvProfile.usedDefaultHeight ? (
                 <p className="mt-2 text-[0.6rem] text-slate-500">
-                  {massIsEstimated ? "Mass estimated from Hawkins CMJ system weight. " : ""}
+                  {massSource === "hawkins" ? "Mass from Hawkins CMJ force plate (system weight). " : ""}
                   {fvProfile.usedDefaultHeight ? "Height not on file — using a population average (175cm) for the air-resistance correction." : ""}
                 </p>
               ) : null}
             </div>
           ) : massKg == null ? (
             <p className="mt-3 text-[0.65rem] text-slate-500">
-              Force-Velocity Profile needs athlete body mass — add it on the athlete profile, or record a Hawkins
-              CMJ test, to unlock this.
+              Force-Velocity Profile needs athlete body mass — record a Hawkins CMJ test (preferred, measured on the
+              force plate), or add body mass on the athlete profile, to unlock this.
             </p>
           ) : (
             <p className="mt-3 text-[0.65rem] text-slate-500">

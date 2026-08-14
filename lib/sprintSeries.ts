@@ -239,20 +239,22 @@ const DRAG_COEFFICIENT = 0.9; // dimensionless, standard sprint-running assumpti
 const DEFAULT_HEIGHT_M = 1.75;
 
 /**
- * A fit below this R² isn't trustworthy enough to show as a number —
- * verified against real synced data: the device's raw per-sample
- * acceleration is too noisy to regress directly (R² ~0.01-0.02 even after
- * moderate smoothing), which is presumably why 1080's own app offers a
- * "Smooth" view rather than plotting raw values. A genuinely clean single
- * maximal-effort sprint should fit well above this bar (Samozino et al.
- * report R² > 0.95 typically); below it, the underlying rep likely mixes
- * multiple efforts/segments rather than one continuous sprint.
+ * A fit below this R² isn't trustworthy enough to show as a number. Verified
+ * against Adam Radi's real synced 40m rep (confirmed clean single effort —
+ * total_distance/total_time both matched to that rep, 200Hz, 6.606s, 40.0m):
+ * a centred moving average tops out around R²=0.54 no matter the window
+ * size, but a proper zero-phase Butterworth low-pass (see filtfiltLowpass)
+ * with a cutoff below sprint stride frequency recovers R²>0.9 with
+ * physically sane F0/V0/Pmax. So a low R² here means the specific rep's
+ * signal doesn't support a clean fit (e.g. it mixes multiple efforts) —
+ * not that the filtering gave up too early.
  */
 export const MIN_FV_R_SQUARED = 0.85;
 
-const SMOOTH_WINDOW = 21;
+/** Cutoff for the Force-Velocity profile's velocity smoothing — well below sprint stride frequency (~3-4 Hz) so step-to-step force oscillation is removed but the accel/decel trend survives. */
+const FV_LOWPASS_CUTOFF_HZ = 1.0;
 
-/** Centred moving average — used to denoise velocity before differentiating for acceleration. */
+/** Centred moving average — used for chart-line display smoothing (Acceleration/Deceleration lines). */
 export function movingAverage(values: number[], window: number): number[] {
   const half = Math.floor(window / 2);
   const out = new Array(values.length);
@@ -266,6 +268,73 @@ export function movingAverage(values: number[], window: number): number[] {
     out[i] = sum / count;
   }
   return out;
+}
+
+/** Median sample interval → Hz. Data comes in at ~200Hz but this is derived rather than assumed, in case a device/firmware ever differs. */
+function estimateSampleRateHz(samples: SprintSample[]): number {
+  if (samples.length < 3) return 0;
+  const dts: number[] = [];
+  for (let i = 1; i < samples.length; i++) {
+    const dt = samples[i].t - samples[i - 1].t;
+    if (dt > 0) dts.push(dt);
+  }
+  if (!dts.length) return 0;
+  dts.sort((a, b) => a - b);
+  const medianDt = dts[Math.floor(dts.length / 2)];
+  return medianDt > 0 ? 1 / medianDt : 0;
+}
+
+type BiquadCoeffs = { b0: number; b1: number; b2: number; a1: number; a2: number };
+
+/** RBJ-cookbook low-pass biquad, Q=1/√2 (maximally flat / Butterworth response). */
+function biquadLowpassCoeffs(cutoffHz: number, sampleRateHz: number): BiquadCoeffs {
+  const Q = Math.SQRT1_2;
+  const w0 = (2 * Math.PI * cutoffHz) / sampleRateHz;
+  const alpha = Math.sin(w0) / (2 * Q);
+  const cosw0 = Math.cos(w0);
+  const a0 = 1 + alpha;
+  return {
+    b0: (1 - cosw0) / 2 / a0,
+    b1: (1 - cosw0) / a0,
+    b2: (1 - cosw0) / 2 / a0,
+    a1: (-2 * cosw0) / a0,
+    a2: (1 - alpha) / a0,
+  };
+}
+
+function applyBiquad(values: number[], c: BiquadCoeffs): number[] {
+  const out = new Array(values.length);
+  let x1 = 0;
+  let x2 = 0;
+  let y1 = 0;
+  let y2 = 0;
+  for (let i = 0; i < values.length; i++) {
+    const xi = values[i];
+    const yi = c.b0 * xi + c.b1 * x1 + c.b2 * x2 - c.a1 * y1 - c.a2 * y2;
+    out[i] = yi;
+    x2 = x1;
+    x1 = xi;
+    y2 = y1;
+    y1 = yi;
+  }
+  return out;
+}
+
+/**
+ * Zero-phase 2nd-order Butterworth low-pass ("filtfilt" — forward pass then
+ * a reversed backward pass, cancelling phase lag) used to denoise velocity
+ * before differentiating for acceleration in the Force-Velocity regression.
+ * Chosen over a plain moving average after verifying against real synced
+ * data — see MIN_FV_R_SQUARED for the comparison.
+ */
+export function filtfiltLowpass(values: number[], cutoffHz: number, sampleRateHz: number): number[] {
+  if (values.length < 4 || !(sampleRateHz > 0) || !(cutoffHz > 0) || cutoffHz >= sampleRateHz / 2) {
+    return values.slice();
+  }
+  const coeffs = biquadLowpassCoeffs(cutoffHz, sampleRateHz);
+  const forward = applyBiquad(values, coeffs);
+  const backward = applyBiquad(forward.slice().reverse(), coeffs);
+  return backward.reverse();
 }
 
 /**
@@ -292,7 +361,10 @@ export function computeForceVelocityProfile(
   heightCm: number | null
 ): ForceVelocityProfile | null {
   if (massKg == null || !Number.isFinite(massKg) || massKg <= 0) return null;
-  if (samples.length < SMOOTH_WINDOW * 2) return null;
+  if (samples.length < 100) return null;
+
+  const sampleRateHz = estimateSampleRateHz(samples);
+  if (!(sampleRateHz > 0)) return null;
 
   const usedDefaultHeight = heightCm == null || !Number.isFinite(heightCm) || heightCm <= 0;
   const heightM = usedDefaultHeight ? DEFAULT_HEIGHT_M : heightCm! / 100;
@@ -300,14 +372,15 @@ export function computeForceVelocityProfile(
   // Frontal area (Dubois-derived, per Arsac & Locatelli 2002 / Samozino et al. 2016).
   const frontalArea = 0.2025 * Math.pow(heightM, 0.725) * Math.pow(massKg, 0.425) * 0.266;
 
-  const vSmooth = movingAverage(samples.map((s) => s.v), SMOOTH_WINDOW);
+  const vSmooth = filtfiltLowpass(samples.map((s) => s.v), FV_LOWPASS_CUTOFF_HZ, sampleRateHz);
 
   // Acceleration phase: start of the rep through top (smoothed) speed.
   let topSpeedIdx = 0;
   for (let i = 1; i < vSmooth.length; i++) {
     if (vSmooth[i] > vSmooth[topSpeedIdx]) topSpeedIdx = i;
   }
-  if (topSpeedIdx < SMOOTH_WINDOW) return null;
+  const topSpeedTimeSec = samples[topSpeedIdx].t - samples[0].t;
+  if (topSpeedTimeSec < 0.3) return null; // too short to be a real acceleration phase
 
   const points: { v: number; force: number }[] = [];
   for (let i = 0; i <= topSpeedIdx; i++) {
