@@ -33,6 +33,7 @@ import SectionComment from "@/components/athletes/SectionComment";
 import SectionJumpNav from "@/components/athletes/SectionJumpNav";
 import SnapshotHeader from "@/components/athletes/SnapshotHeader";
 import PerformanceSummaryGrid from "@/components/athletes/PerformanceSummaryGrid";
+import SprintPerformanceCharts from "@/components/athletes/SprintPerformanceCharts";
 import TimepointSummary from "@/components/athletes/TimepointSummary";
 import AthleteRingPanel from "@/components/AthleteRingPanel";
 import AthleteTestSummary from "@/components/AthleteTestSummary";
@@ -1182,6 +1183,10 @@ export default function AthleteDetailPage() {
                   setAthlete((a) => (a ? { ...a, target_profile_id: pid } : a))
                 }
               />
+            </div>
+
+            <div className="mt-6">
+              <SprintPerformanceCharts athleteId={id} />
             </div>
 
             <SectionJumpNav sectionsWithData={sectionsWithData} />
