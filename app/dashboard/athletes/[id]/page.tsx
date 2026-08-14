@@ -38,6 +38,7 @@ import TimepointSummary from "@/components/athletes/TimepointSummary";
 import AthleteRingPanel from "@/components/AthleteRingPanel";
 import AthleteTestSummary from "@/components/AthleteTestSummary";
 import AthleteIdentityCard from "@/components/athletes/AthleteIdentityCard";
+import ZoomableChart from "@/components/charts/ZoomableChart";
 import {
   buildHopTestBlocks,
   formatChartAxisDate,
@@ -386,63 +387,65 @@ function ChartShell({
     <div>
       <p className="mb-2 text-xs text-slate-400">{title}</p>
       {showChart ? (
-        <div className="h-[220px] w-full rounded-xl border border-slate-200 bg-white">
-          <ResponsiveContainer width="100%" height="100%">
-            {chartType === "bar" ? (
-              <BarChart data={points} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-                {ChartDefs}
-                <CartesianGrid {...CHART_GRID} />
-                <XAxis dataKey="label" tick={AXIS_TICK} tickLine={false} axisLine={CHART_AXIS_LINE} />
-                <YAxis tick={AXIS_TICK} width={48} tickLine={false} axisLine={false} />
-                <Tooltip
-                  contentStyle={TOOLTIP_STYLE}
-                  labelStyle={{ color: "#94a3b8" }}
-                  itemStyle={{ color: "#a3e635" }}
-                  formatter={(v: number | string) => {
-                    const n = typeof v === "number" ? v : Number(v);
-                    const text = Number.isFinite(n) ? formatTrendValue(metricKey, n) : String(v);
-                    return [unit ? `${text} ${unit}` : text, title];
-                  }}
-                />
-                {points.length > 0 && (
-                  <ReferenceLine
-                    y={points[0]!.v}
-                    stroke={CHART_REFERENCE_STROKE}
-                    strokeDasharray="4 4"
+        <ZoomableChart title={title} height={220} className="w-full rounded-xl border border-slate-200 bg-white">
+          {(h) => (
+            <ResponsiveContainer width="100%" height={h}>
+              {chartType === "bar" ? (
+                <BarChart data={points} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                  {ChartDefs}
+                  <CartesianGrid {...CHART_GRID} />
+                  <XAxis dataKey="label" tick={AXIS_TICK} tickLine={false} axisLine={CHART_AXIS_LINE} />
+                  <YAxis tick={AXIS_TICK} width={48} tickLine={false} axisLine={false} />
+                  <Tooltip
+                    contentStyle={TOOLTIP_STYLE}
+                    labelStyle={{ color: "#94a3b8" }}
+                    itemStyle={{ color: "#a3e635" }}
+                    formatter={(v: number | string) => {
+                      const n = typeof v === "number" ? v : Number(v);
+                      const text = Number.isFinite(n) ? formatTrendValue(metricKey, n) : String(v);
+                      return [unit ? `${text} ${unit}` : text, title];
+                    }}
                   />
-                )}
-                <Bar dataKey="v" fill="url(#f2pBar)" radius={[6, 6, 0, 0]} maxBarSize={44} />
-              </BarChart>
-            ) : (
-              <LineChart data={points} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-                <CartesianGrid {...CHART_GRID} />
-                <XAxis dataKey="label" tick={AXIS_TICK} tickLine={false} axisLine={CHART_AXIS_LINE} />
-                <YAxis tick={AXIS_TICK} width={48} tickLine={false} axisLine={false} />
-                <Tooltip
-                  contentStyle={TOOLTIP_STYLE}
-                  labelStyle={{ color: "#94a3b8" }}
-                  itemStyle={{ color: "#a3e635" }}
-                  formatter={(v: number | string) => {
-                    const n = typeof v === "number" ? v : Number(v);
-                    const text = Number.isFinite(n) ? formatTrendValue(metricKey, n) : String(v);
-                    return [unit ? `${text} ${unit}` : text, title];
-                  }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="v"
-                  stroke="#a3e635"
-                  strokeWidth={2.25}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  dot={{ fill: "#a3e635", r: 2.5, strokeWidth: 0 }}
-                  activeDot={{ r: 4 }}
-                  connectNulls
-                />
-              </LineChart>
-            )}
-          </ResponsiveContainer>
-        </div>
+                  {points.length > 0 && (
+                    <ReferenceLine
+                      y={points[0]!.v}
+                      stroke={CHART_REFERENCE_STROKE}
+                      strokeDasharray="4 4"
+                    />
+                  )}
+                  <Bar dataKey="v" fill="url(#f2pBar)" radius={[6, 6, 0, 0]} maxBarSize={44} />
+                </BarChart>
+              ) : (
+                <LineChart data={points} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                  <CartesianGrid {...CHART_GRID} />
+                  <XAxis dataKey="label" tick={AXIS_TICK} tickLine={false} axisLine={CHART_AXIS_LINE} />
+                  <YAxis tick={AXIS_TICK} width={48} tickLine={false} axisLine={false} />
+                  <Tooltip
+                    contentStyle={TOOLTIP_STYLE}
+                    labelStyle={{ color: "#94a3b8" }}
+                    itemStyle={{ color: "#a3e635" }}
+                    formatter={(v: number | string) => {
+                      const n = typeof v === "number" ? v : Number(v);
+                      const text = Number.isFinite(n) ? formatTrendValue(metricKey, n) : String(v);
+                      return [unit ? `${text} ${unit}` : text, title];
+                    }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="v"
+                    stroke="#a3e635"
+                    strokeWidth={2.25}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    dot={{ fill: "#a3e635", r: 2.5, strokeWidth: 0 }}
+                    activeDot={{ r: 4 }}
+                    connectNulls
+                  />
+                </LineChart>
+              )}
+            </ResponsiveContainer>
+          )}
+        </ZoomableChart>
       ) : (
         <p className="py-12 text-center text-xs text-slate-500">Not enough data</p>
       )}

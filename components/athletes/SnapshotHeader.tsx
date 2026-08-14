@@ -19,6 +19,7 @@ import type {
   ReportSessionRow,
 } from "@/lib/athleteReportData";
 import type { CriteriaResolver, ReportVisibility } from "@/lib/reportSections";
+import ZoomableChart from "@/components/charts/ZoomableChart";
 import RtpScorePanel from "@/components/athletes/RtpScorePanel";
 import AthleteIdentityCard from "@/components/athletes/AthleteIdentityCard";
 
@@ -84,6 +85,8 @@ export default function SnapshotHeader({
 
   if (sessions.length === 0) return null;
 
+  const hero = snapshot.hero;
+
   return (
     <section id="snapshot" className="scroll-mt-28 mt-6 space-y-4">
       <AthleteIdentityCard
@@ -107,36 +110,38 @@ export default function SnapshotHeader({
         <RtpScorePanel gauges={snapshot.gauges} readiness={snapshot.readiness} />
       ) : null}
 
-      {snapshot.hero ? (
+      {hero ? (
         <div className="rounded-2xl border bg-slate-950/70 p-5 f2p-dark-panel">
           <h3 className="text-sm font-semibold text-slate-200">
-            {snapshot.hero.title}
+            {hero.title}
             <span className="ml-2 text-xs font-normal text-slate-400">
-              ({snapshot.hero.unit})
+              ({hero.unit})
             </span>
           </h3>
-          <div className="mt-3 h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={snapshot.hero.points}>
-                <CartesianGrid stroke="rgba(148,163,184,0.12)" strokeDasharray="2 6" />
-                <XAxis dataKey="date" tick={{ fill: "#94a3b8", fontSize: 10 }} />
-                <YAxis tick={{ fill: "#94a3b8", fontSize: 10 }} width={42} />
-                <Tooltip
-                  contentStyle={TOOLTIP_STYLE}
-                  labelStyle={{ color: "#94a3b8" }}
-                  itemStyle={{ color: "#a3e635" }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="v"
-                  stroke="#a3e635"
-                  strokeWidth={2.5}
-                  dot={{ fill: "#a3e635", r: 4 }}
-                  connectNulls
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+          <ZoomableChart title={hero.title} height={256} className="mt-3 w-full">
+            {(h) => (
+              <ResponsiveContainer width="100%" height={h}>
+                <LineChart data={hero.points}>
+                  <CartesianGrid stroke="rgba(148,163,184,0.12)" strokeDasharray="2 6" />
+                  <XAxis dataKey="date" tick={{ fill: "#94a3b8", fontSize: 10 }} />
+                  <YAxis tick={{ fill: "#94a3b8", fontSize: 10 }} width={42} />
+                  <Tooltip
+                    contentStyle={TOOLTIP_STYLE}
+                    labelStyle={{ color: "#94a3b8" }}
+                    itemStyle={{ color: "#a3e635" }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="v"
+                    stroke="#a3e635"
+                    strokeWidth={2.5}
+                    dot={{ fill: "#a3e635", r: 4 }}
+                    connectNulls
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </ZoomableChart>
         </div>
       ) : null}
 

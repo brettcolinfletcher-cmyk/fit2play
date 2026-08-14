@@ -43,6 +43,7 @@ import {
   type LRRepAggregate,
 } from "@/lib/athleteCompareCharts";
 import LRStartingLegEditor from "@/components/athletes/LRStartingLegEditor";
+import ZoomableChart from "@/components/charts/ZoomableChart";
 import {
   COMPARE_METRICS,
   compareMetricUnit,
@@ -149,46 +150,48 @@ function SmallMultLine({
   return (
     <div className={shellClass}>
       <h3 className="mb-2 text-xs font-medium text-slate-400">{title}</h3>
-      <div className="h-52 w-full min-w-0">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-            <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
-            <XAxis
-              dataKey="t"
-              type="number"
-              domain={["dataMin", "dataMax"]}
-              tickFormatter={(ts: number) =>
-                formatChartAxisDate(typeof ts === "number" ? new Date(ts).toISOString() : null)
-              }
-              stroke="#64748b"
-              tick={AXIS_TICK}
-            />
-            <YAxis
-              stroke="#64748b"
-              tick={AXIS_TICK}
-              label={{ value: unit, angle: -90, position: "insideLeft", fill: "#94a3b8", fontSize: 11 }}
-            />
-            <Tooltip contentStyle={TOOLTIP_STYLE} labelStyle={{ color: "#e2e8f0" }} />
-            <Legend formatter={(v) => nameById.get(String(v)) ?? String(v)} wrapperStyle={{ fontSize: 11 }} />
-            {plotAthleteIds.map((id) => {
-              const i = colorIndex(id);
-              const ci = i >= 0 ? i % ATHLETE_COMPARE_LINE_COLORS.length : 0;
-              return (
-                <Line
-                  key={id}
-                  type="monotone"
-                  dataKey={id}
-                  name={nameById.get(id) ?? id}
-                  stroke={ATHLETE_COMPARE_LINE_COLORS[ci]}
-                  strokeWidth={2}
-                  dot={{ r: 3 }}
-                  connectNulls={false}
-                />
-              );
-            })}
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
+      <ZoomableChart title={title} height={208} className="w-full min-w-0">
+        {(h) => (
+          <ResponsiveContainer width="100%" height={h}>
+            <LineChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+              <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
+              <XAxis
+                dataKey="t"
+                type="number"
+                domain={["dataMin", "dataMax"]}
+                tickFormatter={(ts: number) =>
+                  formatChartAxisDate(typeof ts === "number" ? new Date(ts).toISOString() : null)
+                }
+                stroke="#64748b"
+                tick={AXIS_TICK}
+              />
+              <YAxis
+                stroke="#64748b"
+                tick={AXIS_TICK}
+                label={{ value: unit, angle: -90, position: "insideLeft", fill: "#94a3b8", fontSize: 11 }}
+              />
+              <Tooltip contentStyle={TOOLTIP_STYLE} labelStyle={{ color: "#e2e8f0" }} />
+              <Legend formatter={(v) => nameById.get(String(v)) ?? String(v)} wrapperStyle={{ fontSize: 11 }} />
+              {plotAthleteIds.map((id) => {
+                const i = colorIndex(id);
+                const ci = i >= 0 ? i % ATHLETE_COMPARE_LINE_COLORS.length : 0;
+                return (
+                  <Line
+                    key={id}
+                    type="monotone"
+                    dataKey={id}
+                    name={nameById.get(id) ?? id}
+                    stroke={ATHLETE_COMPARE_LINE_COLORS[ci]}
+                    strokeWidth={2}
+                    dot={{ r: 3 }}
+                    connectNulls={false}
+                  />
+                );
+              })}
+            </LineChart>
+          </ResponsiveContainer>
+        )}
+      </ZoomableChart>
     </div>
   );
 }
@@ -213,58 +216,60 @@ function SmallMultLRLsi({
   return (
     <div className={shellClass}>
       <h3 className="mb-2 text-xs font-medium text-slate-400">{title}</h3>
-      <div className="h-52 w-full min-w-0">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-            <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
-            <XAxis
-              dataKey="t"
-              type="number"
-              domain={["dataMin", "dataMax"]}
-              tickFormatter={(ts: number) =>
-                formatChartAxisDate(typeof ts === "number" ? new Date(ts).toISOString() : null)
-              }
-              stroke="#64748b"
-              tick={AXIS_TICK}
-            />
-            <YAxis
-              stroke="#64748b"
-              tick={AXIS_TICK}
-              domain={[0, 100]}
-              label={{ value: "LSI %", angle: -90, position: "insideLeft", fill: "#94a3b8", fontSize: 11 }}
-            />
-            <Tooltip contentStyle={TOOLTIP_STYLE} labelStyle={{ color: "#e2e8f0" }} />
-            <Legend formatter={(v) => nameById.get(String(v)) ?? String(v)} wrapperStyle={{ fontSize: 11 }} />
-            <ReferenceLine
-              y={threshold}
-              stroke="#84cc16"
-              strokeDasharray="4 4"
-              label={{
-                value: `${threshold}%`,
-                position: "insideTopRight",
-                fill: "#84cc16",
-                fontSize: 10,
-              }}
-            />
-            {plotAthleteIds.map((id) => {
-              const i = colorIndex(id);
-              const ci = i >= 0 ? i % ATHLETE_COMPARE_LINE_COLORS.length : 0;
-              return (
-                <Line
-                  key={id}
-                  type="monotone"
-                  dataKey={id}
-                  name={nameById.get(id) ?? id}
-                  stroke={ATHLETE_COMPARE_LINE_COLORS[ci]}
-                  strokeWidth={2}
-                  dot={{ r: 3 }}
-                  connectNulls={false}
-                />
-              );
-            })}
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
+      <ZoomableChart title={title} height={208} className="w-full min-w-0">
+        {(h) => (
+          <ResponsiveContainer width="100%" height={h}>
+            <LineChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+              <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
+              <XAxis
+                dataKey="t"
+                type="number"
+                domain={["dataMin", "dataMax"]}
+                tickFormatter={(ts: number) =>
+                  formatChartAxisDate(typeof ts === "number" ? new Date(ts).toISOString() : null)
+                }
+                stroke="#64748b"
+                tick={AXIS_TICK}
+              />
+              <YAxis
+                stroke="#64748b"
+                tick={AXIS_TICK}
+                domain={[0, 100]}
+                label={{ value: "LSI %", angle: -90, position: "insideLeft", fill: "#94a3b8", fontSize: 11 }}
+              />
+              <Tooltip contentStyle={TOOLTIP_STYLE} labelStyle={{ color: "#e2e8f0" }} />
+              <Legend formatter={(v) => nameById.get(String(v)) ?? String(v)} wrapperStyle={{ fontSize: 11 }} />
+              <ReferenceLine
+                y={threshold}
+                stroke="#84cc16"
+                strokeDasharray="4 4"
+                label={{
+                  value: `${threshold}%`,
+                  position: "insideTopRight",
+                  fill: "#84cc16",
+                  fontSize: 10,
+                }}
+              />
+              {plotAthleteIds.map((id) => {
+                const i = colorIndex(id);
+                const ci = i >= 0 ? i % ATHLETE_COMPARE_LINE_COLORS.length : 0;
+                return (
+                  <Line
+                    key={id}
+                    type="monotone"
+                    dataKey={id}
+                    name={nameById.get(id) ?? id}
+                    stroke={ATHLETE_COMPARE_LINE_COLORS[ci]}
+                    strokeWidth={2}
+                    dot={{ r: 3 }}
+                    connectNulls={false}
+                  />
+                );
+              })}
+            </LineChart>
+          </ResponsiveContainer>
+        )}
+      </ZoomableChart>
     </div>
   );
 }
@@ -388,75 +393,77 @@ function SmallMultLRPerLeg({
   return (
     <div className={shellClass}>
       <h3 className="mb-2 text-xs font-medium text-slate-400">{title}</h3>
-      <div className="h-52 w-full min-w-0">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-            <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
-            <XAxis
-              dataKey="t"
-              type="number"
-              domain={["dataMin", "dataMax"]}
-              tickFormatter={(ts: number) =>
-                formatChartAxisDate(typeof ts === "number" ? new Date(ts).toISOString() : null)
-              }
-              stroke="#64748b"
-              tick={AXIS_TICK}
-            />
-            <YAxis
-              stroke="#64748b"
-              tick={AXIS_TICK}
-              label={{ value: unit, angle: -90, position: "insideLeft", fill: "#94a3b8", fontSize: 11 }}
-            />
-            <Tooltip
-              content={
-                <LRPerLegTooltip
-                  unit={unit}
-                  athleteIds={athleteIds}
-                  nameById={nameById}
-                />
-              }
-            />
-            <Legend
-              wrapperStyle={{ fontSize: 11 }}
-              formatter={(v) => {
-                const s = String(v);
-                const isLeft = s.endsWith("__L");
-                const id = s.replace(/__[LR]$/, "");
-                const base = nameById.get(id) ?? id;
-                return `${base} (${isLeft ? "L" : "R"})`;
-              }}
-            />
-            {plotAthleteIds.flatMap((id) => {
-              const i = colorIndex(id);
-              const ci = i >= 0 ? i % ATHLETE_COMPARE_LINE_COLORS.length : 0;
-              const color = ATHLETE_COMPARE_LINE_COLORS[ci];
-              return [
-                <Line
-                  key={`${id}-R`}
-                  type="monotone"
-                  dataKey={`${id}__R`}
-                  name={`${id}__R`}
-                  stroke={color}
-                  strokeWidth={2}
-                  dot={{ r: 3 }}
-                  connectNulls={false}
-                />,
-                <Line
-                  key={`${id}-L`}
-                  type="monotone"
-                  dataKey={`${id}__L`}
-                  name={`${id}__L`}
-                  stroke={color}
-                  strokeWidth={2}
-                  strokeDasharray="4 4"
-                  dot={{ r: 3 }}
-                  connectNulls={false}
-                />,
-              ];
-            })}
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
+      <ZoomableChart title={title} height={208} className="w-full min-w-0">
+        {(h) => (
+          <ResponsiveContainer width="100%" height={h}>
+            <LineChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+              <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
+              <XAxis
+                dataKey="t"
+                type="number"
+                domain={["dataMin", "dataMax"]}
+                tickFormatter={(ts: number) =>
+                  formatChartAxisDate(typeof ts === "number" ? new Date(ts).toISOString() : null)
+                }
+                stroke="#64748b"
+                tick={AXIS_TICK}
+              />
+              <YAxis
+                stroke="#64748b"
+                tick={AXIS_TICK}
+                label={{ value: unit, angle: -90, position: "insideLeft", fill: "#94a3b8", fontSize: 11 }}
+              />
+              <Tooltip
+                content={
+                  <LRPerLegTooltip
+                    unit={unit}
+                    athleteIds={athleteIds}
+                    nameById={nameById}
+                  />
+                }
+              />
+              <Legend
+                wrapperStyle={{ fontSize: 11 }}
+                formatter={(v) => {
+                  const s = String(v);
+                  const isLeft = s.endsWith("__L");
+                  const id = s.replace(/__[LR]$/, "");
+                  const base = nameById.get(id) ?? id;
+                  return `${base} (${isLeft ? "L" : "R"})`;
+                }}
+              />
+              {plotAthleteIds.flatMap((id) => {
+                const i = colorIndex(id);
+                const ci = i >= 0 ? i % ATHLETE_COMPARE_LINE_COLORS.length : 0;
+                const color = ATHLETE_COMPARE_LINE_COLORS[ci];
+                return [
+                  <Line
+                    key={`${id}-R`}
+                    type="monotone"
+                    dataKey={`${id}__R`}
+                    name={`${id}__R`}
+                    stroke={color}
+                    strokeWidth={2}
+                    dot={{ r: 3 }}
+                    connectNulls={false}
+                  />,
+                  <Line
+                    key={`${id}-L`}
+                    type="monotone"
+                    dataKey={`${id}__L`}
+                    name={`${id}__L`}
+                    stroke={color}
+                    strokeWidth={2}
+                    strokeDasharray="4 4"
+                    dot={{ r: 3 }}
+                    connectNulls={false}
+                  />,
+                ];
+              })}
+            </LineChart>
+          </ResponsiveContainer>
+        )}
+      </ZoomableChart>
     </div>
   );
 }
@@ -507,31 +514,33 @@ function LRLatestCard({
         </p>
       ) : (
         <>
-          <div className="h-52 w-full min-w-0">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={data} margin={{ top: 8, right: 8, left: 4, bottom: 24 }}>
-                <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
-                <XAxis
-                  dataKey="label"
-                  stroke="#64748b"
-                  tick={AXIS_TICK}
-                  interval={0}
-                  angle={-15}
-                  textAnchor="end"
-                  height={40}
-                />
-                <YAxis
-                  stroke="#64748b"
-                  tick={AXIS_TICK}
-                  label={{ value: unit, angle: -90, position: "insideLeft", fill: "#94a3b8", fontSize: 11 }}
-                />
-                <Tooltip contentStyle={TOOLTIP_STYLE} />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
-                <Bar dataKey="Left" fill="#38bdf8" radius={[2, 2, 0, 0]} />
-                <Bar dataKey="Right" fill="#84cc16" radius={[2, 2, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          <ZoomableChart title={title} height={208} className="w-full min-w-0">
+            {(h) => (
+              <ResponsiveContainer width="100%" height={h}>
+                <BarChart data={data} margin={{ top: 8, right: 8, left: 4, bottom: 24 }}>
+                  <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
+                  <XAxis
+                    dataKey="label"
+                    stroke="#64748b"
+                    tick={AXIS_TICK}
+                    interval={0}
+                    angle={-15}
+                    textAnchor="end"
+                    height={40}
+                  />
+                  <YAxis
+                    stroke="#64748b"
+                    tick={AXIS_TICK}
+                    label={{ value: unit, angle: -90, position: "insideLeft", fill: "#94a3b8", fontSize: 11 }}
+                  />
+                  <Tooltip contentStyle={TOOLTIP_STYLE} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  <Bar dataKey="Left" fill="#38bdf8" radius={[2, 2, 0, 0]} />
+                  <Bar dataKey="Right" fill="#84cc16" radius={[2, 2, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </ZoomableChart>
           <div className="mt-3 space-y-1">
             {data.map((d) => (
               <div key={d.athleteId} className="flex items-center justify-between text-xs">
@@ -910,37 +919,43 @@ export default function AthleteCompareChartPanel({
           {activeTopTab !== "overview" && activeTopTab !== "lr" && view === "current" && (
             <>
               <div className={`mt-4 ${shellClass}`}>
-                <div className="h-80 w-full min-w-0">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={barRows.data} margin={{ top: 8, right: 8, left: 4, bottom: 48 }}>
-                      <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
-                      <XAxis
-                        dataKey="metric"
-                        stroke="#64748b"
-                        tick={AXIS_TICK}
-                        interval={0}
-                        angle={-20}
-                        textAnchor="end"
-                        height={70}
-                      />
-                      <YAxis stroke="#64748b" tick={AXIS_TICK} />
-                      <Tooltip contentStyle={TOOLTIP_STYLE} />
-                      <Legend
-                        formatter={(value) => nameById.get(String(value)) ?? String(value)}
-                        wrapperStyle={{ fontSize: 11 }}
-                      />
-                      {athleteIds.map((id, i) => (
-                        <Bar
-                          key={id}
-                          dataKey={id}
-                          name={nameById.get(id) ?? id}
-                          fill={ATHLETE_COMPARE_LINE_COLORS[i % ATHLETE_COMPARE_LINE_COLORS.length]}
-                          radius={[2, 2, 0, 0]}
+                <ZoomableChart
+                  title={`${activeTopTab in GROUP_TAB_LABEL ? GROUP_TAB_LABEL[activeTopTab as MetricGroup] : ""} — Current Session`}
+                  height={320}
+                  className="w-full min-w-0"
+                >
+                  {(h) => (
+                    <ResponsiveContainer width="100%" height={h}>
+                      <BarChart data={barRows.data} margin={{ top: 8, right: 8, left: 4, bottom: 48 }}>
+                        <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
+                        <XAxis
+                          dataKey="metric"
+                          stroke="#64748b"
+                          tick={AXIS_TICK}
+                          interval={0}
+                          angle={-20}
+                          textAnchor="end"
+                          height={70}
                         />
-                      ))}
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
+                        <YAxis stroke="#64748b" tick={AXIS_TICK} />
+                        <Tooltip contentStyle={TOOLTIP_STYLE} />
+                        <Legend
+                          formatter={(value) => nameById.get(String(value)) ?? String(value)}
+                          wrapperStyle={{ fontSize: 11 }}
+                        />
+                        {athleteIds.map((id, i) => (
+                          <Bar
+                            key={id}
+                            dataKey={id}
+                            name={nameById.get(id) ?? id}
+                            fill={ATHLETE_COMPARE_LINE_COLORS[i % ATHLETE_COMPARE_LINE_COLORS.length]}
+                            radius={[2, 2, 0, 0]}
+                          />
+                        ))}
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
+                </ZoomableChart>
               </div>
               <p className="mt-3 text-xs text-slate-500">Latest session values per athlete.</p>
             </>
@@ -954,36 +969,42 @@ export default function AthleteCompareChartPanel({
                     No metrics in this group have data for any selected athlete yet.
                   </p>
                 ) : (
-                  <div className="h-96 w-full min-w-0">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <RadarChart data={radarDataInGroup} cx="50%" cy="50%" outerRadius="75%">
-                        <PolarGrid stroke="#334155" />
-                        <PolarAngleAxis dataKey="metric" tick={{ fill: "#94a3b8", fontSize: 9 }} />
-                        <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fill: "#64748b", fontSize: 9 }} />
-                        <Tooltip contentStyle={TOOLTIP_STYLE} />
-                        <Legend
-                          formatter={(value) => nameById.get(String(value)) ?? String(value)}
-                          wrapperStyle={{ fontSize: 11 }}
-                        />
-                        {athleteIdsInGroupRadar.map((id) => {
-                          const i = athleteIds.indexOf(id);
-                          const ci = i >= 0 ? i % ATHLETE_COMPARE_LINE_COLORS.length : 0;
-                          return (
-                            <Radar
-                              key={id}
-                              name={nameById.get(id) ?? id}
-                              dataKey={id}
-                              stroke={ATHLETE_COMPARE_LINE_COLORS[ci]}
-                              fill={ATHLETE_COMPARE_LINE_COLORS[ci]}
-                              fillOpacity={0.15}
-                              strokeWidth={2}
-                              connectNulls
-                            />
-                          );
-                        })}
-                      </RadarChart>
-                    </ResponsiveContainer>
-                  </div>
+                  <ZoomableChart
+                    title={`${activeTopTab in GROUP_TAB_LABEL ? GROUP_TAB_LABEL[activeTopTab as MetricGroup] : ""} — Overview Radar`}
+                    height={384}
+                    className="w-full min-w-0"
+                  >
+                    {(h) => (
+                      <ResponsiveContainer width="100%" height={h}>
+                        <RadarChart data={radarDataInGroup} cx="50%" cy="50%" outerRadius="75%">
+                          <PolarGrid stroke="#334155" />
+                          <PolarAngleAxis dataKey="metric" tick={{ fill: "#94a3b8", fontSize: 9 }} />
+                          <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fill: "#64748b", fontSize: 9 }} />
+                          <Tooltip contentStyle={TOOLTIP_STYLE} />
+                          <Legend
+                            formatter={(value) => nameById.get(String(value)) ?? String(value)}
+                            wrapperStyle={{ fontSize: 11 }}
+                          />
+                          {athleteIdsInGroupRadar.map((id) => {
+                            const i = athleteIds.indexOf(id);
+                            const ci = i >= 0 ? i % ATHLETE_COMPARE_LINE_COLORS.length : 0;
+                            return (
+                              <Radar
+                                key={id}
+                                name={nameById.get(id) ?? id}
+                                dataKey={id}
+                                stroke={ATHLETE_COMPARE_LINE_COLORS[ci]}
+                                fill={ATHLETE_COMPARE_LINE_COLORS[ci]}
+                                fillOpacity={0.15}
+                                strokeWidth={2}
+                                connectNulls
+                              />
+                            );
+                          })}
+                        </RadarChart>
+                      </ResponsiveContainer>
+                    )}
+                  </ZoomableChart>
                 )}
               </div>
               <p className="mt-3 text-xs text-slate-500">
@@ -1000,36 +1021,38 @@ export default function AthleteCompareChartPanel({
                     No representative metrics have data for any selected athlete yet.
                   </p>
                 ) : (
-                  <div className="h-96 w-full min-w-0">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <RadarChart data={radarDataOverview} cx="50%" cy="50%" outerRadius="75%">
-                        <PolarGrid stroke="#334155" />
-                        <PolarAngleAxis dataKey="metric" tick={{ fill: "#94a3b8", fontSize: 9 }} />
-                        <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fill: "#64748b", fontSize: 9 }} />
-                        <Tooltip contentStyle={TOOLTIP_STYLE} />
-                        <Legend
-                          formatter={(value) => nameById.get(String(value)) ?? String(value)}
-                          wrapperStyle={{ fontSize: 11 }}
-                        />
-                        {athleteIdsInOverviewRadar.map((id) => {
-                          const i = athleteIds.indexOf(id);
-                          const ci = i >= 0 ? i % ATHLETE_COMPARE_LINE_COLORS.length : 0;
-                          return (
-                            <Radar
-                              key={id}
-                              name={nameById.get(id) ?? id}
-                              dataKey={id}
-                              stroke={ATHLETE_COMPARE_LINE_COLORS[ci]}
-                              fill={ATHLETE_COMPARE_LINE_COLORS[ci]}
-                              fillOpacity={0.15}
-                              strokeWidth={2}
-                              connectNulls
-                            />
-                          );
-                        })}
-                      </RadarChart>
-                    </ResponsiveContainer>
-                  </div>
+                  <ZoomableChart title="Overall Overview — Radar" height={384} className="w-full min-w-0">
+                    {(h) => (
+                      <ResponsiveContainer width="100%" height={h}>
+                        <RadarChart data={radarDataOverview} cx="50%" cy="50%" outerRadius="75%">
+                          <PolarGrid stroke="#334155" />
+                          <PolarAngleAxis dataKey="metric" tick={{ fill: "#94a3b8", fontSize: 9 }} />
+                          <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fill: "#64748b", fontSize: 9 }} />
+                          <Tooltip contentStyle={TOOLTIP_STYLE} />
+                          <Legend
+                            formatter={(value) => nameById.get(String(value)) ?? String(value)}
+                            wrapperStyle={{ fontSize: 11 }}
+                          />
+                          {athleteIdsInOverviewRadar.map((id) => {
+                            const i = athleteIds.indexOf(id);
+                            const ci = i >= 0 ? i % ATHLETE_COMPARE_LINE_COLORS.length : 0;
+                            return (
+                              <Radar
+                                key={id}
+                                name={nameById.get(id) ?? id}
+                                dataKey={id}
+                                stroke={ATHLETE_COMPARE_LINE_COLORS[ci]}
+                                fill={ATHLETE_COMPARE_LINE_COLORS[ci]}
+                                fillOpacity={0.15}
+                                strokeWidth={2}
+                                connectNulls
+                              />
+                            );
+                          })}
+                        </RadarChart>
+                      </ResponsiveContainer>
+                    )}
+                  </ZoomableChart>
                 )}
               </div>
               <p className="mt-3 text-xs text-slate-500">

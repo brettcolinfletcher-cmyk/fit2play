@@ -12,6 +12,7 @@ import {
   YAxis,
 } from "recharts";
 import { supabase } from "@/lib/supabaseClient";
+import ZoomableChart from "@/components/charts/ZoomableChart";
 import SectionComment from "./SectionComment";
 import {
   CHART_AXIS_TICK,
@@ -362,53 +363,59 @@ export default function HopTestsSection({
                 {block.trendPoints.length < 1 ? (
                   <p className="py-8 text-center text-xs text-slate-500">Not enough data</p>
                 ) : (
-                  <div className="h-56 w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={block.trendPoints}>
-                        <CartesianGrid {...CHART_GRID} />
-                        <XAxis
-                          dataKey="label"
-                          stroke="#233047"
-                          tick={AXIS_TICK}
-                          tickLine={false}
-                          interval="preserveStartEnd"
-                        />
-                        <YAxis
-                          domain={[0, 100]}
-                          stroke="#233047"
-                          tick={AXIS_TICK}
-                          tickLine={false}
-                          tickFormatter={(v) => `${v}%`}
-                          label={{
-                            value: "LSI%",
-                            angle: -90,
-                            position: "insideLeft",
-                            fill: "#94a3b8",
-                            fontSize: 11,
-                          }}
-                        />
-                        <ReferenceLine y={90} stroke={CHART_REFERENCE_STROKE} strokeDasharray="4 4" />
-                        <Tooltip
-                          contentStyle={TOOLTIP_STYLE}
-                          labelFormatter={(label) => String(label)}
-                          formatter={(v: number | string) => [
-                            typeof v === "number" ? `${v.toFixed(1)}%` : String(v),
-                            "LSI",
-                          ]}
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="lsi"
-                          stroke="#a3e635"
-                          strokeWidth={2.25}
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          dot={{ fill: "#a3e635", r: 2.5, strokeWidth: 0 }}
-                          activeDot={{ r: 4 }}
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
+                  <ZoomableChart
+                    title={`${block.displayName} — LSI% over time`}
+                    height={224}
+                    className="w-full"
+                  >
+                    {(h) => (
+                      <ResponsiveContainer width="100%" height={h}>
+                        <LineChart data={block.trendPoints}>
+                          <CartesianGrid {...CHART_GRID} />
+                          <XAxis
+                            dataKey="label"
+                            stroke="#233047"
+                            tick={AXIS_TICK}
+                            tickLine={false}
+                            interval="preserveStartEnd"
+                          />
+                          <YAxis
+                            domain={[0, 100]}
+                            stroke="#233047"
+                            tick={AXIS_TICK}
+                            tickLine={false}
+                            tickFormatter={(v) => `${v}%`}
+                            label={{
+                              value: "LSI%",
+                              angle: -90,
+                              position: "insideLeft",
+                              fill: "#94a3b8",
+                              fontSize: 11,
+                            }}
+                          />
+                          <ReferenceLine y={90} stroke={CHART_REFERENCE_STROKE} strokeDasharray="4 4" />
+                          <Tooltip
+                            contentStyle={TOOLTIP_STYLE}
+                            labelFormatter={(label) => String(label)}
+                            formatter={(v: number | string) => [
+                              typeof v === "number" ? `${v.toFixed(1)}%` : String(v),
+                              "LSI",
+                            ]}
+                          />
+                          <Line
+                            type="monotone"
+                            dataKey="lsi"
+                            stroke="#a3e635"
+                            strokeWidth={2.25}
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            dot={{ fill: "#a3e635", r: 2.5, strokeWidth: 0 }}
+                            activeDot={{ r: 4 }}
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    )}
+                  </ZoomableChart>
                 )}
               </div>
             </div>

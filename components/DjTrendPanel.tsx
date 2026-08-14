@@ -11,6 +11,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import ZoomableChart from "@/components/charts/ZoomableChart";
 
 /**
  * Bilateral drop-jump longitudinal trend panel.
@@ -76,18 +77,22 @@ export default function DjTrendPanel({
     <div className="space-y-4">
       <div className="rounded-xl border border-slate-200 bg-white p-5">
         <h2 className="mb-4 text-xs uppercase tracking-wide text-slate-500">{title}</h2>
-        <ResponsiveContainer width="100%" height={280}>
-          <LineChart data={rows} margin={{ top: 4, right: 16, left: 0, bottom: -10 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.25)" vertical={false} />
-            <XAxis dataKey="date" tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} />
-            <YAxis yAxisId="rsi" orientation="left" tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} width={36} tickCount={5} domain={["auto", "auto"]} />
-            <YAxis yAxisId="jump" orientation="right" tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} width={36} tickCount={5} domain={["auto", "auto"]} />
-            <Tooltip contentStyle={TOOLTIP_STYLE} labelStyle={{ color: "#a3e635", fontWeight: 600 }} />
-            <Legend wrapperStyle={{ fontSize: 11, color: "#64748b" }} />
-            <Line yAxisId="rsi" type="monotone" dataKey="rsi" name="RSI" stroke="#a3e635" strokeWidth={2.5} dot={{ fill: "#a3e635", r: 5, strokeWidth: 0 }} activeDot={{ r: 7 }} connectNulls />
-            <Line yAxisId="jump" type="monotone" dataKey="jumpHeightCm" name="Jump height (cm)" stroke="#38bdf8" strokeWidth={2.5} dot={{ fill: "#38bdf8", r: 5, strokeWidth: 0 }} activeDot={{ r: 7 }} connectNulls />
-          </LineChart>
-        </ResponsiveContainer>
+        <ZoomableChart title={title} height={280}>
+          {(h) => (
+            <ResponsiveContainer width="100%" height={h}>
+              <LineChart data={rows} margin={{ top: 4, right: 16, left: 0, bottom: -10 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.25)" vertical={false} />
+                <XAxis dataKey="date" tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} />
+                <YAxis yAxisId="rsi" orientation="left" tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} width={36} tickCount={5} domain={["auto", "auto"]} />
+                <YAxis yAxisId="jump" orientation="right" tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} width={36} tickCount={5} domain={["auto", "auto"]} />
+                <Tooltip contentStyle={TOOLTIP_STYLE} labelStyle={{ color: "#a3e635", fontWeight: 600 }} />
+                <Legend wrapperStyle={{ fontSize: 11, color: "#64748b" }} />
+                <Line yAxisId="rsi" type="monotone" dataKey="rsi" name="RSI" stroke="#a3e635" strokeWidth={2.5} dot={{ fill: "#a3e635", r: 5, strokeWidth: 0 }} activeDot={{ r: 7 }} connectNulls />
+                <Line yAxisId="jump" type="monotone" dataKey="jumpHeightCm" name="Jump height (cm)" stroke="#38bdf8" strokeWidth={2.5} dot={{ fill: "#38bdf8", r: 5, strokeWidth: 0 }} activeDot={{ r: 7 }} connectNulls />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </ZoomableChart>
       </div>
     </div>
   );

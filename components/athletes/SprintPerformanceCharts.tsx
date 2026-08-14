@@ -15,6 +15,7 @@ import {
   ReferenceDot,
 } from "recharts";
 import { supabase } from "@/lib/supabaseClient";
+import ZoomableChart from "@/components/charts/ZoomableChart";
 import {
   computeForceVelocityProfile,
   estimateSampleRateHz,
@@ -478,27 +479,31 @@ export default function SprintPerformanceCharts({ athleteId }: Props) {
             </>
           }
         >
-          <ResponsiveContainer width="100%" height={200}>
-            <LineChart data={speedChartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-              <XAxis
-                dataKey="x"
-                type="number"
-                domain={[0, "dataMax"]}
-                tick={{ fontSize: 10, fill: "#9ca3af" }}
-                label={{ value: "Position (m)", position: "insideBottomRight", offset: -4, style: { fontSize: 10, fill: "#9ca3af" } }}
-              />
-              <YAxis tick={{ fontSize: 10, fill: "#9ca3af" }} tickFormatter={(v: number) => v.toFixed(0)} />
-              <Tooltip
-                formatter={(value: number) => [`${value.toFixed(2)} km/h`, "Speed"]}
-                labelFormatter={(l: number) => `${l.toFixed(1)} m`}
-              />
-              <Line type="monotone" dataKey="v" dot={false} stroke="#f87171" strokeWidth={2} isAnimationActive={false} />
-              {topSpeedPoint ? (
-                <ReferenceDot x={topSpeedPoint.x} y={topSpeedPoint.v} r={4} fill="#ef4444" stroke="#fecaca" strokeWidth={1} />
-              ) : null}
-            </LineChart>
-          </ResponsiveContainer>
+          <ZoomableChart title="Speed" height={200}>
+            {(h) => (
+              <ResponsiveContainer width="100%" height={h}>
+                <LineChart data={speedChartData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+                  <XAxis
+                    dataKey="x"
+                    type="number"
+                    domain={[0, "dataMax"]}
+                    tick={{ fontSize: 10, fill: "#9ca3af" }}
+                    label={{ value: "Position (m)", position: "insideBottomRight", offset: -4, style: { fontSize: 10, fill: "#9ca3af" } }}
+                  />
+                  <YAxis tick={{ fontSize: 10, fill: "#9ca3af" }} tickFormatter={(v: number) => v.toFixed(0)} />
+                  <Tooltip
+                    formatter={(value: number) => [`${value.toFixed(2)} km/h`, "Speed"]}
+                    labelFormatter={(l: number) => `${l.toFixed(1)} m`}
+                  />
+                  <Line type="monotone" dataKey="v" dot={false} stroke="#f87171" strokeWidth={2} isAnimationActive={false} />
+                  {topSpeedPoint ? (
+                    <ReferenceDot x={topSpeedPoint.x} y={topSpeedPoint.v} r={4} fill="#ef4444" stroke="#fecaca" strokeWidth={1} />
+                  ) : null}
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </ZoomableChart>
 
           {fvProfile ? (
             <div className="mt-3 rounded-lg p-3" style={cardStyle}>
@@ -524,45 +529,49 @@ export default function SprintPerformanceCharts({ athleteId }: Props) {
               </div>
 
               {fvChartData ? (
-                <div className="mt-3" style={{ height: 170 }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart margin={{ top: 4, right: 8, bottom: 4, left: -12 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-                      <XAxis
-                        type="number"
-                        dataKey="v"
-                        domain={[0, Math.ceil(fvChartData.maxV)]}
-                        tick={{ fontSize: 9, fill: "#9ca3af" }}
-                        label={{
-                          value: "Velocity (km/h)",
-                          position: "insideBottomRight",
-                          offset: -4,
-                          style: { fontSize: 9, fill: "#9ca3af" },
-                        }}
-                      />
-                      <YAxis
-                        type="number"
-                        dataKey="force"
-                        domain={[0, "dataMax"]}
-                        tick={{ fontSize: 9, fill: "#9ca3af" }}
-                        label={{ value: "Force (N/kg)", angle: -90, position: "insideLeft", style: { fontSize: 9, fill: "#9ca3af" } }}
-                      />
-                      <Tooltip
-                        formatter={(value: number) => [`${Number(value).toFixed(2)} N/kg`, "Force"]}
-                        labelFormatter={(l: number) => `${Number(l).toFixed(2)} km/h`}
-                      />
-                      <Scatter data={fvChartData.scatter} dataKey="force" fill="#facc15" fillOpacity={0.4} />
-                      <Line
-                        data={fvChartData.line}
-                        type="linear"
-                        dataKey="force"
-                        stroke="#f87171"
-                        strokeWidth={2}
-                        dot={false}
-                        isAnimationActive={false}
-                      />
-                    </ComposedChart>
-                  </ResponsiveContainer>
+                <div className="mt-3">
+                  <ZoomableChart title="Force-Velocity Profile" height={170}>
+                    {(h) => (
+                      <ResponsiveContainer width="100%" height={h}>
+                        <ComposedChart margin={{ top: 4, right: 8, bottom: 4, left: -12 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+                          <XAxis
+                            type="number"
+                            dataKey="v"
+                            domain={[0, Math.ceil(fvChartData.maxV)]}
+                            tick={{ fontSize: 9, fill: "#9ca3af" }}
+                            label={{
+                              value: "Velocity (km/h)",
+                              position: "insideBottomRight",
+                              offset: -4,
+                              style: { fontSize: 9, fill: "#9ca3af" },
+                            }}
+                          />
+                          <YAxis
+                            type="number"
+                            dataKey="force"
+                            domain={[0, "dataMax"]}
+                            tick={{ fontSize: 9, fill: "#9ca3af" }}
+                            label={{ value: "Force (N/kg)", angle: -90, position: "insideLeft", style: { fontSize: 9, fill: "#9ca3af" } }}
+                          />
+                          <Tooltip
+                            formatter={(value: number) => [`${Number(value).toFixed(2)} N/kg`, "Force"]}
+                            labelFormatter={(l: number) => `${Number(l).toFixed(2)} km/h`}
+                          />
+                          <Scatter data={fvChartData.scatter} dataKey="force" fill="#facc15" fillOpacity={0.4} />
+                          <Line
+                            data={fvChartData.line}
+                            type="linear"
+                            dataKey="force"
+                            stroke="#f87171"
+                            strokeWidth={2}
+                            dot={false}
+                            isAnimationActive={false}
+                          />
+                        </ComposedChart>
+                      </ResponsiveContainer>
+                    )}
+                  </ZoomableChart>
                 </div>
               ) : null}
 
@@ -591,24 +600,28 @@ export default function SprintPerformanceCharts({ athleteId }: Props) {
           subtitle="Zoomed to the acceleration phase"
           stats={<StatTile label="Max Acceleration" value={maxAccel != null ? `${maxAccel.toFixed(2)} m/s²` : "—"} />}
         >
-          <ResponsiveContainer width="100%" height={200}>
-            <LineChart data={accelData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-              <XAxis
-                dataKey="x"
-                type="number"
-                domain={[0, accelXMax ?? "dataMax"]}
-                tick={{ fontSize: 10, fill: "#9ca3af" }}
-                label={{ value: "Position (m)", position: "insideBottomRight", offset: -4, style: { fontSize: 10, fill: "#9ca3af" } }}
-              />
-              <YAxis tick={{ fontSize: 10, fill: "#9ca3af" }} tickFormatter={(v: number) => v.toFixed(1)} />
-              <Tooltip
-                formatter={(value: number) => [`${value.toFixed(2)} m/s²`, "Acceleration"]}
-                labelFormatter={(l: number) => `${l.toFixed(1)} m`}
-              />
-              <Line type="monotone" dataKey="a" dot={false} stroke="#a3e635" strokeWidth={2} isAnimationActive={false} />
-            </LineChart>
-          </ResponsiveContainer>
+          <ZoomableChart title="Acceleration" height={200}>
+            {(h) => (
+              <ResponsiveContainer width="100%" height={h}>
+                <LineChart data={accelData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+                  <XAxis
+                    dataKey="x"
+                    type="number"
+                    domain={[0, accelXMax ?? "dataMax"]}
+                    tick={{ fontSize: 10, fill: "#9ca3af" }}
+                    label={{ value: "Position (m)", position: "insideBottomRight", offset: -4, style: { fontSize: 10, fill: "#9ca3af" } }}
+                  />
+                  <YAxis tick={{ fontSize: 10, fill: "#9ca3af" }} tickFormatter={(v: number) => v.toFixed(1)} />
+                  <Tooltip
+                    formatter={(value: number) => [`${value.toFixed(2)} m/s²`, "Acceleration"]}
+                    labelFormatter={(l: number) => `${l.toFixed(1)} m`}
+                  />
+                  <Line type="monotone" dataKey="a" dot={false} stroke="#a3e635" strokeWidth={2} isAnimationActive={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </ZoomableChart>
         </ChartCard>
 
         <ChartCard
@@ -617,22 +630,26 @@ export default function SprintPerformanceCharts({ athleteId }: Props) {
           stats={<StatTile label="Max Deceleration" value={maxDecel != null ? `${maxDecel.toFixed(2)} m/s²` : "—"} />}
         >
           {decelData.length ? (
-            <ResponsiveContainer width="100%" height={200}>
-              <LineChart data={decelData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-                <XAxis
-                  dataKey="t"
-                  tick={{ fontSize: 10, fill: "#9ca3af" }}
-                  label={{ value: "Time (s)", position: "insideBottomRight", offset: -4, style: { fontSize: 10, fill: "#9ca3af" } }}
-                />
-                <YAxis tick={{ fontSize: 10, fill: "#9ca3af" }} tickFormatter={(v: number) => v.toFixed(0)} />
-                <Tooltip
-                  formatter={(value: number) => [`${value.toFixed(2)} km/h`, "Speed"]}
-                  labelFormatter={(l: number) => `${l.toFixed(2)} s`}
-                />
-                <Line type="monotone" dataKey="v" dot={false} stroke="#f87171" strokeWidth={2} strokeDasharray="4 3" isAnimationActive={false} />
-              </LineChart>
-            </ResponsiveContainer>
+            <ZoomableChart title="Deceleration" height={200}>
+              {(h) => (
+                <ResponsiveContainer width="100%" height={h}>
+                  <LineChart data={decelData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+                    <XAxis
+                      dataKey="t"
+                      tick={{ fontSize: 10, fill: "#9ca3af" }}
+                      label={{ value: "Time (s)", position: "insideBottomRight", offset: -4, style: { fontSize: 10, fill: "#9ca3af" } }}
+                    />
+                    <YAxis tick={{ fontSize: 10, fill: "#9ca3af" }} tickFormatter={(v: number) => v.toFixed(0)} />
+                    <Tooltip
+                      formatter={(value: number) => [`${value.toFixed(2)} km/h`, "Speed"]}
+                      labelFormatter={(l: number) => `${l.toFixed(2)} s`}
+                    />
+                    <Line type="monotone" dataKey="v" dot={false} stroke="#f87171" strokeWidth={2} strokeDasharray="4 3" isAnimationActive={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
+            </ZoomableChart>
           ) : (
             <p className="text-xs text-slate-500">No rep with a clear braking phase found.</p>
           )}
@@ -643,29 +660,33 @@ export default function SprintPerformanceCharts({ athleteId }: Props) {
           subtitle="Left vs right, estimated from step detection — not a direct 1080 measurement"
         >
           {rawSpeedData.length ? (
-            <ResponsiveContainer width="100%" height={190}>
-              <ComposedChart margin={{ top: 4, right: 8, bottom: 4, left: -12 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-                <XAxis
-                  dataKey="x"
-                  type="number"
-                  domain={[0, "dataMax"]}
-                  tick={{ fontSize: 10, fill: "#9ca3af" }}
-                  label={{ value: "Position (m)", position: "insideBottomRight", offset: -4, style: { fontSize: 10, fill: "#9ca3af" } }}
-                />
-                <YAxis tick={{ fontSize: 10, fill: "#9ca3af" }} tickFormatter={(v: number) => v.toFixed(0)} />
-                <Tooltip
-                  formatter={(value: number) => [`${Number(value).toFixed(2)} km/h`, "Speed"]}
-                  labelFormatter={(l: number) => `${Number(l).toFixed(1)} m`}
-                />
-                <Line data={rawSpeedData} type="monotone" dataKey="v" dot={false} stroke="#38bdf8" strokeWidth={1.25} isAnimationActive={false} />
-                <Scatter data={symmetryStepPoints} dataKey="v">
-                  {symmetryStepPoints.map((d, i) => (
-                    <Cell key={i} fill={d.leg === "left" ? "#fbbf24" : "#0f172a"} stroke={d.leg === "left" ? "#fbbf24" : "#38bdf8"} r={3} />
-                  ))}
-                </Scatter>
-              </ComposedChart>
-            </ResponsiveContainer>
+            <ZoomableChart title="Symmetry" height={190}>
+              {(h) => (
+                <ResponsiveContainer width="100%" height={h}>
+                  <ComposedChart margin={{ top: 4, right: 8, bottom: 4, left: -12 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+                    <XAxis
+                      dataKey="x"
+                      type="number"
+                      domain={[0, "dataMax"]}
+                      tick={{ fontSize: 10, fill: "#9ca3af" }}
+                      label={{ value: "Position (m)", position: "insideBottomRight", offset: -4, style: { fontSize: 10, fill: "#9ca3af" } }}
+                    />
+                    <YAxis tick={{ fontSize: 10, fill: "#9ca3af" }} tickFormatter={(v: number) => v.toFixed(0)} />
+                    <Tooltip
+                      formatter={(value: number) => [`${Number(value).toFixed(2)} km/h`, "Speed"]}
+                      labelFormatter={(l: number) => `${Number(l).toFixed(1)} m`}
+                    />
+                    <Line data={rawSpeedData} type="monotone" dataKey="v" dot={false} stroke="#38bdf8" strokeWidth={1.25} isAnimationActive={false} />
+                    <Scatter data={symmetryStepPoints} dataKey="v">
+                      {symmetryStepPoints.map((d, i) => (
+                        <Cell key={i} fill={d.leg === "left" ? "#fbbf24" : "#0f172a"} stroke={d.leg === "left" ? "#fbbf24" : "#38bdf8"} r={3} />
+                      ))}
+                    </Scatter>
+                  </ComposedChart>
+                </ResponsiveContainer>
+              )}
+            </ZoomableChart>
           ) : (
             <p className="text-xs text-slate-500">Could not detect distinct steps in this rep.</p>
           )}

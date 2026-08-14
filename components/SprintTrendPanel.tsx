@@ -11,6 +11,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import ZoomableChart from "@/components/charts/ZoomableChart";
 
 /**
  * Presentational sprint-trend visual extracted from the staff sprint-report
@@ -134,62 +135,66 @@ export default function SprintTrendPanel({
           </div>
         </div>
 
-        <ResponsiveContainer width="100%" height={300}>
-          <LineChart data={rows} margin={{ top: 4, right: 16, left: 0, bottom: -10 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.25)" vertical={false} />
-            <XAxis
-              dataKey="date"
-              tick={{ fill: "#94a3b8", fontSize: 11 }}
-              axisLine={false}
-              tickLine={false}
-            />
-            <YAxis
-              yAxisId="speed"
-              orientation="left"
-              tick={{ fill: "#94a3b8", fontSize: 11 }}
-              axisLine={false}
-              tickLine={false}
-              width={36}
-              tickCount={5}
-              domain={["auto", "auto"]}
-            />
-            <YAxis
-              yAxisId="time"
-              orientation="right"
-              tick={{ fill: "#94a3b8", fontSize: 11 }}
-              axisLine={false}
-              tickLine={false}
-              width={36}
-              tickCount={5}
-              domain={["auto", "auto"]}
-            />
-            <Tooltip
-              contentStyle={{
-                backgroundColor: "#0f172a",
-                border: "1px solid #1e293b",
-                borderRadius: 10,
-                fontSize: 12,
-                color: "#e2e8f0",
-              }}
-              labelStyle={{ color: "#a3e635", fontWeight: 600 }}
-            />
-            <Legend wrapperStyle={{ fontSize: 11, color: "#64748b" }} />
-            {activeList.map((m) => (
-              <Line
-                key={m.key}
-                yAxisId={m.axis}
-                type="monotone"
-                dataKey={m.key}
-                name={m.label}
-                stroke={m.color}
-                strokeWidth={2.5}
-                dot={{ fill: m.color, r: 5, strokeWidth: 0 }}
-                activeDot={{ r: 7 }}
-                connectNulls
-              />
-            ))}
-          </LineChart>
-        </ResponsiveContainer>
+        <ZoomableChart title={title} height={300}>
+          {(h) => (
+            <ResponsiveContainer width="100%" height={h}>
+              <LineChart data={rows} margin={{ top: 4, right: 16, left: 0, bottom: -10 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.25)" vertical={false} />
+                <XAxis
+                  dataKey="date"
+                  tick={{ fill: "#94a3b8", fontSize: 11 }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis
+                  yAxisId="speed"
+                  orientation="left"
+                  tick={{ fill: "#94a3b8", fontSize: 11 }}
+                  axisLine={false}
+                  tickLine={false}
+                  width={36}
+                  tickCount={5}
+                  domain={["auto", "auto"]}
+                />
+                <YAxis
+                  yAxisId="time"
+                  orientation="right"
+                  tick={{ fill: "#94a3b8", fontSize: 11 }}
+                  axisLine={false}
+                  tickLine={false}
+                  width={36}
+                  tickCount={5}
+                  domain={["auto", "auto"]}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "#0f172a",
+                    border: "1px solid #1e293b",
+                    borderRadius: 10,
+                    fontSize: 12,
+                    color: "#e2e8f0",
+                  }}
+                  labelStyle={{ color: "#a3e635", fontWeight: 600 }}
+                />
+                <Legend wrapperStyle={{ fontSize: 11, color: "#64748b" }} />
+                {activeList.map((m) => (
+                  <Line
+                    key={m.key}
+                    yAxisId={m.axis}
+                    type="monotone"
+                    dataKey={m.key}
+                    name={m.label}
+                    stroke={m.color}
+                    strokeWidth={2.5}
+                    dot={{ fill: m.color, r: 5, strokeWidth: 0 }}
+                    activeDot={{ r: 7 }}
+                    connectNulls
+                  />
+                ))}
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </ZoomableChart>
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">

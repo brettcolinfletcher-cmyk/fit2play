@@ -9,6 +9,7 @@ import {
   ResponsiveContainer,
   Tooltip,
 } from "recharts";
+import ZoomableChart from "@/components/charts/ZoomableChart";
 
 type Props = {
   data: { date: string; jumpHeight: number | null }[];
@@ -26,35 +27,37 @@ export default function JumpHeightGraph({ data }: Props) {
       {cleaned.length === 0 ? (
         <p className="text-xs text-slate-500">No jump-height data available.</p>
       ) : (
-        <div className="h-48">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={cleaned}>
-              <CartesianGrid stroke="rgba(255,255,255,0.1)" />
-              <XAxis
-                dataKey="date"
-                tick={{ fontSize: 10, fill: "#9CA3AF" }}
-              />
-              <YAxis
-                tick={{ fontSize: 10, fill: "#9CA3AF" }}
-                domain={["dataMin - 2", "dataMax + 2"]}
-              />
-              <Tooltip
-                contentStyle={{
-                  background: "#0f172a",
-                  border: "1px solid #334155",
-                  fontSize: "11px",
-                }}
-              />
-              <Line
-                type="monotone"
-                dataKey="jumpHeight"
-                stroke="#a3e635"
-                strokeWidth={2}
-                dot={{ r: 3 }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
+        <ZoomableChart title="Jump height trend" height={192}>
+          {(h) => (
+            <ResponsiveContainer width="100%" height={h}>
+              <LineChart data={cleaned}>
+                <CartesianGrid stroke="rgba(255,255,255,0.1)" />
+                <XAxis
+                  dataKey="date"
+                  tick={{ fontSize: 10, fill: "#9CA3AF" }}
+                />
+                <YAxis
+                  tick={{ fontSize: 10, fill: "#9CA3AF" }}
+                  domain={["dataMin - 2", "dataMax + 2"]}
+                />
+                <Tooltip
+                  contentStyle={{
+                    background: "#0f172a",
+                    border: "1px solid #334155",
+                    fontSize: "11px",
+                  }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="jumpHeight"
+                  stroke="#a3e635"
+                  strokeWidth={2}
+                  dot={{ r: 3 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </ZoomableChart>
       )}
     </div>
   );

@@ -14,6 +14,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import ZoomableChart from "@/components/charts/ZoomableChart";
 import { formatDisplayDate } from "@/lib/dateDisplay";
 import { parseHhdMovement, type ReportVisibility } from "@/lib/reportSections";
 import { lsiColorClass, sideColor } from "@/lib/sideColors";
@@ -74,18 +75,26 @@ function groupKey(s: Session): string {
   return (s.test_sub_type ?? "Unknown").replace(/:\d+$/, "").trim();
 }
 
+// Handles two Hawkins segment-naming conventions seen in production:
+// the original hyphen-suffix style ("TS Isometric Test-Abduction-Right:1")
+// and Brett's Aug 2026 tag rename, which puts side as a colon-suffixed
+// PREFIX on the movement name instead ("TS Iso Test Left:Hip Abduction -
+// Long Lever (0 degrees):1"). Both are stripped so left/right variants of
+// the same movement collapse to one movementKey and pair up correctly.
 function movementKey(gKey: string): string {
   return gKey
-    .replace(/-Left/i, "")
-    .replace(/-Right/i, "")
-    .trim()
-    .replace(/--/, "-");
+    .replace(/-Left\b/i, "")
+    .replace(/-Right\b/i, "")
+    .replace(/\bLeft:\s*/i, "")
+    .replace(/\bRight:\s*/i, "")
+    .replace(/-{2,}/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .trim();
 }
 
 function sideFromGroupKey(gKey: string): "left" | "right" | null {
-  const parts = gKey.split("-").map((p) => p.trim());
-  if (parts.some((p) => /^left$/i.test(p))) return "left";
-  if (parts.some((p) => /^right$/i.test(p))) return "right";
+  if (/\bleft\b/i.test(gKey)) return "left";
+  if (/\bright\b/i.test(gKey)) return "right";
   return null;
 }
 
@@ -230,11 +239,20 @@ function parseSegmentLabel(segment: string | null): string {
   if (!segment) return "Unknown";
   const cleaned = segment
     .replace(/^TS\s+/i, "")
-    .replace(/^Isometric\s+Test[-\s]*/i, "");
-  const colonIdx = cleaned.lastIndexOf(":");
-  const name = colonIdx >= 0 ? cleaned.slice(0, colonIdx) : cleaned;
-  const repStr = colonIdx >= 0 ? cleaned.slice(colonIdx + 1).trim() : "";
-  const parts = name.split("-").map((p) => p.trim()).filter(Boolean);
+    // Old tags: "Isometric Test-...". New (Aug 2026) tags: "Iso Test ...".
+    .replace(/^(?:Isometric|Iso)\s+Test[-\s:]*/i, "");
+  // Rep number is a trailing ":<digits>" only — NOT just "the last colon",
+  // since the new naming convention also uses a colon after Left/Right
+  // (e.g. "Left:Hip Abduction - Long Lever (0 degrees):1"), which a bare
+  // lastIndexOf(":") would have mistaken for the rep separator.
+  const repMatch = cleaned.match(/:(\d+)\s*$/);
+  const name = repMatch ? cleaned.slice(0, repMatch.index) : cleaned;
+  const repStr = repMatch ? repMatch[1] : "";
+  const parts = name
+    .replace(/^\s*(Left|Right)\s*:\s*/i, "") // side shown separately (sideLabel / L-R pairing); drop it from the label
+    .split("-")
+    .map((p) => p.trim())
+    .filter(Boolean);
   const label = parts.join(" – ");
   return repStr ? `${label} (rep ${repStr})` : label;
 }
@@ -258,6 +276,23 @@ function bestSessionForDate(sessions: Session[], date: string): Session | null {
     const curPeak = metricValue(cur.metrics, "peak_force") ?? -Infinity;
     return curPeak > bestPeak ? cur : best;
   });
+}
+
+/** One entry per test date — `best` is the highest-peak_force rep on that
+ * date (same selection `bestSessionForDate` uses for the trend charts),
+ * `all` is every rep recorded that date so the UI can default to showing
+ * just the best and let the user expand to see the rest. */
+function bestRepGroupsByDate(
+  sessions: Session[]
+): { date: string; best: Session; all: Session[] }[] {
+  const dates = [...new Set(sessions.map((s) => s.session_date.slice(0, 10)))].sort((a, b) =>
+    a.localeCompare(b)
+  );
+  return dates.map((date) => ({
+    date,
+    best: bestSessionForDate(sessions, date)!,
+    all: sessions.filter((s) => s.session_date.slice(0, 10) === date),
+  }));
 }
 
 function buildTrendData(sessions: Session[]): Record<string, string | number>[] {
@@ -391,10 +426,22 @@ export default function DynamometrySection({
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
+  // Single-group Session Detail: which `${groupKey}|${date}` entries are
+  // expanded to show every rep for that date instead of just the best one.
+  const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set());
   const [selectedMetrics, setSelectedMetrics] = useState<Set<string>>(
     () => new Set(DEFAULT_SELECTED)
   );
   const [chartType, setChartType] = useState<ChartType>("bar");
+
+  function toggleExpandedDate(dateKey: string) {
+    setExpandedDates((prev) => {
+      const next = new Set(prev);
+      if (next.has(dateKey)) next.delete(dateKey);
+      else next.add(dateKey);
+      return next;
+    });
+  }
 
   useEffect(() => {
     async function load() {
@@ -572,52 +619,58 @@ export default function DynamometrySection({
                                 {label}
                                 {unit ? ` (${unit})` : ""}
                               </p>
-                              <div className="h-[130px] w-full rounded-xl border border-slate-200 bg-white">
-                                <ResponsiveContainer width="100%" height="100%">
-                                  {chartType === "bar" ? (
-                                    <BarChart
-                                      data={trendData}
-                                      margin={{ top: 4, right: 8, left: -16, bottom: 0 }}
-                                    >
-                                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.25)" />
-                                      <XAxis dataKey="date" tick={AXIS_TICK} />
-                                      <YAxis tick={AXIS_TICK} width={36} />
-                                      <Tooltip
-                                        contentStyle={TOOLTIP_STYLE}
-                                        labelStyle={{ color: "#94a3b8" }}
-                                        itemStyle={{ color: singleGroupColor }}
-                                      />
-                                      <Bar
-                                        dataKey={key}
-                                        fill={singleGroupColor}
-                                        radius={[3, 3, 0, 0]}
-                                      />
-                                    </BarChart>
-                                  ) : (
-                                    <LineChart
-                                      data={trendData}
-                                      margin={{ top: 4, right: 8, left: -16, bottom: 0 }}
-                                    >
-                                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.25)" />
-                                      <XAxis dataKey="date" tick={AXIS_TICK} />
-                                      <YAxis tick={AXIS_TICK} width={36} />
-                                      <Tooltip
-                                        contentStyle={TOOLTIP_STYLE}
-                                        labelStyle={{ color: "#94a3b8" }}
-                                        itemStyle={{ color: singleGroupColor }}
-                                      />
-                                      <Line
-                                        type="monotone"
-                                        dataKey={key}
-                                        stroke={singleGroupColor}
-                                        strokeWidth={2}
-                                        dot={{ fill: singleGroupColor, r: 3 }}
-                                        connectNulls
-                                      />
-                                    </LineChart>
-                                  )}
-                                </ResponsiveContainer>
-                              </div>
+                              <ZoomableChart
+                                title={unit ? `${label} (${unit})` : label}
+                                height={130}
+                                className="w-full rounded-xl border border-slate-200 bg-white"
+                              >
+                                {(h) => (
+                                  <ResponsiveContainer width="100%" height={h}>
+                                    {chartType === "bar" ? (
+                                      <BarChart
+                                        data={trendData}
+                                        margin={{ top: 4, right: 8, left: -16, bottom: 0 }}
+                                      >
+                                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.25)" />
+                                        <XAxis dataKey="date" tick={AXIS_TICK} />
+                                        <YAxis tick={AXIS_TICK} width={36} />
+                                        <Tooltip
+                                          contentStyle={TOOLTIP_STYLE}
+                                          labelStyle={{ color: "#94a3b8" }}
+                                          itemStyle={{ color: singleGroupColor }}
+                                        />
+                                        <Bar
+                                          dataKey={key}
+                                          fill={singleGroupColor}
+                                          radius={[3, 3, 0, 0]}
+                                        />
+                                      </BarChart>
+                                    ) : (
+                                      <LineChart
+                                        data={trendData}
+                                        margin={{ top: 4, right: 8, left: -16, bottom: 0 }}
+                                      >
+                                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.25)" />
+                                        <XAxis dataKey="date" tick={AXIS_TICK} />
+                                        <YAxis tick={AXIS_TICK} width={36} />
+                                        <Tooltip
+                                          contentStyle={TOOLTIP_STYLE}
+                                          labelStyle={{ color: "#94a3b8" }}
+                                          itemStyle={{ color: singleGroupColor }}
+                                        />
+                                        <Line
+                                          type="monotone"
+                                          dataKey={key}
+                                          stroke={singleGroupColor}
+                                          strokeWidth={2}
+                                          dot={{ fill: singleGroupColor, r: 3 }}
+                                          connectNulls
+                                        />
+                                      </LineChart>
+                                    )}
+                                  </ResponsiveContainer>
+                                )}
+                              </ZoomableChart>
                             </div>
                           ))}
                         </div>
@@ -637,36 +690,58 @@ export default function DynamometrySection({
                       <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                         Session Detail
                       </p>
-                      {gSessions.map((s) => (
-                        <div
-                          key={s.id}
-                          className="overflow-hidden rounded border border-slate-800 bg-slate-950/40"
-                        >
-                          <div className="flex items-center justify-between bg-slate-800/40 px-4 py-2">
-                            <span className="text-xs font-medium text-slate-300">
-                              {formatDisplayDate(s.session_date)}
-                            </span>
-                            <span className="text-xs text-slate-500">
-                              {parseSegmentLabel(s.test_sub_type)}
-                            </span>
-                          </div>
-                          <div className="grid grid-cols-2 gap-x-4 gap-y-1 px-4 py-3">
-                            {orderedMetricRows(s.metrics).map((m) => (
+                      {bestRepGroupsByDate(gSessions).map(({ date, best, all }) => {
+                        const dateKey = `${gKey}|${date}`;
+                        const dateExpanded = expandedDates.has(dateKey);
+                        const shown = dateExpanded ? all : [best];
+                        return (
+                          <div key={date} className="space-y-2">
+                            {shown.map((s, i) => (
                               <div
-                                key={`${s.id}-${m.key}`}
-                                className="flex items-baseline justify-between gap-2 py-0.5"
+                                key={s.id}
+                                className="overflow-hidden rounded border border-slate-800 bg-slate-950/40"
                               >
-                                <span className="text-xs text-slate-400">
-                                  {metricDisplayLabel(m.key)}
-                                </span>
-                                <span className="shrink-0 font-mono text-xs text-slate-200">
-                                  {Number(m.value).toFixed(2)}
-                                </span>
+                                <button
+                                  type="button"
+                                  disabled={all.length <= 1}
+                                  onClick={() => toggleExpandedDate(dateKey)}
+                                  className="flex w-full items-center justify-between bg-slate-800/40 px-4 py-2 text-left disabled:cursor-default"
+                                >
+                                  <span className="text-xs font-medium text-slate-300">
+                                    {formatDisplayDate(s.session_date)}
+                                    {all.length > 1 && i === 0 ? (
+                                      <span className="ml-2 text-[10px] font-normal text-slate-500">
+                                        {all.length} reps · {dateExpanded ? "showing all" : "best shown"}
+                                      </span>
+                                    ) : null}
+                                  </span>
+                                  <span className="flex items-center gap-2 text-xs text-slate-500">
+                                    {parseSegmentLabel(s.test_sub_type)}
+                                    {all.length > 1 && i === 0 ? (
+                                      <span>{dateExpanded ? "▲" : "▼"}</span>
+                                    ) : null}
+                                  </span>
+                                </button>
+                                <div className="grid grid-cols-2 gap-x-4 gap-y-1 px-4 py-3">
+                                  {orderedMetricRows(s.metrics).map((m) => (
+                                    <div
+                                      key={`${s.id}-${m.key}`}
+                                      className="flex items-baseline justify-between gap-2 py-0.5"
+                                    >
+                                      <span className="text-xs text-slate-400">
+                                        {metricDisplayLabel(m.key)}
+                                      </span>
+                                      <span className="shrink-0 font-mono text-xs text-slate-200">
+                                        {Number(m.value).toFixed(2)}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
                               </div>
                             ))}
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 ) : null}
@@ -817,132 +892,138 @@ export default function DynamometrySection({
                               {label}
                               {unit ? ` (${unit})` : ""}
                             </p>
-                            <div className="h-[130px] w-full rounded-xl border border-slate-200 bg-white">
-                              <ResponsiveContainer width="100%" height="100%">
-                                {chartType === "bar" ? (
-                                  <BarChart
-                                    data={trendData}
-                                    margin={{ top: 4, right: 4, left: -16, bottom: 0 }}
-                                  >
-                                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.25)" />
-                                    <XAxis dataKey="date" tick={AXIS_TICK} />
-                                    <YAxis tick={AXIS_TICK} width={32} />
-                                    <Tooltip
-                                      contentStyle={TOOLTIP_STYLE}
-                                      labelStyle={{ color: "#94a3b8" }}
-                                      formatter={(v: number | string, name: string) => {
-                                        const n = typeof v === "number" ? v : Number(v);
-                                        const side = name.includes("_left") ? "Left" : "Right";
-                                        return [
-                                          Number.isFinite(n)
-                                            ? `${n.toFixed(1)}${unit ? ` ${unit}` : ""}`
-                                            : String(v),
-                                          side,
-                                        ];
-                                      }}
-                                    />
-                                    <Legend
-                                      wrapperStyle={{ fontSize: "10px" }}
-                                      formatter={(value) =>
-                                        value.includes("_left") ? "Left" : "Right"
-                                      }
-                                    />
-                                    <Bar
-                                      dataKey={`${key}_left`}
-                                      name={`${key}_left`}
-                                      fill="#60a5fa"
-                                      radius={[3, 3, 0, 0]}
-                                    />
-                                    <Bar
-                                      dataKey={`${key}_right`}
-                                      name={`${key}_right`}
-                                      fill="#a3e635"
-                                      radius={[3, 3, 0, 0]}
-                                    />
-                                  </BarChart>
-                                ) : (
-                                  <LineChart
-                                    data={trendData}
-                                    margin={{ top: 4, right: 4, left: -16, bottom: 0 }}
-                                  >
-                                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.25)" />
-                                    <XAxis dataKey="date" tick={AXIS_TICK} />
-                                    <YAxis
-                                      yAxisId="value"
-                                      tick={AXIS_TICK}
-                                      width={32}
-                                      domain={["auto", "auto"]}
-                                    />
-                                    <YAxis
-                                      yAxisId="lsi"
-                                      orientation="right"
-                                      tick={AXIS_TICK}
-                                      width={28}
-                                      domain={[0, 100]}
-                                      tickFormatter={(v) => `${v}`}
-                                    />
-                                    <Tooltip
-                                      contentStyle={TOOLTIP_STYLE}
-                                      labelStyle={{ color: "#94a3b8" }}
-                                      formatter={(v: number | string, name: string) => {
-                                        const n = typeof v === "number" ? v : Number(v);
-                                        if (name.includes("LSI")) {
-                                          return [`${n.toFixed(1)}%`, "LSI"];
+                            <ZoomableChart
+                              title={unit ? `${label} (${unit})` : label}
+                              height={130}
+                              className="w-full rounded-xl border border-slate-200 bg-white"
+                            >
+                              {(h) => (
+                                <ResponsiveContainer width="100%" height={h}>
+                                  {chartType === "bar" ? (
+                                    <BarChart
+                                      data={trendData}
+                                      margin={{ top: 4, right: 4, left: -16, bottom: 0 }}
+                                    >
+                                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.25)" />
+                                      <XAxis dataKey="date" tick={AXIS_TICK} />
+                                      <YAxis tick={AXIS_TICK} width={32} />
+                                      <Tooltip
+                                        contentStyle={TOOLTIP_STYLE}
+                                        labelStyle={{ color: "#94a3b8" }}
+                                        formatter={(v: number | string, name: string) => {
+                                          const n = typeof v === "number" ? v : Number(v);
+                                          const side = name.includes("_left") ? "Left" : "Right";
+                                          return [
+                                            Number.isFinite(n)
+                                              ? `${n.toFixed(1)}${unit ? ` ${unit}` : ""}`
+                                              : String(v),
+                                            side,
+                                          ];
+                                        }}
+                                      />
+                                      <Legend
+                                        wrapperStyle={{ fontSize: "10px" }}
+                                        formatter={(value) =>
+                                          value.includes("_left") ? "Left" : "Right"
                                         }
-                                        const side = name.includes("Left") ? "Left" : "Right";
-                                        return [
-                                          Number.isFinite(n)
-                                            ? `${n.toFixed(1)}${unit ? ` ${unit}` : ""}`
-                                            : String(v),
-                                          side,
-                                        ];
-                                      }}
-                                    />
-                                    <Legend
-                                      wrapperStyle={{ fontSize: "10px" }}
-                                      formatter={(value) =>
-                                        value.includes("_left")
-                                          ? "Left"
-                                          : value.includes("_right")
-                                            ? "Right"
-                                            : "LSI %"
-                                      }
-                                    />
-                                    <Line
-                                      yAxisId="value"
-                                      type="monotone"
-                                      dataKey={`${key}_left`}
-                                      name={`${key}_left`}
-                                      stroke="#60a5fa"
-                                      strokeWidth={2}
-                                      dot={{ fill: "#60a5fa", r: 2 }}
-                                      connectNulls
-                                    />
-                                    <Line
-                                      yAxisId="value"
-                                      type="monotone"
-                                      dataKey={`${key}_right`}
-                                      name={`${key}_right`}
-                                      stroke="#a3e635"
-                                      strokeWidth={2}
-                                      dot={{ fill: "#a3e635", r: 2 }}
-                                      connectNulls
-                                    />
-                                    <Line
-                                      yAxisId="lsi"
-                                      type="monotone"
-                                      dataKey={`${key}_lsi`}
-                                      name={`${key}_lsi`}
-                                      stroke="#fbbf24"
-                                      strokeWidth={1.5}
-                                      strokeDasharray="4 3"
-                                      dot={false}
-                                      connectNulls
-                                    />
-                                  </LineChart>
-                                )}
-                              </ResponsiveContainer>
-                            </div>
+                                      />
+                                      <Bar
+                                        dataKey={`${key}_left`}
+                                        name={`${key}_left`}
+                                        fill="#60a5fa"
+                                        radius={[3, 3, 0, 0]}
+                                      />
+                                      <Bar
+                                        dataKey={`${key}_right`}
+                                        name={`${key}_right`}
+                                        fill="#a3e635"
+                                        radius={[3, 3, 0, 0]}
+                                      />
+                                    </BarChart>
+                                  ) : (
+                                    <LineChart
+                                      data={trendData}
+                                      margin={{ top: 4, right: 4, left: -16, bottom: 0 }}
+                                    >
+                                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.25)" />
+                                      <XAxis dataKey="date" tick={AXIS_TICK} />
+                                      <YAxis
+                                        yAxisId="value"
+                                        tick={AXIS_TICK}
+                                        width={32}
+                                        domain={["auto", "auto"]}
+                                      />
+                                      <YAxis
+                                        yAxisId="lsi"
+                                        orientation="right"
+                                        tick={AXIS_TICK}
+                                        width={28}
+                                        domain={[0, 100]}
+                                        tickFormatter={(v) => `${v}`}
+                                      />
+                                      <Tooltip
+                                        contentStyle={TOOLTIP_STYLE}
+                                        labelStyle={{ color: "#94a3b8" }}
+                                        formatter={(v: number | string, name: string) => {
+                                          const n = typeof v === "number" ? v : Number(v);
+                                          if (name.includes("LSI")) {
+                                            return [`${n.toFixed(1)}%`, "LSI"];
+                                          }
+                                          const side = name.includes("Left") ? "Left" : "Right";
+                                          return [
+                                            Number.isFinite(n)
+                                              ? `${n.toFixed(1)}${unit ? ` ${unit}` : ""}`
+                                              : String(v),
+                                            side,
+                                          ];
+                                        }}
+                                      />
+                                      <Legend
+                                        wrapperStyle={{ fontSize: "10px" }}
+                                        formatter={(value) =>
+                                          value.includes("_left")
+                                            ? "Left"
+                                            : value.includes("_right")
+                                              ? "Right"
+                                              : "LSI %"
+                                        }
+                                      />
+                                      <Line
+                                        yAxisId="value"
+                                        type="monotone"
+                                        dataKey={`${key}_left`}
+                                        name={`${key}_left`}
+                                        stroke="#60a5fa"
+                                        strokeWidth={2}
+                                        dot={{ fill: "#60a5fa", r: 2 }}
+                                        connectNulls
+                                      />
+                                      <Line
+                                        yAxisId="value"
+                                        type="monotone"
+                                        dataKey={`${key}_right`}
+                                        name={`${key}_right`}
+                                        stroke="#a3e635"
+                                        strokeWidth={2}
+                                        dot={{ fill: "#a3e635", r: 2 }}
+                                        connectNulls
+                                      />
+                                      <Line
+                                        yAxisId="lsi"
+                                        type="monotone"
+                                        dataKey={`${key}_lsi`}
+                                        name={`${key}_lsi`}
+                                        stroke="#fbbf24"
+                                        strokeWidth={1.5}
+                                        strokeDasharray="4 3"
+                                        dot={false}
+                                        connectNulls
+                                      />
+                                    </LineChart>
+                                  )}
+                                </ResponsiveContainer>
+                              )}
+                            </ZoomableChart>
                           </div>
                         ))}
                       </div>

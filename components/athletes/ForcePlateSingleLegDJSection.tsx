@@ -15,6 +15,7 @@ import {
 } from "recharts";
 import { formatDisplayDate } from "@/lib/dateDisplay";
 import { lsiColorClass, SIDE_COLORS } from "@/lib/sideColors";
+import ZoomableChart from "@/components/charts/ZoomableChart";
 import ChartTypeToggle, { type ChartType } from "./ChartTypeToggle";
 import SectionComment from "./SectionComment";
 import {
@@ -277,62 +278,68 @@ export default function ForcePlateSingleLegDJSection({
               {!enough ? (
                 <p className="py-12 text-center text-xs text-slate-500">Not enough data</p>
               ) : (
-                <div className="h-[220px] w-full rounded-xl border border-slate-200 bg-white">
-                  <ResponsiveContainer width="100%" height="100%">
-                    {chartType === "bar" ? (
-                      <BarChart data={pts} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-                        {ChartDefs}
-                        <CartesianGrid {...CHART_GRID} />
-                        <XAxis dataKey="date" tick={AXIS_TICK} tickLine={false} axisLine={CHART_AXIS_LINE} />
-                        <YAxis tick={AXIS_TICK} width={48} tickLine={false} axisLine={false} />
-                        <Tooltip
-                          contentStyle={TOOLTIP_STYLE}
-                          labelStyle={{ color: "#94a3b8" }}
-                          formatter={tooltipFormatter}
-                        />
-                        <Legend wrapperStyle={{ fontSize: 10 }} />
-                        <Bar dataKey="left" name="Left" fill="url(#f2pBarLeft)" radius={[6, 6, 0, 0]} maxBarSize={26} />
-                        <Bar dataKey="right" name="Right" fill="url(#f2pBarRight)" radius={[6, 6, 0, 0]} maxBarSize={26} />
-                      </BarChart>
-                    ) : (
-                      <LineChart data={pts} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-                        <CartesianGrid {...CHART_GRID} />
-                        <XAxis dataKey="date" tick={AXIS_TICK} tickLine={false} axisLine={CHART_AXIS_LINE} />
-                        <YAxis tick={AXIS_TICK} width={48} tickLine={false} axisLine={false} />
-                        <Tooltip
-                          contentStyle={TOOLTIP_STYLE}
-                          labelStyle={{ color: "#94a3b8" }}
-                          formatter={tooltipFormatter}
-                        />
-                        <Legend wrapperStyle={{ fontSize: 10 }} />
-                        <Line
-                          type="monotone"
-                          dataKey="left"
-                          name="Left"
-                          stroke={SIDE_COLORS.left}
-                          strokeWidth={2.25}
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          dot={{ fill: SIDE_COLORS.left, r: 2.5, strokeWidth: 0 }}
-                          activeDot={{ r: 4 }}
-                          connectNulls
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="right"
-                          name="Right"
-                          stroke={SIDE_COLORS.right}
-                          strokeWidth={2.25}
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          dot={{ fill: SIDE_COLORS.right, r: 2.5, strokeWidth: 0 }}
-                          activeDot={{ r: 4 }}
-                          connectNulls
-                        />
-                      </LineChart>
-                    )}
-                  </ResponsiveContainer>
-                </div>
+                <ZoomableChart
+                  title={`${metric.label}${metric.unit ? ` (${metric.unit})` : ""}`}
+                  height={220}
+                  className="rounded-xl border border-slate-200 bg-white"
+                >
+                  {(h) => (
+                    <ResponsiveContainer width="100%" height={h}>
+                      {chartType === "bar" ? (
+                        <BarChart data={pts} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                          {ChartDefs}
+                          <CartesianGrid {...CHART_GRID} />
+                          <XAxis dataKey="date" tick={AXIS_TICK} tickLine={false} axisLine={CHART_AXIS_LINE} />
+                          <YAxis tick={AXIS_TICK} width={48} tickLine={false} axisLine={false} />
+                          <Tooltip
+                            contentStyle={TOOLTIP_STYLE}
+                            labelStyle={{ color: "#94a3b8" }}
+                            formatter={tooltipFormatter}
+                          />
+                          <Legend wrapperStyle={{ fontSize: 10 }} />
+                          <Bar dataKey="left" name="Left" fill="url(#f2pBarLeft)" radius={[6, 6, 0, 0]} maxBarSize={26} />
+                          <Bar dataKey="right" name="Right" fill="url(#f2pBarRight)" radius={[6, 6, 0, 0]} maxBarSize={26} />
+                        </BarChart>
+                      ) : (
+                        <LineChart data={pts} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                          <CartesianGrid {...CHART_GRID} />
+                          <XAxis dataKey="date" tick={AXIS_TICK} tickLine={false} axisLine={CHART_AXIS_LINE} />
+                          <YAxis tick={AXIS_TICK} width={48} tickLine={false} axisLine={false} />
+                          <Tooltip
+                            contentStyle={TOOLTIP_STYLE}
+                            labelStyle={{ color: "#94a3b8" }}
+                            formatter={tooltipFormatter}
+                          />
+                          <Legend wrapperStyle={{ fontSize: 10 }} />
+                          <Line
+                            type="monotone"
+                            dataKey="left"
+                            name="Left"
+                            stroke={SIDE_COLORS.left}
+                            strokeWidth={2.25}
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            dot={{ fill: SIDE_COLORS.left, r: 2.5, strokeWidth: 0 }}
+                            activeDot={{ r: 4 }}
+                            connectNulls
+                          />
+                          <Line
+                            type="monotone"
+                            dataKey="right"
+                            name="Right"
+                            stroke={SIDE_COLORS.right}
+                            strokeWidth={2.25}
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            dot={{ fill: SIDE_COLORS.right, r: 2.5, strokeWidth: 0 }}
+                            activeDot={{ r: 4 }}
+                            connectNulls
+                          />
+                        </LineChart>
+                      )}
+                    </ResponsiveContainer>
+                  )}
+                </ZoomableChart>
               )}
             </div>
           );

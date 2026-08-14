@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import DashboardNav from "@/components/DashboardNav";
 import { formatDisplayDate } from "@/lib/dateDisplay";
 import { createClient } from "@supabase/supabase-js";
+import ZoomableChart from "@/components/charts/ZoomableChart";
 
 import {
   LineChart,
@@ -412,60 +413,62 @@ export default function ComparePage() {
             RTS trend across comparison window
           </h2>
 
-          <div className="h-56">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart
-                data={[
-                  ...beforeSessions.map((s) => {
-                    const m = metrics.filter((x) => x.session_id === s.id);
-                    const peak = m.find((x) => x.key === "peakSpeed" && x.rep_index == null)?.value ?? null;
-                    const split20 = m.find((x) => x.key === "split20m" && x.rep_index == null)?.value ?? null;
-                    const reps = m.filter((x) => x.key === "peakSpeed" && x.rep_index != null).map((x) => x.value);
-                    const rts = computeRTS(peak, split20, reps);
+          <ZoomableChart title="RTS trend across comparison window" height={224}>
+            {(h) => (
+              <ResponsiveContainer width="100%" height={h}>
+                <LineChart
+                  data={[
+                    ...beforeSessions.map((s) => {
+                      const m = metrics.filter((x) => x.session_id === s.id);
+                      const peak = m.find((x) => x.key === "peakSpeed" && x.rep_index == null)?.value ?? null;
+                      const split20 = m.find((x) => x.key === "split20m" && x.rep_index == null)?.value ?? null;
+                      const reps = m.filter((x) => x.key === "peakSpeed" && x.rep_index != null).map((x) => x.value);
+                      const rts = computeRTS(peak, split20, reps);
 
-                    return {
-                      date: formatDisplayDate(s.created_at),
-                      rts,
-                      phase: "before",
-                    };
-                  }),
-                  ...afterSessions.map((s) => {
-                    const m = metrics.filter((x) => x.session_id === s.id);
-                    const peak = m.find((x) => x.key === "peakSpeed" && x.rep_index == null)?.value ?? null;
-                    const split20 = m.find((x) => x.key === "split20m" && x.rep_index == null)?.value ?? null;
-                    const reps = m.filter((x) => x.key === "peakSpeed" && x.rep_index != null).map((x) => x.value);
-                    const rts = computeRTS(peak, split20, reps);
+                      return {
+                        date: formatDisplayDate(s.created_at),
+                        rts,
+                        phase: "before",
+                      };
+                    }),
+                    ...afterSessions.map((s) => {
+                      const m = metrics.filter((x) => x.session_id === s.id);
+                      const peak = m.find((x) => x.key === "peakSpeed" && x.rep_index == null)?.value ?? null;
+                      const split20 = m.find((x) => x.key === "split20m" && x.rep_index == null)?.value ?? null;
+                      const reps = m.filter((x) => x.key === "peakSpeed" && x.rep_index != null).map((x) => x.value);
+                      const rts = computeRTS(peak, split20, reps);
 
-                    return {
-                      date: formatDisplayDate(s.created_at),
-                      rts,
-                      phase: "after",
-                    };
-                  }),
-                ]}
-              >
-                <CartesianGrid stroke="#1f2937" strokeDasharray="3 3" />
-                <XAxis dataKey="date" tick={{ fill: "#9ca3af", fontSize: 10 }} />
-                <YAxis tick={{ fill: "#9ca3af", fontSize: 10 }} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "#020617",
-                    borderColor: "#4b5563",
-                    fontSize: 12,
-                  }}
-                />
-                <Legend wrapperStyle={{ fontSize: 10 }} />
+                      return {
+                        date: formatDisplayDate(s.created_at),
+                        rts,
+                        phase: "after",
+                      };
+                    }),
+                  ]}
+                >
+                  <CartesianGrid stroke="#1f2937" strokeDasharray="3 3" />
+                  <XAxis dataKey="date" tick={{ fill: "#9ca3af", fontSize: 10 }} />
+                  <YAxis tick={{ fill: "#9ca3af", fontSize: 10 }} />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "#020617",
+                      borderColor: "#4b5563",
+                      fontSize: 12,
+                    }}
+                  />
+                  <Legend wrapperStyle={{ fontSize: 10 }} />
 
-                <Line
-                  type="monotone"
-                  dataKey="rts"
-                  stroke="#a3e635"
-                  strokeWidth={2}
-                  dot={{ r: 3 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+                  <Line
+                    type="monotone"
+                    dataKey="rts"
+                    stroke="#a3e635"
+                    strokeWidth={2}
+                    dot={{ r: 3 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </ZoomableChart>
         </div>
 
       </section>

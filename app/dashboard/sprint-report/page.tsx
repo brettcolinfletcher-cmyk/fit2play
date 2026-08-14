@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import DashboardNav from "@/components/DashboardNav";
+import ZoomableChart from "@/components/charts/ZoomableChart";
 import { formatDisplayDate } from "@/lib/dateDisplay";
 import {
   CartesianGrid,
@@ -714,62 +715,66 @@ export default function SprintReportPage() {
                       <h2 className="mb-4 text-xs uppercase tracking-wide text-slate-500">
                         Trend over time
                       </h2>
-                      <ResponsiveContainer width="100%" height={300}>
-                        <LineChart data={reportRows} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
-                          <XAxis
-                            dataKey="date"
-                            tick={{ fill: "#94a3b8", fontSize: 11 }}
-                            axisLine={false}
-                            tickLine={false}
-                          />
-                          <YAxis
-                            yAxisId="speed"
-                            orientation="left"
-                            tick={{ fill: "#94a3b8", fontSize: 11 }}
-                            axisLine={false}
-                            tickLine={false}
-                            width={36}
-                          />
-                          <YAxis
-                            yAxisId="time"
-                            orientation="right"
-                            tick={{ fill: "#94a3b8", fontSize: 11 }}
-                            axisLine={false}
-                            tickLine={false}
-                            width={36}
-                          />
-                          <Tooltip
-                            contentStyle={{
-                              backgroundColor: "#0f172a",
-                              border: "1px solid #1e293b",
-                              borderRadius: 10,
-                              fontSize: 12,
-                              color: "#e2e8f0",
-                            }}
-                            labelStyle={{ color: "#a3e635", fontWeight: 600 }}
-                          />
-                          <Legend wrapperStyle={{ fontSize: 11, color: "#94a3b8" }} />
-                          {METRIC_CONFIG.filter((m) => activeMetrics.has(m.key)).map((m) => (
-                            <Line
-                              key={m.key}
-                              yAxisId={
-                                m.key === "topSpeed" || m.key === "maxAcceleration"
-                                  ? "speed"
-                                  : "time"
-                              }
-                              type="monotone"
-                              dataKey={m.key}
-                              name={m.label}
-                              stroke={m.color}
-                              strokeWidth={2}
-                              dot={{ fill: m.color, r: 4 }}
-                              activeDot={{ r: 6 }}
-                              connectNulls
-                            />
-                          ))}
-                        </LineChart>
-                      </ResponsiveContainer>
+                      <ZoomableChart title="Trend over time" height={300}>
+                        {(h) => (
+                          <ResponsiveContainer width="100%" height={h}>
+                            <LineChart data={reportRows} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                              <XAxis
+                                dataKey="date"
+                                tick={{ fill: "#94a3b8", fontSize: 11 }}
+                                axisLine={false}
+                                tickLine={false}
+                              />
+                              <YAxis
+                                yAxisId="speed"
+                                orientation="left"
+                                tick={{ fill: "#94a3b8", fontSize: 11 }}
+                                axisLine={false}
+                                tickLine={false}
+                                width={36}
+                              />
+                              <YAxis
+                                yAxisId="time"
+                                orientation="right"
+                                tick={{ fill: "#94a3b8", fontSize: 11 }}
+                                axisLine={false}
+                                tickLine={false}
+                                width={36}
+                              />
+                              <Tooltip
+                                contentStyle={{
+                                  backgroundColor: "#0f172a",
+                                  border: "1px solid #1e293b",
+                                  borderRadius: 10,
+                                  fontSize: 12,
+                                  color: "#e2e8f0",
+                                }}
+                                labelStyle={{ color: "#a3e635", fontWeight: 600 }}
+                              />
+                              <Legend wrapperStyle={{ fontSize: 11, color: "#94a3b8" }} />
+                              {METRIC_CONFIG.filter((m) => activeMetrics.has(m.key)).map((m) => (
+                                <Line
+                                  key={m.key}
+                                  yAxisId={
+                                    m.key === "topSpeed" || m.key === "maxAcceleration"
+                                      ? "speed"
+                                      : "time"
+                                  }
+                                  type="monotone"
+                                  dataKey={m.key}
+                                  name={m.label}
+                                  stroke={m.color}
+                                  strokeWidth={2}
+                                  dot={{ fill: m.color, r: 4 }}
+                                  activeDot={{ r: 6 }}
+                                  connectNulls
+                                />
+                              ))}
+                            </LineChart>
+                          </ResponsiveContainer>
+                        )}
+                      </ZoomableChart>
                     </div>
 
                     <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/40">
@@ -867,51 +872,55 @@ export default function SprintReportPage() {
                           No sprint sessions for this team.
                         </p>
                       ) : (
-                        <ResponsiveContainer width="100%" height={300}>
-                          <LineChart
-                            data={teamChartData}
-                            margin={{ top: 4, right: 16, left: 0, bottom: 0 }}
-                          >
-                            <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
-                            <XAxis
-                              dataKey="date"
-                              tick={{ fill: "#94a3b8", fontSize: 11 }}
-                              axisLine={false}
-                              tickLine={false}
-                            />
-                            <YAxis
-                              tick={{ fill: "#94a3b8", fontSize: 11 }}
-                              axisLine={false}
-                              tickLine={false}
-                              width={36}
-                            />
-                            <Tooltip
-                              contentStyle={{
-                                backgroundColor: "#0f172a",
-                                border: "1px solid #1e293b",
-                                borderRadius: 10,
-                                fontSize: 12,
-                              }}
-                              labelStyle={{ color: "#a3e635", fontWeight: 600 }}
-                            />
-                            <Legend wrapperStyle={{ fontSize: 11 }} />
-                            {METRIC_CONFIG.filter((m) => activeMetrics.has(m.key)).flatMap(
-                              (metric) =>
-                                teamAthletes.map((a) => (
-                                  <Line
-                                    key={`${metric.key}_${a.id}`}
-                                    type="monotone"
-                                    dataKey={`${metric.key}_${a.id}`}
-                                    name={`${athleteName(a)} — ${metric.label}`}
-                                    stroke={athleteColors.get(a.id) ?? "#a3e635"}
-                                    strokeWidth={2}
-                                    dot={{ r: 3 }}
-                                    connectNulls
-                                  />
-                                ))
-                            )}
-                          </LineChart>
-                        </ResponsiveContainer>
+                        <ZoomableChart title="Team — longitudinal" height={300}>
+                          {(h) => (
+                            <ResponsiveContainer width="100%" height={h}>
+                              <LineChart
+                                data={teamChartData}
+                                margin={{ top: 4, right: 16, left: 0, bottom: 0 }}
+                              >
+                                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                                <XAxis
+                                  dataKey="date"
+                                  tick={{ fill: "#94a3b8", fontSize: 11 }}
+                                  axisLine={false}
+                                  tickLine={false}
+                                />
+                                <YAxis
+                                  tick={{ fill: "#94a3b8", fontSize: 11 }}
+                                  axisLine={false}
+                                  tickLine={false}
+                                  width={36}
+                                />
+                                <Tooltip
+                                  contentStyle={{
+                                    backgroundColor: "#0f172a",
+                                    border: "1px solid #1e293b",
+                                    borderRadius: 10,
+                                    fontSize: 12,
+                                  }}
+                                  labelStyle={{ color: "#a3e635", fontWeight: 600 }}
+                                />
+                                <Legend wrapperStyle={{ fontSize: 11 }} />
+                                {METRIC_CONFIG.filter((m) => activeMetrics.has(m.key)).flatMap(
+                                  (metric) =>
+                                    teamAthletes.map((a) => (
+                                      <Line
+                                        key={`${metric.key}_${a.id}`}
+                                        type="monotone"
+                                        dataKey={`${metric.key}_${a.id}`}
+                                        name={`${athleteName(a)} — ${metric.label}`}
+                                        stroke={athleteColors.get(a.id) ?? "#a3e635"}
+                                        strokeWidth={2}
+                                        dot={{ r: 3 }}
+                                        connectNulls
+                                      />
+                                    ))
+                                )}
+                              </LineChart>
+                            </ResponsiveContainer>
+                          )}
+                        </ZoomableChart>
                       )}
                     </div>
 
@@ -1039,70 +1048,74 @@ export default function SprintReportPage() {
                           No sprint sessions in this benchmark group.
                         </p>
                       ) : (
-                        <ResponsiveContainer width="100%" height={300}>
-                          <LineChart
-                            data={benchmarkChartData}
-                            margin={{ top: 4, right: 16, left: 0, bottom: 0 }}
-                          >
-                            <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
-                            <XAxis
-                              dataKey="date"
-                              tick={{ fill: "#94a3b8", fontSize: 11 }}
-                              axisLine={false}
-                              tickLine={false}
-                            />
-                            <YAxis
-                              tick={{ fill: "#94a3b8", fontSize: 11 }}
-                              axisLine={false}
-                              tickLine={false}
-                              width={36}
-                            />
-                            <Tooltip
-                              contentStyle={{
-                                backgroundColor: "#0f172a",
-                                border: "1px solid #1e293b",
-                                borderRadius: 10,
-                                fontSize: 12,
-                              }}
-                              labelStyle={{ color: "#a3e635", fontWeight: 600 }}
-                            />
-                            <Legend wrapperStyle={{ fontSize: 11 }} />
-                            {METRIC_CONFIG.filter((m) => activeMetrics.has(m.key)).flatMap(
-                              (metric) => {
-                                const lines = [
-                                  <Line
-                                    key={`${metric.key}_mean`}
-                                    type="monotone"
-                                    dataKey={`${metric.key}_mean`}
-                                    name={`${metric.label} — ${benchmarkLabel.trim()} avg`}
-                                    stroke="#94a3b8"
-                                    strokeWidth={2}
-                                    strokeDasharray="6 4"
-                                    dot={false}
-                                    connectNulls
-                                  />,
-                                ];
-                                if (selectedId && benchmarkAthleteIds.includes(selectedId)) {
-                                  lines.push(
-                                    <Line
-                                      key={`${metric.key}_selected`}
-                                      type="monotone"
-                                      dataKey={`${metric.key}_selected`}
-                                      name={`${metric.label} — ${athleteName(
-                                        athletes.find((a) => a.id === selectedId)!
-                                      )}`}
-                                      stroke={athleteColors.get(selectedId) ?? "#a3e635"}
-                                      strokeWidth={2}
-                                      dot={{ r: 3 }}
-                                      connectNulls
-                                    />
-                                  );
-                                }
-                                return lines;
-                              }
-                            )}
-                          </LineChart>
-                        </ResponsiveContainer>
+                        <ZoomableChart title="Benchmark — longitudinal" height={300}>
+                          {(h) => (
+                            <ResponsiveContainer width="100%" height={h}>
+                              <LineChart
+                                data={benchmarkChartData}
+                                margin={{ top: 4, right: 16, left: 0, bottom: 0 }}
+                              >
+                                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                                <XAxis
+                                  dataKey="date"
+                                  tick={{ fill: "#94a3b8", fontSize: 11 }}
+                                  axisLine={false}
+                                  tickLine={false}
+                                />
+                                <YAxis
+                                  tick={{ fill: "#94a3b8", fontSize: 11 }}
+                                  axisLine={false}
+                                  tickLine={false}
+                                  width={36}
+                                />
+                                <Tooltip
+                                  contentStyle={{
+                                    backgroundColor: "#0f172a",
+                                    border: "1px solid #1e293b",
+                                    borderRadius: 10,
+                                    fontSize: 12,
+                                  }}
+                                  labelStyle={{ color: "#a3e635", fontWeight: 600 }}
+                                />
+                                <Legend wrapperStyle={{ fontSize: 11 }} />
+                                {METRIC_CONFIG.filter((m) => activeMetrics.has(m.key)).flatMap(
+                                  (metric) => {
+                                    const lines = [
+                                      <Line
+                                        key={`${metric.key}_mean`}
+                                        type="monotone"
+                                        dataKey={`${metric.key}_mean`}
+                                        name={`${metric.label} — ${benchmarkLabel.trim()} avg`}
+                                        stroke="#94a3b8"
+                                        strokeWidth={2}
+                                        strokeDasharray="6 4"
+                                        dot={false}
+                                        connectNulls
+                                      />,
+                                    ];
+                                    if (selectedId && benchmarkAthleteIds.includes(selectedId)) {
+                                      lines.push(
+                                        <Line
+                                          key={`${metric.key}_selected`}
+                                          type="monotone"
+                                          dataKey={`${metric.key}_selected`}
+                                          name={`${metric.label} — ${athleteName(
+                                            athletes.find((a) => a.id === selectedId)!
+                                          )}`}
+                                          stroke={athleteColors.get(selectedId) ?? "#a3e635"}
+                                          strokeWidth={2}
+                                          dot={{ r: 3 }}
+                                          connectNulls
+                                        />
+                                      );
+                                    }
+                                    return lines;
+                                  }
+                                )}
+                              </LineChart>
+                            </ResponsiveContainer>
+                          )}
+                        </ZoomableChart>
                       )}
                     </div>
 

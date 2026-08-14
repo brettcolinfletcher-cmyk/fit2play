@@ -86,6 +86,10 @@ export const METRIC_REGISTRY: {
   { id: "strength_hip_adduction", categoryId: "strength", categoryLabel: "Strength (Isometric)", label: "Hip Adduction", unit: "N", decimals: 0, direction: "higher", defaultTarget: 200 },
   { id: "strength_knee_extension", categoryId: "strength", categoryLabel: "Strength (Isometric)", label: "Knee Extension", unit: "N", decimals: 0, direction: "higher", defaultTarget: 300 },
   { id: "strength_knee_flexion", categoryId: "strength", categoryLabel: "Strength (Isometric)", label: "Knee Flexion", unit: "N", decimals: 0, direction: "higher", defaultTarget: 200 },
+  // Added Aug 2026 for Brett's new "TS Iso Test Groin Squeeze" Hawkins tag —
+  // no prior data to derive a clinical target from, so this mirrors the
+  // hip abduction/adduction default (200N). Adjust once real readings come in.
+  { id: "strength_groin_squeeze", categoryId: "strength", categoryLabel: "Strength (Isometric)", label: "Groin Squeeze", unit: "N", decimals: 0, direction: "higher", defaultTarget: 200 },
 ];
 
 const METRIC_BY_ID = new Map(METRIC_REGISTRY.map((m) => [m.id, m]));
@@ -98,11 +102,14 @@ const METRIC_BY_ID = new Map(METRIC_REGISTRY.map((m) => [m.id, m]));
  * is done by keyword rather than parseHhdMovement's exact-token output
  * (which is used elsewhere for free-text display, not canonical grouping).
  */
-const STRENGTH_MOVEMENTS: { metricId: string; keywords: string[] }[] = [
+const STRENGTH_MOVEMENTS: { metricId: string; keywords: string[]; bilateral?: boolean }[] = [
   { metricId: "strength_hip_abduction", keywords: ["abduction"] },
   { metricId: "strength_hip_adduction", keywords: ["adduction"] },
   { metricId: "strength_knee_extension", keywords: ["knee", "extension"] },
   { metricId: "strength_knee_flexion", keywords: ["knee", "flexion"] },
+  // "TS Iso Test Groin Squeeze" — bilateral test, no left/right tag on the
+  // Hawkins side, so it's displayed as a single value, not L/R.
+  { metricId: "strength_groin_squeeze", keywords: ["groin"], bilateral: true },
 ];
 
 function matchesStrengthMovement(subType: string | null | undefined, keywords: string[]): boolean {
@@ -285,7 +292,7 @@ function latestIsoForMovement(
   sessions: ReportSessionRow[],
   metricsBySession: Map<string, ReportMetricRow[]>,
   keywords: string[]
-): { left: number | null; right: number | null; source: ReportSessionRow | null } {
+): { left: number | null; right: number | null; both: number | null; source: ReportSessionRow | null } {
   const matching = sessions.filter(
     (s) => s.test_type === "force_plate_isometric" && matchesStrengthMovement(s.test_sub_type, keywords)
   );
@@ -296,21 +303,27 @@ function latestIsoForMovement(
     const d = s.session_date.slice(0, 10);
     if (!latestDate || d > latestDate) latestDate = d;
   }
-  if (!latestDate) return { left: null, right: null, source: null };
+  if (!latestDate) return { left: null, right: null, both: null, source: null };
 
   const onDate = matching.filter((s) => s.session_date && s.session_date.slice(0, 10) === latestDate);
   let left: number | null = null;
   let right: number | null = null;
+  // Bilateral tests (e.g. "TS Iso Test Groin Squeeze") aren't tagged
+  // left/right at all — hawkinsAthleteSide only ever returns "left"/
+  // "right"/null, so these rows land here with side null. Tracked
+  // separately so a bilateral movement doesn't silently show "—".
+  let both: number | null = null;
   for (const s of onDate) {
     const rows = metricsBySession.get(s.id) ?? [];
     for (const r of rows) {
       if (r.key !== "peak_force" || r.value == null || !Number.isFinite(r.value)) continue;
       const side = (r.side ?? "").toLowerCase();
       if (side === "left") left = left == null ? r.value : Math.max(left, r.value);
-      if (side === "right") right = right == null ? r.value : Math.max(right, r.value);
+      else if (side === "right") right = right == null ? r.value : Math.max(right, r.value);
+      else both = both == null ? r.value : Math.max(both, r.value);
     }
   }
-  return { left, right, source: onDate[0] ?? null };
+  return { left, right, both, source: onDate[0] ?? null };
 }
 
 export function computePerformanceSummary(
@@ -474,9 +487,9 @@ export function computePerformanceSummary(
     withCommonSource(
       "strength",
       "Strength (Isometric)",
-      STRENGTH_MOVEMENTS.map(({ metricId, keywords }) => {
-        const { left, right, source } = latestIsoForMovement(sessions, metricsBySession, keywords);
-        return metricLR(metricId, left, right, source);
+      STRENGTH_MOVEMENTS.map(({ metricId, keywords, bilateral }) => {
+        const { left, right, both, source } = latestIsoForMovement(sessions, metricsBySession, keywords);
+        return bilateral ? metric(metricId, both, source) : metricLR(metricId, left, right, source);
       })
     ),
   ];

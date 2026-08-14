@@ -10,6 +10,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import ZoomableChart from "@/components/charts/ZoomableChart";
 
 /**
  * Hop & jump distance panel — driven by 1080 sprint sessions with sub-types:
@@ -62,16 +63,20 @@ function BilateralSubPanel({ label, rows }: { label: string; rows: HopJumpRow[] 
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-5">
       <h3 className="mb-4 text-xs font-medium uppercase tracking-wide text-slate-500">{label}</h3>
-      <ResponsiveContainer width="100%" height={240}>
-        <LineChart data={rows} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.25)" vertical={false} />
-          <XAxis dataKey="date" tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} />
-          <YAxis tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} width={36} />
-          <Tooltip contentStyle={TOOLTIP_STYLE} labelStyle={{ color: "#a3e635", fontWeight: 600 }} />
-          <Legend wrapperStyle={{ fontSize: 11, color: "#64748b" }} />
-          <Line type="monotone" dataKey="distLeft" name="Distance (m)" stroke="#a3e635" strokeWidth={2.5} dot={{ fill: "#a3e635", r: 5, strokeWidth: 0 }} activeDot={{ r: 7 }} connectNulls />
-        </LineChart>
-      </ResponsiveContainer>
+      <ZoomableChart title={`${label} — Distance`} height={240}>
+        {(h) => (
+          <ResponsiveContainer width="100%" height={h}>
+            <LineChart data={rows} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.25)" vertical={false} />
+              <XAxis dataKey="date" tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} width={36} />
+              <Tooltip contentStyle={TOOLTIP_STYLE} labelStyle={{ color: "#a3e635", fontWeight: 600 }} />
+              <Legend wrapperStyle={{ fontSize: 11, color: "#64748b" }} />
+              <Line type="monotone" dataKey="distLeft" name="Distance (m)" stroke="#a3e635" strokeWidth={2.5} dot={{ fill: "#a3e635", r: 5, strokeWidth: 0 }} activeDot={{ r: 7 }} connectNulls />
+            </LineChart>
+          </ResponsiveContainer>
+        )}
+      </ZoomableChart>
       {/* Bilateral peak force if 1080 attached */}
       {rows.some((r) => r.peakForce != null) && (
         <div className="mt-3 flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-4 py-2">
@@ -126,17 +131,21 @@ function AsymmetrySubPanel({ label, rows }: { label: string; rows: HopJumpRow[] 
           </div>
         )}
       </div>
-      <ResponsiveContainer width="100%" height={240}>
-        <LineChart data={rows} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.25)" vertical={false} />
-          <XAxis dataKey="date" tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} />
-          <YAxis tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} width={36} />
-          <Tooltip contentStyle={TOOLTIP_STYLE} labelStyle={{ color: "#a3e635", fontWeight: 600 }} />
-          <Legend wrapperStyle={{ fontSize: 11, color: "#64748b" }} />
-          <Line type="monotone" dataKey="distLeft" name="Left (m)" stroke="#60a5fa" strokeWidth={2.5} dot={{ fill: "#60a5fa", r: 5, strokeWidth: 0 }} activeDot={{ r: 7 }} connectNulls />
-          <Line type="monotone" dataKey="distRight" name="Right (m)" stroke="#a3e635" strokeWidth={2.5} dot={{ fill: "#a3e635", r: 5, strokeWidth: 0 }} activeDot={{ r: 7 }} connectNulls />
-        </LineChart>
-      </ResponsiveContainer>
+      <ZoomableChart title={`${label} — Left vs Right`} height={240}>
+        {(h) => (
+          <ResponsiveContainer width="100%" height={h}>
+            <LineChart data={rows} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.25)" vertical={false} />
+              <XAxis dataKey="date" tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} width={36} />
+              <Tooltip contentStyle={TOOLTIP_STYLE} labelStyle={{ color: "#a3e635", fontWeight: 600 }} />
+              <Legend wrapperStyle={{ fontSize: 11, color: "#64748b" }} />
+              <Line type="monotone" dataKey="distLeft" name="Left (m)" stroke="#60a5fa" strokeWidth={2.5} dot={{ fill: "#60a5fa", r: 5, strokeWidth: 0 }} activeDot={{ r: 7 }} connectNulls />
+              <Line type="monotone" dataKey="distRight" name="Right (m)" stroke="#a3e635" strokeWidth={2.5} dot={{ fill: "#a3e635", r: 5, strokeWidth: 0 }} activeDot={{ r: 7 }} connectNulls />
+            </LineChart>
+          </ResponsiveContainer>
+        )}
+      </ZoomableChart>
 
       {/* Per-leg peak force (L/R) if 1080 attached during hop */}
       {rows.some((r) => r.peakForceLeft != null || r.peakForceRight != null) && (() => {

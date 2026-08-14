@@ -11,6 +11,7 @@ import {
   Tooltip,
   Legend,
 } from "recharts";
+import ZoomableChart from "@/components/charts/ZoomableChart";
 
 type SprintSeriesRow = {
   rep_index: number | null;
@@ -372,66 +373,73 @@ export default function SprintTimeSeriesGraphs({ series }: Props) {
               {metricMeta.label} vs {xMeta.label} · left vs right (rep{" "}
               {selectedRepIdx})
             </p>
-            <ResponsiveContainer width="100%" height={260}>
-              <LineChart data={data}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-                <XAxis
-                  dataKey={xKey}
-                  allowDecimals={false}
-                  domain={["dataMin", "dataMax"]}
-                  interval="preserveStartEnd"
-                  tick={{ fontSize: 10, fill: "#9ca3af" }}
-                  tickFormatter={(v: any) =>
-                    typeof v === "number" ? Math.round(v) : v
-                  }
-                  label={{
-                    value:
-                      xAxisMode === "time" ? "Time (s)" : "Position (m)",
-                    position: "insideBottomRight",
-                    offset: -4,
-                    style: { fontSize: 10, fill: "#9ca3af" },
-                  }}
-                />
-                <YAxis
-                  tick={{ fontSize: 10, fill: "#9ca3af" }}
-                  tickFormatter={(v: any) =>
-                    typeof v === "number" ? v.toFixed(2) : v
-                  }
-                />
-                <Tooltip
-                  formatter={(value: any, name: any) => {
-                    if (typeof value === "number") {
-                      return [value.toFixed(2), name];
-                    }
-                    return [value, name];
-                  }}
-                  labelFormatter={(label: any) =>
-                    typeof label === "number"
-                      ? `${xMeta.label}: ${label.toFixed(2)} ${xMeta.unit}`
-                      : label
-                  }
-                />
-                <Legend wrapperStyle={{ fontSize: 10 }} />
-                {/* Left leg */}
-                <Line
-                  type="monotone"
-                  dataKey={leftKey}
-                  name={`Left ${metricMeta.label} (${metricMeta.unit})`}
-                  dot={false}
-                  stroke="#a3e635" // lime-400
-                  strokeWidth={2}
-                />
-                {/* Right leg */}
-                <Line
-                  type="monotone"
-                  dataKey={rightKey}
-                  name={`Right ${metricMeta.label} (${metricMeta.unit})`}
-                  dot={false}
-                  stroke="#38bdf8" // sky-400
-                  strokeWidth={2}
-                />
-              </LineChart>
-            </ResponsiveContainer>
+            <ZoomableChart
+              title={`${metricMeta.label} vs ${xMeta.label} · left vs right (rep ${selectedRepIdx})`}
+              height={260}
+            >
+              {(h) => (
+                <ResponsiveContainer width="100%" height={h}>
+                  <LineChart data={data}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+                    <XAxis
+                      dataKey={xKey}
+                      allowDecimals={false}
+                      domain={["dataMin", "dataMax"]}
+                      interval="preserveStartEnd"
+                      tick={{ fontSize: 10, fill: "#9ca3af" }}
+                      tickFormatter={(v: any) =>
+                        typeof v === "number" ? Math.round(v) : v
+                      }
+                      label={{
+                        value:
+                          xAxisMode === "time" ? "Time (s)" : "Position (m)",
+                        position: "insideBottomRight",
+                        offset: -4,
+                        style: { fontSize: 10, fill: "#9ca3af" },
+                      }}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 10, fill: "#9ca3af" }}
+                      tickFormatter={(v: any) =>
+                        typeof v === "number" ? v.toFixed(2) : v
+                      }
+                    />
+                    <Tooltip
+                      formatter={(value: any, name: any) => {
+                        if (typeof value === "number") {
+                          return [value.toFixed(2), name];
+                        }
+                        return [value, name];
+                      }}
+                      labelFormatter={(label: any) =>
+                        typeof label === "number"
+                          ? `${xMeta.label}: ${label.toFixed(2)} ${xMeta.unit}`
+                          : label
+                      }
+                    />
+                    <Legend wrapperStyle={{ fontSize: 10 }} />
+                    {/* Left leg */}
+                    <Line
+                      type="monotone"
+                      dataKey={leftKey}
+                      name={`Left ${metricMeta.label} (${metricMeta.unit})`}
+                      dot={false}
+                      stroke="#a3e635" // lime-400
+                      strokeWidth={2}
+                    />
+                    {/* Right leg */}
+                    <Line
+                      type="monotone"
+                      dataKey={rightKey}
+                      name={`Right ${metricMeta.label} (${metricMeta.unit})`}
+                      dot={false}
+                      stroke="#38bdf8" // sky-400
+                      strokeWidth={2}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
+            </ZoomableChart>
           </div>
 
           {/* SUMMARY TABLE */}
