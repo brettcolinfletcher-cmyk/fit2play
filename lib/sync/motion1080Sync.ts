@@ -105,13 +105,22 @@ function extractMetricsFromTrainingData(
 ): MetricRow[] {
   const rows: MetricRow[] = [];
 
+  // repIndex is a running counter across the WHOLE session (all "sets" /
+  // trainingData entries combined), not reset per set — this must match
+  // sync1080SprintTimeSeries's repCounter (also global) below, since
+  // downstream code correlates a rep between the metrics table and
+  // sprint_time_series by rep_index. Before this fix they used two
+  // different, uncorrelated numbering schemes for the same session (found
+  // during a data audit, Aug 2026) — harmless as long as nothing joined
+  // across the two tables by rep_index, but a landmine for anything that
+  // needs to (e.g. Phase D per-leg analysis).
+  let repIndex = 0;
   for (const setData of trainingData) {
     if (!setData || typeof setData !== "object") continue;
     const sd = setData as Record<string, unknown>;
     const motionGroups = sd.motionGroups;
     if (!Array.isArray(motionGroups)) continue;
 
-    let repIndex = 0;
     for (const mg of motionGroups) {
       if (!mg || typeof mg !== "object") continue;
       const mgObj = mg as Record<string, unknown>;

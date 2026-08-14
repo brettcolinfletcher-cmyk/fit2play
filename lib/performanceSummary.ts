@@ -250,7 +250,7 @@ function findFortyMBySide(
   // Fallback: no session had any rep/side group with a confirmed ~40m
   // distance reading (sync gap) — take the latest by-name match instead.
   for (const s of candidates) {
-    if (!isLinearSprintSession(s)) continue;
+    if (!isLinearSprintSession(s, metricsBySession)) continue;
     const sub = (s.test_sub_type ?? "").toLowerCase();
     if (!FORTY_M_SUB_TYPE_FALLBACKS.some((name) => sub.includes(name))) continue;
     const t = metricAggregate(metricsBySession, s.id, "total_time", "min");

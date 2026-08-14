@@ -147,7 +147,9 @@ export function buildPdfReportCharts(
       ? `${rangeStart ?? "…"} – ${rangeEnd ?? "…"}`
       : "Full history";
 
-  const linearLatest = latestSession(sessions, isLinearSprintSession);
+  const linearLatest = latestSession(sessions, (s) =>
+    isLinearSprintSession(s, metricsNorm as Map<string, ReportMetricRow[]>)
+  );
   let sprint: PdfSprintSplitsChart | null = null;
   if (linearLatest) {
     const items: { label: string; value: number }[] = [];
@@ -553,7 +555,9 @@ export function buildPdfReportContext(
     });
   };
 
-  const linearSessions = sessions.filter(isLinearSprintSession);
+  const linearSessions = sessions.filter((s) =>
+    isLinearSprintSession(s, metricsNorm as Map<string, ReportMetricRow[]>)
+  );
   const codSessions = sessions.filter(is505Session);
   const cmjSessions = sessions.filter((s) => {
     const tt = (s.test_type ?? "").toLowerCase();
@@ -603,7 +607,7 @@ export function buildPdfReportContext(
     "linear_sprint_unresisted",
     false,
     sessions,
-    isLinearSprintSession,
+    (s) => isLinearSprintSession(s, metricsNorm as Map<string, ReportMetricRow[]>),
     (s) =>
       metricAggregate(
         metricsNorm as Map<string, ReportMetricRow[]>,
@@ -625,7 +629,7 @@ export function buildPdfReportContext(
     "linear_sprint_unresisted",
     true,
     sessions,
-    isLinearSprintSession,
+    (s) => isLinearSprintSession(s, metricsNorm as Map<string, ReportMetricRow[]>),
     (s) =>
       metricAggregate(
         metricsNorm as Map<string, ReportMetricRow[]>,

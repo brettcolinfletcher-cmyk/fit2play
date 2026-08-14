@@ -1,4 +1,5 @@
 import {
+  hasLinearSprintEvidence,
   metricAggregate,
   sessionsChronological,
   type ReportHopTestRow,
@@ -51,34 +52,68 @@ function isLinearSprintSubType(testSubType: string | null | undefined): boolean 
   return false;
 }
 
-/** `test_type = 1080_sprint` and `test_sub_type` on the linear sprint allowlist. */
-function linear1080SprintSessions(sessions: ReportSessionRow[]): ReportSessionRow[] {
+/**
+ * `test_type = 1080_sprint` and `test_sub_type` on the linear sprint
+ * allowlist — OR direct rep-level evidence of a real linear sprint effort
+ * (hasLinearSprintEvidence), since the 1080 sync's test_sub_type label is
+ * derived from only a session's first rep and can mislabel a session that
+ * actually contains a real sprint (confirmed real case, Aug 2026: a session
+ * labelled "5-0-5 Assisted start" that actually contained a 40m Running LR
+ * effort — without this fallback that session's sprint data was silently
+ * excluded from every compare-page sprint metric).
+ */
+function linear1080SprintSessions(
+  sessions: ReportSessionRow[],
+  metricsBySession: Map<string, ReportMetricRow[]>
+): ReportSessionRow[] {
   return sessionsChronological(
     sessions.filter((s) => {
       if ((s.test_type ?? "").toLowerCase() !== "1080_sprint") return false;
-      return isLinearSprintSubType(s.test_sub_type);
+      return isLinearSprintSubType(s.test_sub_type) || hasLinearSprintEvidence(s.id, metricsBySession);
     })
   );
 }
 
 function linearWithSubFilter(
   sessions: ReportSessionRow[],
+  metricsBySession: Map<string, ReportMetricRow[]>,
   subPredicate: (subLc: string) => boolean
 ): ReportSessionRow[] {
-  return linear1080SprintSessions(sessions).filter((s) =>
+  return linear1080SprintSessions(sessions, metricsBySession).filter((s) =>
     subPredicate((s.test_sub_type ?? "").toLowerCase())
   );
 }
 
-function codSessions5105(sessions: ReportSessionRow[]): ReportSessionRow[] {
+/**
+ * COD sessions are matched by label as before, but a session whose data
+ * shows direct evidence of a real linear sprint (see
+ * hasLinearSprintEvidence) is excluded even if its label says "5-10-5"/
+ * "5-0-5" — a mislabeled session would otherwise contaminate the COD metric
+ * with an unrelated linear-sprint reading.
+ */
+function codSessions5105(
+  sessions: ReportSessionRow[],
+  metricsBySession: Map<string, ReportMetricRow[]>
+): ReportSessionRow[] {
   return sessionsChronological(
-    sessions.filter((s) => (s.test_sub_type ?? "").toLowerCase().includes("5-10-5"))
+    sessions.filter(
+      (s) =>
+        (s.test_sub_type ?? "").toLowerCase().includes("5-10-5") &&
+        !hasLinearSprintEvidence(s.id, metricsBySession)
+    )
   );
 }
 
-function codSessions505(sessions: ReportSessionRow[]): ReportSessionRow[] {
+function codSessions505(
+  sessions: ReportSessionRow[],
+  metricsBySession: Map<string, ReportMetricRow[]>
+): ReportSessionRow[] {
   return sessionsChronological(
-    sessions.filter((s) => (s.test_sub_type ?? "").toLowerCase().includes("5-0-5"))
+    sessions.filter(
+      (s) =>
+        (s.test_sub_type ?? "").toLowerCase().includes("5-0-5") &&
+        !hasLinearSprintEvidence(s.id, metricsBySession)
+    )
   );
 }
 
@@ -171,7 +206,7 @@ export const COMPARE_METRICS: CompareMetricDef[] = [
     betterDirection: "higher",
     extract: (b) => {
       const out: Array<{ sessionDate: string; value: number }> = [];
-      for (const s of linear1080SprintSessions(b.sessions)) {
+      for (const s of linear1080SprintSessions(b.sessions, b.metricsBySession)) {
         const v = metricAggregate(b.metricsBySession, s.id, "top_speed", "max");
         const p = dateValue(s, v);
         if (p) out.push(p);
@@ -187,7 +222,7 @@ export const COMPARE_METRICS: CompareMetricDef[] = [
     betterDirection: "lower",
     extract: (b) => {
       const out: Array<{ sessionDate: string; value: number }> = [];
-      for (const s of linear1080SprintSessions(b.sessions)) {
+      for (const s of linear1080SprintSessions(b.sessions, b.metricsBySession)) {
         const v = metricAggregate(b.metricsBySession, s.id, "split_5m_time", "min");
         const p = dateValue(s, v);
         if (p) out.push(p);
@@ -203,7 +238,7 @@ export const COMPARE_METRICS: CompareMetricDef[] = [
     betterDirection: "higher",
     extract: (b) => {
       const out: Array<{ sessionDate: string; value: number }> = [];
-      for (const s of linear1080SprintSessions(b.sessions)) {
+      for (const s of linear1080SprintSessions(b.sessions, b.metricsBySession)) {
         const v = metricAggregate(b.metricsBySession, s.id, "accel_max", "max");
         const p = dateValue(s, v);
         if (p) out.push(p);
@@ -219,7 +254,7 @@ export const COMPARE_METRICS: CompareMetricDef[] = [
     betterDirection: "lower",
     extract: (b) => {
       const out: Array<{ sessionDate: string; value: number }> = [];
-      for (const s of linearWithSubFilter(b.sessions, (sub) => sub.includes("10m"))) {
+      for (const s of linearWithSubFilter(b.sessions, b.metricsBySession, (sub) => sub.includes("10m"))) {
         const v = metricAggregate(b.metricsBySession, s.id, "total_time", "min");
         const p = dateValue(s, v);
         if (p) out.push(p);
@@ -235,7 +270,7 @@ export const COMPARE_METRICS: CompareMetricDef[] = [
     betterDirection: "lower",
     extract: (b) => {
       const out: Array<{ sessionDate: string; value: number }> = [];
-      for (const s of linearWithSubFilter(b.sessions, (sub) => sub.includes("20m"))) {
+      for (const s of linearWithSubFilter(b.sessions, b.metricsBySession, (sub) => sub.includes("20m"))) {
         const v = metricAggregate(b.metricsBySession, s.id, "total_time", "min");
         const p = dateValue(s, v);
         if (p) out.push(p);
@@ -253,6 +288,7 @@ export const COMPARE_METRICS: CompareMetricDef[] = [
       const out: Array<{ sessionDate: string; value: number }> = [];
       for (const s of linearWithSubFilter(
         b.sessions,
+        b.metricsBySession,
         (sub) => sub.includes("40m") || sub.startsWith("running")
       )) {
         const v = metricAggregate(b.metricsBySession, s.id, "total_time", "min");
@@ -272,7 +308,7 @@ export const COMPARE_METRICS: CompareMetricDef[] = [
     betterDirection: "lower",
     extract: (b) => {
       const out: Array<{ sessionDate: string; value: number }> = [];
-      for (const s of codSessions5105(b.sessions)) {
+      for (const s of codSessions5105(b.sessions, b.metricsBySession)) {
         const v = metricAggregate(b.metricsBySession, s.id, "total_time", "min");
         const p = dateValue(s, v);
         if (p) out.push(p);
@@ -288,7 +324,7 @@ export const COMPARE_METRICS: CompareMetricDef[] = [
     betterDirection: "lower",
     extract: (b) => {
       const out: Array<{ sessionDate: string; value: number }> = [];
-      for (const s of codSessions505(b.sessions)) {
+      for (const s of codSessions505(b.sessions, b.metricsBySession)) {
         const v = metricAggregate(b.metricsBySession, s.id, "total_time", "min");
         const p = dateValue(s, v);
         if (p) out.push(p);

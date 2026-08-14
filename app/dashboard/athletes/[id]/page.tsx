@@ -41,6 +41,7 @@ import AthleteIdentityCard from "@/components/athletes/AthleteIdentityCard";
 import {
   buildHopTestBlocks,
   formatChartAxisDate,
+  isLinearSprintSession,
   type ReportHopTestRow,
   type ReportSessionRow,
   type ReportMetricRow,
@@ -226,12 +227,6 @@ function is1080Session(s: SessionRow): boolean {
 function is505Session(s: SessionRow): boolean {
   const sub = (s.test_sub_type ?? "").toLowerCase();
   return is1080Session(s) && (sub.includes("5-10-5") || sub.includes("5-0-5"));
-}
-
-function isLinearSprintSession(s: SessionRow): boolean {
-  if (!is1080Session(s)) return false;
-  const sub = (s.test_sub_type ?? "").toLowerCase();
-  return !sub.includes("5-10-5") && !sub.includes("5-0-5") && !sub.includes("shuttle");
 }
 
 function metricAggregate(
@@ -832,7 +827,7 @@ export default function AthleteDetailPage() {
     [filteredSessions]
   );
   const has505 = filteredSessions.some(is505Session);
-  const hasLinearSprint = filteredSessions.some(isLinearSprintSession);
+  const hasLinearSprint = filteredSessions.some((s) => isLinearSprintSession(s, metricsBySession));
   // The COD protocol actually recorded (5-0-5 vs 5-10-5) varies by athlete/device —
   // derive the label from the real test_sub_type instead of hardcoding one.
   const codProtocolLabel = useMemo(() => {
@@ -903,7 +898,7 @@ export default function AthleteDetailPage() {
     const sorted = sessionsChronological(
       filteredSessions.filter(
         (s) =>
-          isLinearSprintSession(s) &&
+          isLinearSprintSession(s, metricsBySession) &&
           visibility.isSubtestVisible("linear", s.test_sub_type ?? "")
       )
     );
@@ -921,7 +916,7 @@ export default function AthleteDetailPage() {
     const sorted = sessionsChronological(
       filteredSessions.filter(
         (s) =>
-          isLinearSprintSession(s) &&
+          isLinearSprintSession(s, metricsBySession) &&
           visibility.isSubtestVisible("linear", s.test_sub_type ?? "")
       )
     );
@@ -939,7 +934,7 @@ export default function AthleteDetailPage() {
     const sorted = sessionsChronological(
       filteredSessions.filter(
         (s) =>
-          isLinearSprintSession(s) &&
+          isLinearSprintSession(s, metricsBySession) &&
           visibility.isSubtestVisible("linear", s.test_sub_type ?? "")
       )
     );
@@ -957,7 +952,7 @@ export default function AthleteDetailPage() {
     const sorted = sessionsChronological(
       filteredSessions.filter(
         (s) =>
-          isLinearSprintSession(s) &&
+          isLinearSprintSession(s, metricsBySession) &&
           visibility.isSubtestVisible("linear", s.test_sub_type ?? "")
       )
     );

@@ -388,7 +388,7 @@ export function computeAthleteSnapshot(
     const linearSessions = sortChronological(
       sessions.filter(
         (s) =>
-          isLinearSprintSession(s) &&
+          isLinearSprintSession(s, metricsBySession) &&
           visibility.isSubtestVisible("linear", s.test_sub_type ?? "")
       )
     );
@@ -521,7 +521,7 @@ export function computeAthleteSnapshot(
     const linearSessions = sortChronological(
       sessions.filter(
         (s) =>
-          isLinearSprintSession(s) &&
+          isLinearSprintSession(s, metricsBySession) &&
           visibility.isSubtestVisible("linear", s.test_sub_type ?? "")
       )
     );

@@ -8,6 +8,7 @@ import type { HopTestTableRow, HopTestTypeBlock } from "@/components/athletes/Ho
 import {
   bucket,
   formatChartAxisDate,
+  hasLinearSprintEvidence,
   is1080Session,
   isLinearSprintSession,
   metricAggregate,
@@ -22,6 +23,7 @@ import {
 export {
   bucket,
   formatChartAxisDate,
+  hasLinearSprintEvidence,
   is1080Session,
   isLinearSprintSession,
   metricAggregate,
@@ -319,7 +321,9 @@ export function computeBestInRangeData(
   const metricMap = metricsBySession as Map<string, MetricLite[]>;
   const cmjPts = buildCmjDataPoints(hawkinsSessions, metricMap);
   const djPts = buildDjDataPoints(hawkinsSessions, metricMap);
-  const linearSessions = sessionsChronological(sessions.filter(isLinearSprintSession));
+  const linearSessions = sessionsChronological(
+    sessions.filter((s) => isLinearSprintSession(s, metricsBySession))
+  );
 
   const linear: BestRow[] = [];
   const ts = linearSessions
@@ -475,8 +479,8 @@ export function computeDateComparisonData(
       { key: "peak_power", label: "Peak Power", higherBetter: true, mode: "max", fmt: (v) => `${Math.round(v)} W` },
       { key: "split_5m_time", label: "5m Split", higherBetter: false, mode: "min", fmt: (v) => `${v.toFixed(2)} s` },
     ];
-    const canA = isLinearSprintSession(sessA);
-    const canB = isLinearSprintSession(sessB);
+    const canA = isLinearSprintSession(sessA, metricsBySession);
+    const canB = isLinearSprintSession(sessB, metricsBySession);
     for (const d of defs) {
       const va = canA ? metricAggregate(metricsBySession, sessA.id, d.key, d.mode) : null;
       const vb = canB ? metricAggregate(metricsBySession, sessB.id, d.key, d.mode) : null;

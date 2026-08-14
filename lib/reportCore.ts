@@ -51,10 +51,66 @@ export function is1080Session(s: ReportSessionRow): boolean {
   return bucket(s.source) === "1080";
 }
 
-export function isLinearSprintSession(s: ReportSessionRow): boolean {
+// Deliberately excludes 5m: a 5-0-5/5-10-5 COD test's own turn-leg is 5m,
+// so including it produced a false positive against real data (Adam Radi's
+// genuine 5-0-5 session read ~5.2-5.5m per rep — well within a ±5m
+// tolerance of "5", which would have wrongly flagged a real COD test as a
+// linear sprint). Tolerance tightened to ±3m for the same reason — verified
+// this still safely excludes that session while catching the confirmed
+// real 40m case exactly.
+const COMMON_SPRINT_DISTANCES_M = [10, 20, 40];
+const SPRINT_DISTANCE_TOLERANCE_M = 3;
+
+/**
+ * True when a session's OWN metric rows contain direct evidence of a real
+ * linear sprint effort — a total_distance/total_time pair (same rep_index +
+ * side) landing near a common sprint test distance (5/10/20/40m). Checked
+ * against the data directly rather than trusting test_sub_type, which the
+ * 1080 sync derives from only the session's FIRST rep — so a session that
+ * actually contains a real sprint can get mislabeled as something else
+ * entirely (confirmed real case: a session labelled "5-0-5 Assisted start"
+ * that actually contained a clean 40m Running LR effort — see
+ * findFortyMBySide in lib/performanceSummary.ts, fixed Aug 2026).
+ */
+export function hasLinearSprintEvidence(
+  sessionId: string,
+  metricsBySession: Map<string, ReportMetricRow[]>
+): boolean {
+  const rows = metricsBySession.get(sessionId) ?? [];
+  const groups = new Map<string, { distance: number | null; time: number | null }>();
+  for (const r of rows) {
+    if ((r.key !== "total_distance" && r.key !== "total_time") || r.value == null || !Number.isFinite(r.value)) {
+      continue;
+    }
+    const groupKey = `${r.rep_index ?? "x"}|${r.side ?? ""}`;
+    const g = groups.get(groupKey) ?? { distance: null, time: null };
+    if (r.key === "total_distance") g.distance = g.distance == null ? r.value : Math.max(g.distance, r.value);
+    if (r.key === "total_time") g.time = g.time == null ? r.value : Math.max(g.time, r.value);
+    groups.set(groupKey, g);
+  }
+  for (const g of groups.values()) {
+    if (g.distance == null || g.time == null) continue;
+    if (COMMON_SPRINT_DISTANCES_M.some((d) => Math.abs(g.distance! - d) <= SPRINT_DISTANCE_TOLERANCE_M)) return true;
+  }
+  return false;
+}
+
+/**
+ * `metricsBySession` is optional for backward compatibility with callers
+ * that don't have it in scope — omitting it preserves the old label-only
+ * behaviour exactly. Pass it whenever available: it corrects sessions the
+ * sync mislabeled (see hasLinearSprintEvidence) instead of silently
+ * excluding their real sprint data.
+ */
+export function isLinearSprintSession(
+  s: ReportSessionRow,
+  metricsBySession?: Map<string, ReportMetricRow[]>
+): boolean {
   if (!is1080Session(s)) return false;
   const sub = (s.test_sub_type ?? "").toLowerCase();
-  return !sub.includes("5-10-5") && !sub.includes("5-0-5") && !sub.includes("shuttle");
+  const labelSaysCod = sub.includes("5-10-5") || sub.includes("5-0-5") || sub.includes("shuttle");
+  if (!labelSaysCod) return true;
+  return metricsBySession ? hasLinearSprintEvidence(s.id, metricsBySession) : false;
 }
 
 export function metricAggregate(
