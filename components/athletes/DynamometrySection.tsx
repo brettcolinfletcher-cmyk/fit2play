@@ -761,6 +761,19 @@ export default function DynamometrySection({
           const summaryMetrics = selectedMetricDefs.slice(0, 4);
           const sessionRows = pairedSessionDates(left, right);
 
+          // Start/Latest/Change LSI badge — same peak-force LSI trend shown
+          // on the athlete-facing dashboard's isometric strength cards, so
+          // the two views read the same way at a glance.
+          const pairLsiAt = (row: (typeof sessionRows)[number] | undefined): number | null => {
+            if (!row) return null;
+            const lv = row.left ? metricValue(row.left.metrics, "peak_force") : null;
+            const rv = row.right ? metricValue(row.right.metrics, "peak_force") : null;
+            return lv != null && rv != null ? lsi(lv, rv) : null;
+          };
+          const startLsi = pairLsiAt(sessionRows[0]);
+          const latestLsi = pairLsiAt(sessionRows[sessionRows.length - 1]);
+          const showLsiBadge = sessionRows.length >= 2 && startLsi != null && latestLsi != null;
+
           return (
             <div
               key={pairKey}
@@ -782,6 +795,42 @@ export default function DynamometrySection({
                 </div>
                 <span className="text-xs text-slate-500">{isExpanded ? "▲" : "▼"}</span>
               </button>
+
+              {showLsiBadge ? (
+                <div className="flex items-center gap-3 border-t border-slate-800/60 px-5 pt-3">
+                  <div className="flex items-center gap-3 rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-1.5">
+                    <div className="text-center">
+                      <p className="text-[0.65rem] uppercase tracking-wide text-slate-500">Start LSI</p>
+                      <p className={`text-sm font-semibold tabular-nums ${lsiColorClass(startLsi!)}`}>
+                        {startLsi!.toFixed(0)}%
+                      </p>
+                    </div>
+                    <div className="h-6 w-px bg-slate-700" />
+                    <div className="text-center">
+                      <p className="text-[0.65rem] uppercase tracking-wide text-slate-500">Latest LSI</p>
+                      <p className={`text-sm font-semibold tabular-nums ${lsiColorClass(latestLsi!)}`}>
+                        {latestLsi!.toFixed(0)}%
+                      </p>
+                    </div>
+                    {latestLsi! !== startLsi! && (
+                      <>
+                        <div className="h-6 w-px bg-slate-700" />
+                        <div className="text-center">
+                          <p className="text-[0.65rem] uppercase tracking-wide text-slate-500">Change</p>
+                          <p
+                            className={`text-sm font-semibold tabular-nums ${
+                              latestLsi! > startLsi! ? "text-emerald-400" : "text-rose-400"
+                            }`}
+                          >
+                            {latestLsi! > startLsi! ? "+" : ""}
+                            {(latestLsi! - startLsi!).toFixed(0)}%
+                          </p>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ) : null}
 
               {!isExpanded && summaryMetrics.length > 0 ? (
                 <div className="space-y-3 border-t border-slate-800/60 px-5 pb-4 pt-3">

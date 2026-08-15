@@ -16,9 +16,11 @@ import {
 } from "recharts";
 import { formatDisplayDate } from "@/lib/dateDisplay";
 import { lsiColorClass, SIDE_COLORS, sideColor } from "@/lib/sideColors";
+import { groupSessionsByDate } from "@/lib/sessionDateGroups";
 import ZoomableChart from "@/components/charts/ZoomableChart";
 import ChartTypeToggle, { type ChartType } from "./ChartTypeToggle";
 import SectionComment from "./SectionComment";
+import SessionDetailByDate from "./SessionDetailByDate";
 import {
   CHART_AXIS_LINE,
   CHART_AXIS_TICK,
@@ -272,12 +274,27 @@ function extractRawLrMetrics(rows: MetricLite[]): Record<string, number> | undef
 type Props = {
   athleteId: string;
   data: CMJDataPoint[];
+  /** Raw sessions/metrics feeding `data` — used only for the "Session
+   * detail" click-to-expand list so a date with more than one CMJ session
+   * can show every rep, not just the best one plotted in the chart. */
+  sessions: SessionLite[];
+  metricsBySession: Map<string, MetricLite[]>;
   sectionComment: string | null;
 };
+
+function labelForKey(key: string): string {
+  const def = CMJ_METRICS.find((m) => m.key === key.replace(/^fp_/, ""));
+  if (def) return def.unit ? `${def.label} (${def.unit})` : def.label;
+  return key.startsWith("fp_")
+    ? key.slice(3).replace(/_/g, " ")
+    : key.replace(/_/g, " ");
+}
 
 export default function ForcePlateCMJSection({
   athleteId,
   data,
+  sessions,
+  metricsBySession,
   sectionComment,
 }: Props) {
   const [selected, setSelected] = useState<Set<string>>(() => new Set(CMJ_DEFAULT));
@@ -287,6 +304,15 @@ export default function ForcePlateCMJSection({
   const selectedMetrics = useMemo(
     () => CMJ_METRICS.filter((m) => selected.has(m.key)),
     [selected]
+  );
+
+  const cmjDateGroups = useMemo(
+    () =>
+      groupSessionsByDate(
+        sessions.filter((s) => s.session_date && isCmjSession(s)),
+        (s) => maxMetric(metricsBySession.get(s.id) ?? [], "fp_jump_height")
+      ),
+    [sessions, metricsBySession]
   );
 
   if (data.length === 0) return null;
@@ -419,6 +445,40 @@ export default function ForcePlateCMJSection({
         if (!latest?.rawMetrics) return null;
         return <CMJAsymmetryStrip rawMetrics={latest.rawMetrics} />;
       })()}
+      <SessionDetailByDate
+        title="Session detail"
+        groups={cmjDateGroups}
+        renderSummary={(s) => {
+          const rows = metricsBySession.get(s.id) ?? [];
+          return (
+            <span className="text-slate-600">
+              {s.test_sub_type ?? "CMJ"}
+              <span className="ml-2 text-slate-400">{rows.length} metrics</span>
+            </span>
+          );
+        }}
+        renderDetail={(s) => {
+          const rows = (metricsBySession.get(s.id) ?? []).filter((r) => r.key.startsWith("fp_"));
+          if (rows.length === 0) return <p className="text-xs text-slate-400">No metrics.</p>;
+          return (
+            <table className="w-full text-xs">
+              <tbody>
+                {rows.map((r, i) => (
+                  <tr key={`${r.key}-${r.rep_index ?? i}`} className="border-b border-slate-100 last:border-0">
+                    <td className="py-1 pr-2 text-slate-500">
+                      {labelForKey(r.key)}
+                      {r.rep_index != null ? ` (rep ${r.rep_index})` : ""}
+                    </td>
+                    <td className="py-1 text-right font-mono text-slate-700">
+                      {r.value != null ? r.value.toFixed(2) : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          );
+        }}
+      />
       <SectionComment
         athleteId={athleteId}
         section="cmj"
@@ -433,24 +493,27 @@ export function buildCmjDataPoints(
   metricsBySession: Map<string, MetricLite[]>
 ): CMJDataPoint[] {
   const out: CMJDataPoint[] = [];
-  const sorted = [...sessions].sort((a, b) => {
-    const ta = a.session_date ? new Date(a.session_date).getTime() : 0;
-    const tb = b.session_date ? new Date(b.session_date).getTime() : 0;
-    return ta - tb;
-  });
+  const cmjSessions = sessions.filter((s) => s.session_date && isCmjSession(s));
+  const dateGroups = groupSessionsByDate(cmjSessions, (s) =>
+    maxMetric(metricsBySession.get(s.id) ?? [], "fp_jump_height")
+  );
 
-  for (const s of sorted) {
-    if (!s.session_date || !isCmjSession(s)) continue;
-
-    const rows = metricsBySession.get(s.id) ?? [];
-    const byRep = new Map<number, Record<string, number>>();
-    for (const r of rows) {
-      if (r.rep_index == null || r.value == null) continue;
-      const k = r.key;
-      if (!k.startsWith("fp_")) continue;
-      const m = byRep.get(r.rep_index) ?? {};
-      m[k] = r.value;
-      byRep.set(r.rep_index, m);
+  for (const g of dateGroups) {
+    // Pool rep-level rows from every session recorded this date — keyed by
+    // session+rep so two same-day sessions' rep numbers never collide — and
+    // pick the single best rep across all of them, same scoring as before.
+    const byRep = new Map<string, Record<string, number>>();
+    for (const s of g.sessions) {
+      const rows = metricsBySession.get(s.id) ?? [];
+      for (const r of rows) {
+        if (r.rep_index == null || r.value == null) continue;
+        const k = r.key;
+        if (!k.startsWith("fp_")) continue;
+        const repKey = `${s.id}:${r.rep_index}`;
+        const m = byRep.get(repKey) ?? {};
+        m[k] = r.value;
+        byRep.set(repKey, m);
+      }
     }
 
     let bestRep: Record<string, number> | null = null;
@@ -467,14 +530,16 @@ export function buildCmjDataPoints(
       }
     }
 
+    const allRows = g.sessions.flatMap((s) => metricsBySession.get(s.id) ?? []);
+
     if (!bestRep || bestScore === -Infinity) {
-      const jhM = maxMetric(rows, "fp_jump_height");
-      const jhCm = maxMetric(rows, "fp_jump_height_cm_best");
-      const pi = maxMetric(rows, "fp_propulsive_impulse");
-      const bi = maxMetric(rows, "fp_braking_impulse");
-      const ppf = maxMetric(rows, "fp_peak_propulsive_force");
-      const pbf = maxMetric(rows, "fp_peak_braking_force");
-      const mrsi = maxMetric(rows, "fp_mrsi");
+      const jhM = maxMetric(allRows, "fp_jump_height");
+      const jhCm = maxMetric(allRows, "fp_jump_height_cm_best");
+      const pi = maxMetric(allRows, "fp_propulsive_impulse");
+      const bi = maxMetric(allRows, "fp_braking_impulse");
+      const ppf = maxMetric(allRows, "fp_peak_propulsive_force");
+      const pbf = maxMetric(allRows, "fp_peak_braking_force");
+      const mrsi = maxMetric(allRows, "fp_mrsi");
       if (
         jhM == null &&
         jhCm == null &&
@@ -488,15 +553,15 @@ export function buildCmjDataPoints(
       }
       const jhAgg = jhM != null ? jhM * 100 : jhCm;
       out.push({
-        date: formatDisplayDate(s.session_date),
-        t: new Date(s.session_date).getTime(),
+        date: formatDisplayDate(g.date),
+        t: new Date(g.date).getTime(),
         jump_height: jhAgg != null && Number.isFinite(jhAgg) ? jhAgg : null,
         propulsive_impulse: pi,
         braking_impulse: bi,
         peak_propulsive_force: ppf,
         peak_braking_force: pbf,
         mrsi,
-        rawMetrics: extractRawLrMetrics(rows),
+        rawMetrics: extractRawLrMetrics(allRows),
       });
       continue;
     }
@@ -507,15 +572,15 @@ export function buildCmjDataPoints(
         : bestRep.fp_jump_height_cm_best ?? null;
 
     out.push({
-      date: formatDisplayDate(s.session_date),
-      t: new Date(s.session_date).getTime(),
+      date: formatDisplayDate(g.date),
+      t: new Date(g.date).getTime(),
       jump_height: jh != null && Number.isFinite(jh) ? jh : null,
       propulsive_impulse: bestRep.fp_propulsive_impulse ?? null,
       braking_impulse: bestRep.fp_braking_impulse ?? null,
       peak_propulsive_force: bestRep.fp_peak_propulsive_force ?? null,
       peak_braking_force: bestRep.fp_peak_braking_force ?? null,
       mrsi: bestRep.fp_mrsi ?? null,
-      rawMetrics: extractRawLrMetrics(rows),
+      rawMetrics: extractRawLrMetrics(allRows),
     });
   }
   return out;

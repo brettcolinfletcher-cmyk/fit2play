@@ -16,9 +16,11 @@ import {
 } from "recharts";
 import { formatDisplayDate } from "@/lib/dateDisplay";
 import { lsiColorClass, SIDE_COLORS } from "@/lib/sideColors";
+import { groupSessionsByDate } from "@/lib/sessionDateGroups";
 import ZoomableChart from "@/components/charts/ZoomableChart";
 import ChartTypeToggle, { type ChartType } from "./ChartTypeToggle";
 import SectionComment from "./SectionComment";
+import SessionDetailByDate from "./SessionDetailByDate";
 import {
   CHART_AXIS_LINE,
   CHART_AXIS_TICK,
@@ -237,12 +239,27 @@ function extractRawLrMetrics(rows: MetricLite[]): Record<string, number> | undef
 type Props = {
   athleteId: string;
   data: DJDataPoint[];
+  /** Raw sessions/metrics feeding `data` — used only for the "Session
+   * detail" click-to-expand list so a date with more than one DJ session
+   * can show every rep, not just the best one plotted in the chart. */
+  sessions: SessionLite[];
+  metricsBySession: Map<string, MetricLite[]>;
   sectionComment: string | null;
 };
+
+function labelForKey(key: string): string {
+  const def = DJ_METRICS.find((m) => m.key === key.replace(/^fp_/, ""));
+  if (def) return def.unit ? `${def.label} (${def.unit})` : def.label;
+  return key.startsWith("fp_")
+    ? key.slice(3).replace(/_/g, " ")
+    : key.replace(/_/g, " ");
+}
 
 export default function ForcePlateDJSection({
   athleteId,
   data,
+  sessions,
+  metricsBySession,
   sectionComment,
 }: Props) {
   const [selected, setSelected] = useState<Set<string>>(() => new Set(DJ_DEFAULT));
@@ -255,6 +272,15 @@ export default function ForcePlateDJSection({
   const selectedMetrics = useMemo(
     () => DJ_METRICS.filter((m) => selected.has(m.key)),
     [selected]
+  );
+
+  const djDateGroups = useMemo(
+    () =>
+      groupSessionsByDate(
+        sessions.filter((s) => s.session_date && isDjSession(s)),
+        (s) => maxMetric(metricsBySession.get(s.id) ?? [], "fp_rsi_best")
+      ),
+    [sessions, metricsBySession]
   );
 
   if (data.length === 0) return null;
@@ -385,6 +411,40 @@ export default function ForcePlateDJSection({
         if (!latest?.rawMetrics) return null;
         return <DJAsymmetryStrip rawMetrics={latest.rawMetrics} />;
       })()}
+      <SessionDetailByDate
+        title="Session detail"
+        groups={djDateGroups}
+        renderSummary={(s) => {
+          const rows = metricsBySession.get(s.id) ?? [];
+          return (
+            <span className="text-slate-600">
+              {s.test_sub_type ?? "Drop jump"}
+              <span className="ml-2 text-slate-400">{rows.length} metrics</span>
+            </span>
+          );
+        }}
+        renderDetail={(s) => {
+          const rows = (metricsBySession.get(s.id) ?? []).filter((r) => r.key.startsWith("fp_"));
+          if (rows.length === 0) return <p className="text-xs text-slate-400">No metrics.</p>;
+          return (
+            <table className="w-full text-xs">
+              <tbody>
+                {rows.map((r, i) => (
+                  <tr key={`${r.key}-${r.rep_index ?? i}`} className="border-b border-slate-100 last:border-0">
+                    <td className="py-1 pr-2 text-slate-500">
+                      {labelForKey(r.key)}
+                      {r.rep_index != null ? ` (rep ${r.rep_index})` : ""}
+                    </td>
+                    <td className="py-1 text-right font-mono text-slate-700">
+                      {r.value != null ? r.value.toFixed(2) : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          );
+        }}
+      />
       <SectionComment
         athleteId={athleteId}
         section="drop_jump"
@@ -425,23 +485,26 @@ export function buildDjDataPoints(
   metricsBySession: Map<string, MetricLite[]>
 ): DJDataPoint[] {
   const out: DJDataPoint[] = [];
-  const sorted = [...sessions].sort((a, b) => {
-    const ta = a.session_date ? new Date(a.session_date).getTime() : 0;
-    const tb = b.session_date ? new Date(b.session_date).getTime() : 0;
-    return ta - tb;
-  });
+  const djSessions = sessions.filter((s) => s.session_date && isDjSession(s));
+  const dateGroups = groupSessionsByDate(djSessions, (s) =>
+    maxMetric(metricsBySession.get(s.id) ?? [], "fp_rsi_best")
+  );
 
-  for (const s of sorted) {
-    if (!s.session_date || !isDjSession(s)) continue;
-
-    const rows = metricsBySession.get(s.id) ?? [];
-    const byRep = new Map<number, Record<string, number>>();
-    for (const r of rows) {
-      if (r.rep_index == null || r.value == null) continue;
-      if (!r.key.startsWith("fp_")) continue;
-      const m = byRep.get(r.rep_index) ?? {};
-      m[r.key] = r.value;
-      byRep.set(r.rep_index, m);
+  for (const g of dateGroups) {
+    // Pool rep-level rows from every session recorded this date — keyed by
+    // session+rep so two same-day sessions' rep numbers never collide — and
+    // pick the single best rep across all of them, same scoring as before.
+    const byRep = new Map<string, Record<string, number>>();
+    for (const s of g.sessions) {
+      const rows = metricsBySession.get(s.id) ?? [];
+      for (const r of rows) {
+        if (r.rep_index == null || r.value == null) continue;
+        if (!r.key.startsWith("fp_")) continue;
+        const repKey = `${s.id}:${r.rep_index}`;
+        const m = byRep.get(repKey) ?? {};
+        m[r.key] = r.value;
+        byRep.set(repKey, m);
+      }
     }
 
     let bestRep: Record<string, number> | null = null;
@@ -461,15 +524,17 @@ export function buildDjDataPoints(
       }
     }
 
+    const allRows = g.sessions.flatMap((s) => metricsBySession.get(s.id) ?? []);
+
     if (!bestRep || bestScore === -Infinity) {
-      const rsi = maxMetric(rows, "fp_rsi_best");
-      const jhM = maxMetric(rows, "fp_jump_height");
-      const jhCm = maxMetric(rows, "fp_jump_height_cm_best");
+      const rsi = maxMetric(allRows, "fp_rsi_best");
+      const jhM = maxMetric(allRows, "fp_jump_height");
+      const jhCm = maxMetric(allRows, "fp_jump_height_cm_best");
       const ct =
-        minMetric(rows, "fp_contact_time") ??
-        minMetric(rows, "fp_contact_time_s_best");
-      const ppf = maxMetric(rows, "fp_peak_propulsive_force");
-      const pbf = maxMetric(rows, "fp_peak_braking_force");
+        minMetric(allRows, "fp_contact_time") ??
+        minMetric(allRows, "fp_contact_time_s_best");
+      const ppf = maxMetric(allRows, "fp_peak_propulsive_force");
+      const pbf = maxMetric(allRows, "fp_peak_braking_force");
       if (
         rsi == null &&
         jhM == null &&
@@ -483,13 +548,13 @@ export function buildDjDataPoints(
       const jhCmVal = jhM != null ? jhM * 100 : jhCm;
       out.push(
         djRow(
-          s.session_date,
+          g.date,
           rsi,
           jhCmVal,
           toContactMs(ct),
           ppf,
           pbf,
-          extractRawLrMetrics(rows)
+          extractRawLrMetrics(allRows)
         )
       );
       continue;
@@ -504,13 +569,13 @@ export function buildDjDataPoints(
       bestRep.fp_contact_time ?? bestRep.fp_contact_time_s_best ?? null;
     out.push(
       djRow(
-        s.session_date,
+        g.date,
         rsi,
         jhCm,
         toContactMs(ctRaw),
         bestRep.fp_peak_propulsive_force ?? null,
         bestRep.fp_peak_braking_force ?? null,
-        extractRawLrMetrics(rows)
+        extractRawLrMetrics(allRows)
       )
     );
   }

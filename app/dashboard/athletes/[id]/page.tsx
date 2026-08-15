@@ -38,6 +38,7 @@ import TimepointSummary from "@/components/athletes/TimepointSummary";
 import AthleteRingPanel from "@/components/AthleteRingPanel";
 import AthleteTestSummary from "@/components/AthleteTestSummary";
 import AthleteIdentityCard from "@/components/athletes/AthleteIdentityCard";
+import SessionDetailByDate from "@/components/athletes/SessionDetailByDate";
 import ZoomableChart from "@/components/charts/ZoomableChart";
 import {
   buildHopTestBlocks,
@@ -47,6 +48,7 @@ import {
   type ReportSessionRow,
   type ReportMetricRow,
 } from "@/lib/athleteReportData";
+import { groupSessionsByDate } from "@/lib/sessionDateGroups";
 import {
   lrEligibleSessionsForAthlete,
   type LREligibleSession,
@@ -896,134 +898,99 @@ export default function AthleteDetailPage() {
   }
 
   // ── Linear sprint trend data ──────────────────────────────────────────────────
+  // Grouped by calendar date first (see lib/sessionDateGroups) so two sessions
+  // recorded the same day — re-tests, a warm-up rep, per-leg sessions, etc. —
+  // collapse to a single point (the day's best effort by top speed) instead of
+  // plotting twice on the same date. The "Session detail" list below the chart
+  // grid lets you click that date to see every session recorded that day.
 
-  const trendTopSpeed = useMemo(() => {
-    const sorted = sessionsChronological(
+  const linearSessionsForTrend = useMemo(
+    () =>
       filteredSessions.filter(
         (s) =>
           isLinearSprintSession(s, metricsBySession) &&
           visibility.isSubtestVisible("linear", s.test_sub_type ?? "")
-      )
-    );
-    const points: { t: number; label: string; v: number }[] = [];
-    for (const s of sorted) {
-      if (!s.session_date) continue;
-      const v = metricAggregate(metricsBySession, s.id, "top_speed", "max");
-      if (v == null) continue;
-      points.push({ t: new Date(s.session_date).getTime(), label: formatChartAxisDate(s.session_date), v });
-    }
-    return { points, enough: points.length >= 2 };
-  }, [filteredSessions, metricsBySession, visibility]);
+      ),
+    [filteredSessions, metricsBySession, visibility]
+  );
 
-  const trendPeakForce = useMemo(() => {
-    const sorted = sessionsChronological(
-      filteredSessions.filter(
-        (s) =>
-          isLinearSprintSession(s, metricsBySession) &&
-          visibility.isSubtestVisible("linear", s.test_sub_type ?? "")
-      )
-    );
-    const points: { t: number; label: string; v: number }[] = [];
-    for (const s of sorted) {
-      if (!s.session_date) continue;
-      const v = metricAggregate(metricsBySession, s.id, "peak_force", "max");
-      if (v == null) continue;
-      points.push({ t: new Date(s.session_date).getTime(), label: formatChartAxisDate(s.session_date), v });
-    }
-    return { points, enough: points.length >= 2 };
-  }, [filteredSessions, metricsBySession, visibility]);
+  const linearDateGroups = useMemo(
+    () =>
+      groupSessionsByDate(linearSessionsForTrend, (s) =>
+        metricAggregate(metricsBySession, s.id, "top_speed", "max")
+      ),
+    [linearSessionsForTrend, metricsBySession]
+  );
 
-  const trendPeakPower = useMemo(() => {
-    const sorted = sessionsChronological(
-      filteredSessions.filter(
-        (s) =>
-          isLinearSprintSession(s, metricsBySession) &&
-          visibility.isSubtestVisible("linear", s.test_sub_type ?? "")
-      )
-    );
-    const points: { t: number; label: string; v: number }[] = [];
-    for (const s of sorted) {
-      if (!s.session_date) continue;
-      const v = metricAggregate(metricsBySession, s.id, "peak_power", "max");
-      if (v == null) continue;
-      points.push({ t: new Date(s.session_date).getTime(), label: formatChartAxisDate(s.session_date), v });
-    }
-    return { points, enough: points.length >= 2 };
-  }, [filteredSessions, metricsBySession, visibility]);
+  const trendFromDateGroups = useCallback(
+    (groups: ReturnType<typeof groupSessionsByDate<SessionRow>>, key: string, mode: "max" | "min") => {
+      const points: { t: number; label: string; v: number }[] = [];
+      for (const g of groups) {
+        const v = metricAggregate(metricsBySession, g.best.id, key, mode);
+        if (v == null) continue;
+        points.push({
+          t: new Date(g.date).getTime(),
+          label: formatChartAxisDate(g.best.session_date),
+          v,
+        });
+      }
+      return { points, enough: points.length >= 2 };
+    },
+    [metricsBySession]
+  );
 
-  const trendSplit5m = useMemo(() => {
-    const sorted = sessionsChronological(
-      filteredSessions.filter(
-        (s) =>
-          isLinearSprintSession(s, metricsBySession) &&
-          visibility.isSubtestVisible("linear", s.test_sub_type ?? "")
-      )
-    );
-    const points: { t: number; label: string; v: number }[] = [];
-    for (const s of sorted) {
-      if (!s.session_date) continue;
-      const v = metricAggregate(metricsBySession, s.id, "split_5m_time", "min");
-      if (v == null) continue;
-      points.push({ t: new Date(s.session_date).getTime(), label: formatChartAxisDate(s.session_date), v });
-    }
-    return { points, enough: points.length >= 2 };
-  }, [filteredSessions, metricsBySession, visibility]);
+  const trendTopSpeed = useMemo(
+    () => trendFromDateGroups(linearDateGroups, "top_speed", "max"),
+    [linearDateGroups, trendFromDateGroups]
+  );
+
+  const trendPeakForce = useMemo(
+    () => trendFromDateGroups(linearDateGroups, "peak_force", "max"),
+    [linearDateGroups, trendFromDateGroups]
+  );
+
+  const trendPeakPower = useMemo(
+    () => trendFromDateGroups(linearDateGroups, "peak_power", "max"),
+    [linearDateGroups, trendFromDateGroups]
+  );
+
+  const trendSplit5m = useMemo(
+    () => trendFromDateGroups(linearDateGroups, "split_5m_time", "min"),
+    [linearDateGroups, trendFromDateGroups]
+  );
 
   // ── 5-10-5 COD trend data ─────────────────────────────────────────────────────
 
-  const trend505TopSpeed = useMemo(() => {
-    const sorted = sessionsChronological(
+  const codSessionsForTrend = useMemo(
+    () =>
       filteredSessions.filter(
-        (s) =>
-          is505Session(s) &&
-          visibility.isSubtestVisible("cod", s.test_sub_type ?? "")
-      )
-    );
-    const points: { t: number; label: string; v: number }[] = [];
-    for (const s of sorted) {
-      if (!s.session_date) continue;
-      const v = metricAggregate(metricsBySession, s.id, "top_speed", "max");
-      if (v == null) continue;
-      points.push({ t: new Date(s.session_date).getTime(), label: formatChartAxisDate(s.session_date), v });
-    }
-    return { points, enough: points.length >= 2 };
-  }, [filteredSessions, metricsBySession, visibility]);
+        (s) => is505Session(s) && visibility.isSubtestVisible("cod", s.test_sub_type ?? "")
+      ),
+    [filteredSessions, visibility]
+  );
 
-  const trend505DecelMax = useMemo(() => {
-    const sorted = sessionsChronological(
-      filteredSessions.filter(
-        (s) =>
-          is505Session(s) &&
-          visibility.isSubtestVisible("cod", s.test_sub_type ?? "")
-      )
-    );
-    const points: { t: number; label: string; v: number }[] = [];
-    for (const s of sorted) {
-      if (!s.session_date) continue;
-      const v = metricAggregate(metricsBySession, s.id, "decel_max", "max");
-      if (v == null) continue;
-      points.push({ t: new Date(s.session_date).getTime(), label: formatChartAxisDate(s.session_date), v });
-    }
-    return { points, enough: points.length >= 2 };
-  }, [filteredSessions, metricsBySession, visibility]);
+  const codDateGroups = useMemo(
+    () =>
+      groupSessionsByDate(codSessionsForTrend, (s) =>
+        metricAggregate(metricsBySession, s.id, "top_speed", "max")
+      ),
+    [codSessionsForTrend, metricsBySession]
+  );
 
-  const trend505AccelMax = useMemo(() => {
-    const sorted = sessionsChronological(
-      filteredSessions.filter(
-        (s) =>
-          is505Session(s) &&
-          visibility.isSubtestVisible("cod", s.test_sub_type ?? "")
-      )
-    );
-    const points: { t: number; label: string; v: number }[] = [];
-    for (const s of sorted) {
-      if (!s.session_date) continue;
-      const v = metricAggregate(metricsBySession, s.id, "accel_max", "max");
-      if (v == null) continue;
-      points.push({ t: new Date(s.session_date).getTime(), label: formatChartAxisDate(s.session_date), v });
-    }
-    return { points, enough: points.length >= 2 };
-  }, [filteredSessions, metricsBySession, visibility]);
+  const trend505TopSpeed = useMemo(
+    () => trendFromDateGroups(codDateGroups, "top_speed", "max"),
+    [codDateGroups, trendFromDateGroups]
+  );
+
+  const trend505DecelMax = useMemo(
+    () => trendFromDateGroups(codDateGroups, "decel_max", "max"),
+    [codDateGroups, trendFromDateGroups]
+  );
+
+  const trend505AccelMax = useMemo(
+    () => trendFromDateGroups(codDateGroups, "accel_max", "max"),
+    [codDateGroups, trendFromDateGroups]
+  );
 
   // ── Misc ─────────────────────────────────────────────────────────────────────
 
@@ -1088,6 +1055,38 @@ export default function AthleteDetailPage() {
           );
         })}
       </div>
+    );
+  }
+
+  function renderTrendSessionSummary(s: SessionRow) {
+    const rows = metricsBySession.get(s.id) ?? [];
+    return (
+      <span className="text-slate-600">
+        {s.test_sub_type ?? s.test_type ?? "Session"}
+        <span className="ml-2 text-slate-400">{rows.length} metrics</span>
+      </span>
+    );
+  }
+
+  function renderTrendSessionDetail(s: SessionRow) {
+    const rows = metricsBySession.get(s.id) ?? [];
+    if (rows.length === 0) return <p className="text-xs text-slate-400">No metrics.</p>;
+    return (
+      <table className="w-full text-xs">
+        <tbody>
+          {rows.map((r, i) => (
+            <tr key={`${r.key}-${r.rep_index ?? i}`} className="border-b border-slate-100 last:border-0">
+              <td className="py-1 pr-2 text-slate-500">
+                {labelForMetricKey(r.key)}
+                {r.rep_index != null ? ` (rep ${r.rep_index})` : ""}
+              </td>
+              <td className="py-1 text-right font-mono text-slate-700">
+                {formatMetricValue(r.value, r.key)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     );
   }
 
@@ -1263,6 +1262,12 @@ export default function AthleteDetailPage() {
                     );
                   })}
                 </div>
+                <SessionDetailByDate
+                  title="Session detail"
+                  groups={linearDateGroups}
+                  renderSummary={renderTrendSessionSummary}
+                  renderDetail={renderTrendSessionDetail}
+                />
                 <SectionComment
                   athleteId={id}
                   section="linear"
@@ -1311,6 +1316,12 @@ export default function AthleteDetailPage() {
                     );
                   })}
                 </div>
+                <SessionDetailByDate
+                  title="Session detail"
+                  groups={codDateGroups}
+                  renderSummary={renderTrendSessionSummary}
+                  renderDetail={renderTrendSessionDetail}
+                />
                 <SectionComment
                   athleteId={id}
                   section="cod"
@@ -1323,6 +1334,8 @@ export default function AthleteDetailPage() {
               <ForcePlateCMJSection
                 athleteId={id}
                 data={cmjSeries}
+                sessions={hawkinsSessions}
+                metricsBySession={metricsBySession}
                 sectionComment={sectionNote("cmj")}
               />
             )}
@@ -1331,6 +1344,8 @@ export default function AthleteDetailPage() {
               <ForcePlateDJSection
                 athleteId={id}
                 data={djSeries}
+                sessions={hawkinsSessions}
+                metricsBySession={metricsBySession}
                 sectionComment={sectionNote("drop_jump")}
               />
             )}
