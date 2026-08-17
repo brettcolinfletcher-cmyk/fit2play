@@ -44,6 +44,8 @@ type AthleteForPdf = {
   team?: string | null;
   date_of_birth?: string | null;
   target_profile_id?: string | null;
+  /** "rtp" (exit-criteria/READINESS gauges) vs "performance" (composite monitoring, no READINESS). */
+  dashboard_mode?: string | null;
 };
 
 type Props = {
@@ -164,6 +166,12 @@ export default function PdfExportModal({
   }, [open, sessionOptions]);
 
   const athleteName = `${athlete.first_name ?? ""} ${athlete.last_name ?? ""}`.trim() || "Athlete";
+  // Matches app/dashboard/athletes/[id]/page.tsx's derivation — READINESS
+  // (exit-criteria gauges) only makes sense for "rtp"-tagged athletes.
+  // "performance"-tagged athletes (composite monitoring, no rehab exit
+  // criteria) should never get a READINESS section in their PDF.
+  const dashboardMode: "rtp" | "performance" =
+    String(athlete.dashboard_mode ?? "rtp") === "performance" ? "performance" : "rtp";
 
   const sessA = useMemo(
     () => (dateAId ? scopeSessions.find((s) => s.id === dateAId) ?? null : null),
@@ -230,7 +238,7 @@ export default function PdfExportModal({
             )
           : null;
       const snapshot: AthleteSnapshot | null =
-        mode === "best"
+        mode === "best" && dashboardMode === "rtp"
           ? computeAthleteSnapshot(
               scopeSessions,
               metricsBySession,
@@ -319,6 +327,7 @@ export default function PdfExportModal({
     athlete.team,
     athlete.date_of_birth,
     athlete.target_profile_id,
+    dashboardMode,
     athleteName,
     bands,
     compareDateALabel,

@@ -125,6 +125,63 @@ export function metricAggregate(
   return mode === "max" ? Math.max(...vals) : Math.min(...vals);
 }
 
+/**
+ * Groups sessions matching `predicate` by calendar date, takes the LATEST
+ * date with any matching session, and aggregates `key` (max/min) across
+ * every metric row from EVERY session recorded that date — not just one
+ * arbitrarily-picked session.
+ *
+ * This replaces the "pick one latest session, then read its metrics" pattern
+ * (`lib/performanceSummary.ts` used to call this `latestSessionOf` +
+ * `metricAggregate`), which breaks when an athlete has more than one session
+ * of the same type on the same day: same-day sessions tie on `session_date`,
+ * so which one gets picked as "latest" is effectively arbitrary — and
+ * whichever one loses isn't just skipped, its (possibly better) values for
+ * every metric read off it are silently discarded. Confirmed in production:
+ * an athlete's real best CMJ jump height/propulsive impulse/RSI, all from
+ * different reps recorded as separate same-day sessions, were being replaced
+ * by a single worse rep's numbers across all three metrics.
+ *
+ * Pass `side` to restrict to metric rows tagged for that side (e.g. the
+ * weaker-side "entry time" of a paired L/R test) — rows with a different or
+ * missing side are excluded, so an untagged/ambiguous sub-split reading
+ * can't get mixed in with genuine per-side readings.
+ */
+export function latestDayMetricAggregate(
+  sessions: ReportSessionRow[],
+  metricsBySession: Map<string, ReportMetricRow[]>,
+  predicate: (s: ReportSessionRow) => boolean,
+  key: string,
+  mode: "max" | "min",
+  side?: "left" | "right"
+): { value: number | null; source: ReportSessionRow | null } {
+  const matching = sessions.filter((s) => predicate(s) && s.session_date);
+  if (matching.length === 0) return { value: null, source: null };
+
+  let latestDate: string | null = null;
+  for (const s of matching) {
+    const d = s.session_date!.slice(0, 10);
+    if (!latestDate || d > latestDate) latestDate = d;
+  }
+  if (!latestDate) return { value: null, source: null };
+
+  const onDate = matching.filter((s) => s.session_date!.slice(0, 10) === latestDate);
+  let value: number | null = null;
+  let source: ReportSessionRow | null = null;
+  for (const s of onDate) {
+    const rows = metricsBySession.get(s.id) ?? [];
+    for (const r of rows) {
+      if (r.key !== key || r.value == null || !Number.isFinite(r.value)) continue;
+      if (side && (r.side ?? "").toLowerCase() !== side) continue;
+      if (value == null || (mode === "max" ? r.value > value : r.value < value)) {
+        value = r.value;
+        source = s;
+      }
+    }
+  }
+  return { value, source: source ?? onDate[0]! };
+}
+
 const HHD_SKIP_TOKENS = new Set([
   "left",
   "right",

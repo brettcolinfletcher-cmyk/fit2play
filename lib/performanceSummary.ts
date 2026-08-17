@@ -1,7 +1,9 @@
 import {
   bucket,
   formatChartAxisDate,
+  is1080Session,
   isLinearSprintSession,
+  latestDayMetricAggregate,
   metricAggregate,
   type ReportMetricRow,
   type ReportSessionRow,
@@ -166,43 +168,6 @@ function isTenMAccelSession(s: ReportSessionRow): boolean {
   return sub.includes("10m acceleration");
 }
 
-function latestSessionOf(
-  sessions: ReportSessionRow[],
-  predicate: (s: ReportSessionRow) => boolean
-): ReportSessionRow | null {
-  let best: ReportSessionRow | null = null;
-  let bestTime = -Infinity;
-  for (const s of sessions) {
-    if (!predicate(s) || !s.session_date) continue;
-    const t = new Date(s.session_date).getTime();
-    if (t >= bestTime) {
-      bestTime = t;
-      best = s;
-    }
-  }
-  return best;
-}
-
-/**
- * Most recent session matching `predicate` that actually has a value for
- * `key` — lets us skip past sessions where a given split/metric wasn't
- * captured instead of just taking the single latest session of that type.
- */
-function latestSessionWithMetric(
-  sessions: ReportSessionRow[],
-  metricsBySession: Map<string, ReportMetricRow[]>,
-  predicate: (s: ReportSessionRow) => boolean,
-  key: string
-): ReportSessionRow | null {
-  const candidates = sessions
-    .filter((s) => predicate(s) && s.session_date)
-    .sort((a, b) => new Date(b.session_date!).getTime() - new Date(a.session_date!).getTime());
-  for (const s of candidates) {
-    if (metricAggregate(metricsBySession, s.id, key, "min") != null) return s;
-  }
-  return null;
-}
-
 // The 1080 device doesn't reliably tag sessions with a fixed test distance
 // or an accurate protocol name — Brett confirmed one athlete's real 40m
 // Running (LR) test synced in with test_sub_type "5-0-5 Assisted start"
@@ -217,6 +182,30 @@ function latestSessionWithMetric(
 const FORTY_M_TOLERANCE = 5;
 const FORTY_M_SUB_TYPE_FALLBACKS = ["linear bilateral", "running (lr)"];
 
+/** (rep_index, side) groups from one session's rows with a confirmed ~40m
+ * total_distance/total_time pair — see findFortyMBySide's comment above. */
+function fortyMGroupsForSession(
+  rows: ReportMetricRow[]
+): { time: number; side: string | null }[] {
+  const groups = new Map<string, { distance: number | null; time: number | null; side: string | null }>();
+  for (const r of rows) {
+    if ((r.key !== "total_distance" && r.key !== "total_time") || r.value == null || !Number.isFinite(r.value)) {
+      continue;
+    }
+    const gKey = `${r.rep_index ?? "x"}|${r.side ?? ""}`;
+    const g = groups.get(gKey) ?? { distance: null, time: null, side: r.side ?? null };
+    if (r.key === "total_distance") g.distance = g.distance == null ? r.value : Math.max(g.distance, r.value);
+    if (r.key === "total_time") g.time = g.time == null ? r.value : Math.max(g.time, r.value);
+    groups.set(gKey, g);
+  }
+  const out: { time: number; side: string | null }[] = [];
+  for (const g of groups.values()) {
+    if (g.distance == null || g.time == null || Math.abs(g.distance - 40) > FORTY_M_TOLERANCE) continue;
+    out.push({ time: g.time, side: g.side });
+  }
+  return out;
+}
+
 function findFortyMBySide(
   sessions: ReportSessionRow[],
   metricsBySession: Map<string, ReportMetricRow[]>
@@ -225,33 +214,36 @@ function findFortyMBySide(
     .filter((s) => bucket(s.source) === "1080" && s.session_date)
     .sort((a, b) => new Date(b.session_date!).getTime() - new Date(a.session_date!).getTime());
 
+  // Find the most recent date with ANY session containing a confirmed ~40m
+  // group, then pool matches from every session recorded that SAME date —
+  // not just the first session encountered — so a genuine same-day re-test
+  // with a better time isn't silently discarded (same bug class as
+  // latestSessionOf elsewhere in this file: picking one arbitrary session
+  // on a same-day tie instead of considering all of them).
+  let matchDate: string | null = null;
   for (const s of candidates) {
-    const rows = metricsBySession.get(s.id) ?? [];
-    const groups = new Map<string, { distance: number | null; time: number | null; side: string | null }>();
-    for (const r of rows) {
-      if ((r.key !== "total_distance" && r.key !== "total_time") || r.value == null || !Number.isFinite(r.value)) {
-        continue;
-      }
-      const gKey = `${r.rep_index ?? "x"}|${r.side ?? ""}`;
-      const g = groups.get(gKey) ?? { distance: null, time: null, side: r.side ?? null };
-      if (r.key === "total_distance") g.distance = g.distance == null ? r.value : Math.max(g.distance, r.value);
-      if (r.key === "total_time") g.time = g.time == null ? r.value : Math.max(g.time, r.value);
-      groups.set(gKey, g);
+    if (fortyMGroupsForSession(metricsBySession.get(s.id) ?? []).length > 0) {
+      matchDate = s.session_date!.slice(0, 10);
+      break;
     }
+  }
 
+  if (matchDate) {
     let left: number | null = null;
     let right: number | null = null;
     let bilateral: number | null = null;
-    let matched = false;
-    for (const g of groups.values()) {
-      if (g.distance == null || g.time == null || Math.abs(g.distance - 40) > FORTY_M_TOLERANCE) continue;
-      matched = true;
-      const side = (g.side ?? "").toLowerCase();
-      if (side === "left") left = left == null ? g.time : Math.min(left, g.time);
-      else if (side === "right") right = right == null ? g.time : Math.min(right, g.time);
-      else bilateral = bilateral == null ? g.time : Math.min(bilateral, g.time);
+    let source: ReportSessionRow | null = null;
+    for (const s of candidates) {
+      if (s.session_date!.slice(0, 10) !== matchDate) continue;
+      for (const g of fortyMGroupsForSession(metricsBySession.get(s.id) ?? [])) {
+        source = source ?? s;
+        const side = (g.side ?? "").toLowerCase();
+        if (side === "left") left = left == null ? g.time : Math.min(left, g.time);
+        else if (side === "right") right = right == null ? g.time : Math.min(right, g.time);
+        else bilateral = bilateral == null ? g.time : Math.min(bilateral, g.time);
+      }
     }
-    if (matched) return { left: left ?? bilateral, right, source: s };
+    return { left: left ?? bilateral, right, source };
   }
 
   // Fallback: no session had any rep/side group with a confirmed ~40m
@@ -408,73 +400,69 @@ export function computePerformanceSummary(
     return { id, label, commonSourceLabel, metrics };
   }
 
-  const cmjSession = latestSessionOf(
-    sessions,
-    (s) => bucket(s.source) === "hawkins" && s.test_type === "force_plate_cmj"
-  );
-  const codSession = latestSessionOf(sessions, is505Session);
-  const tenMSession = latestSessionOf(sessions, isTenMAccelSession);
-  const fortyM = findFortyMBySide(sessions, metricsBySession);
-  const fiveMSession = latestSessionWithMetric(
-    sessions,
-    metricsBySession,
-    (s) => bucket(s.source) === "1080",
-    "split_5m_time"
-  );
-  const peakPowerSession = latestSessionWithMetric(
-    sessions,
-    metricsBySession,
-    (s) => bucket(s.source) === "1080",
-    "peak_power"
-  );
+  // Every metric below is pulled from the athlete's most recent TESTING DAY
+  // for that modality — pooled across every session recorded that day, not
+  // read off one arbitrarily-picked session. Same-day duplicate sessions are
+  // common (re-tests, warm-up vs. main effort, one session per rep) and a
+  // single-session pick silently discards whichever session lost the tie,
+  // even when it held the athlete's actual best numbers. See
+  // latestDayMetricAggregate's doc comment in lib/reportCore.ts.
+  const isCmjSession = (s: ReportSessionRow) =>
+    bucket(s.source) === "hawkins" && s.test_type === "force_plate_cmj";
 
-  const cmj = (key: string) =>
-    cmjSession ? metricAggregate(metricsBySession, cmjSession.id, key, "max") : null;
-  const codMax = (key: string) =>
-    codSession ? metricAggregate(metricsBySession, codSession.id, key, "max") : null;
-  const codMin = (key: string) =>
-    codSession ? metricAggregate(metricsBySession, codSession.id, key, "min") : null;
+  const cmj = (key: string) => latestDayMetricAggregate(sessions, metricsBySession, isCmjSession, key, "max");
+  const cod = (key: string, mode: "max" | "min") =>
+    latestDayMetricAggregate(sessions, metricsBySession, is505Session, key, mode);
+  const codLeft = latestDayMetricAggregate(sessions, metricsBySession, is505Session, "total_time", "min", "left");
+  const codRight = latestDayMetricAggregate(sessions, metricsBySession, is505Session, "total_time", "min", "right");
+  const codAccelMax = cod("accel_max", "max");
+  const codDecelMax = cod("decel_max", "max");
+  const tenM = latestDayMetricAggregate(sessions, metricsBySession, isTenMAccelSession, "total_time", "min");
+  const fiveM = latestDayMetricAggregate(sessions, metricsBySession, is1080Session, "split_5m_time", "min");
+  const peakPower1080 = latestDayMetricAggregate(sessions, metricsBySession, is1080Session, "peak_power", "max");
+  const fortyM = findFortyMBySide(sessions, metricsBySession);
 
   // fp_jump_height is stored in metres (matches the CMJ chart / hero tile
   // elsewhere in the app) — convert to cm for display, same as
-  // buildCmjDataPoints in ForcePlateCMJSection.
+  // buildCmjDataPoints in ForcePlateCMJSection.tsx. Falls back to
+  // fp_jump_height_cm_best (already in cm) when the metres key is absent,
+  // same fallback buildCmjDataPoints uses.
   const jumpHeightM = cmj("fp_jump_height");
-  const jumpHeightCm = jumpHeightM != null && Number.isFinite(jumpHeightM) ? jumpHeightM * 100 : null;
+  const jumpHeightCmBest = cmj("fp_jump_height_cm_best");
+  const jumpHeightCm =
+    jumpHeightM.value != null && Number.isFinite(jumpHeightM.value)
+      ? jumpHeightM.value * 100
+      : jumpHeightCmBest.value;
+  const jumpHeightSource = jumpHeightM.value != null ? jumpHeightM.source : jumpHeightCmBest.source;
+
+  const peakPropForce = cmj("fp_peak_propulsive_force");
+  const propulsiveImpulse = cmj("fp_propulsive_impulse");
+  const peakPropPower = cmj("fp_peak_propulsive_power");
+  const mrsi = cmj("fp_mrsi");
+  const brakingRfd = cmj("fp_braking_rfd");
 
   const categories: SummaryCategory[] = [
     withCommonSource("cmj", "CMJ", [
-      metric("cmj_jump_height", jumpHeightCm, cmjSession),
-      metric("cmj_conc_peak_force", cmj("fp_peak_propulsive_force"), cmjSession),
-      metric("cmj_propulsive_impulse", cmj("fp_propulsive_impulse"), cmjSession),
+      metric("cmj_jump_height", jumpHeightCm, jumpHeightSource),
+      metric("cmj_conc_peak_force", peakPropForce.value, peakPropForce.source),
+      metric("cmj_propulsive_impulse", propulsiveImpulse.value, propulsiveImpulse.source),
     ]),
     withCommonSource("power", "Power", [
-      metric("power_cmj_peak_power", cmj("fp_peak_propulsive_power"), cmjSession),
-      metric("power_cmj_rsi_mod", cmj("fp_mrsi"), cmjSession),
-      metric(
-        "power_1080_peak_power",
-        peakPowerSession ? metricAggregate(metricsBySession, peakPowerSession.id, "peak_power", "max") : null,
-        peakPowerSession
-      ),
+      metric("power_cmj_peak_power", peakPropPower.value, peakPropPower.source),
+      metric("power_cmj_rsi_mod", mrsi.value, mrsi.source),
+      metric("power_1080_peak_power", peakPower1080.value, peakPower1080.source),
     ]),
     withCommonSource("speed", "Speed", [
       metricLR("speed_40m", fortyM.left, fortyM.right, fortyM.source),
     ]),
     withCommonSource("accel", "Accel", [
-      metric(
-        "accel_5m",
-        fiveMSession ? metricAggregate(metricsBySession, fiveMSession.id, "split_5m_time", "min") : null,
-        fiveMSession
-      ),
-      metric(
-        "accel_10m",
-        tenMSession ? metricAggregate(metricsBySession, tenMSession.id, "total_time", "min") : null,
-        tenMSession
-      ),
-      metric("accel_505_max_accel", codMax("accel_max"), codSession),
+      metric("accel_5m", fiveM.value, fiveM.source),
+      metric("accel_10m", tenM.value, tenM.source),
+      metric("accel_505_max_accel", codAccelMax.value, codAccelMax.source),
     ]),
     withCommonSource("decel", "Decel", [
-      metric("decel_cmj_rfd", cmj("fp_braking_rfd"), cmjSession),
-      metric("decel_505_max_decel", codMax("decel_max"), codSession),
+      metric("decel_cmj_rfd", brakingRfd.value, brakingRfd.source),
+      metric("decel_505_max_decel", codDecelMax.value, codDecelMax.source),
     ]),
     withCommonSource("cod", "Change of Direction", [
       // TODO: Brett asked for this "corrected for distance" — the exact
@@ -482,7 +470,14 @@ export function computePerformanceSummary(
       // total_time for now. Confirm what "corrected" should mean
       // (e.g. normalised against the session's recorded total_distance)
       // and adjust here.
-      metric("cod_505_total_time", codMin("total_time"), codSession),
+      //
+      // Weaker-side entry time, like the 40m sprint and strength rows below
+      // — total_time rows also include ambiguous untagged (side: null)
+      // sub-split readings from the 5-0-5's own turn, so this must filter to
+      // side "left"/"right" specifically rather than aggregating every
+      // total_time row in the session (that previously let a sub-split
+      // reading masquerade as the whole rep's total time).
+      metricLR("cod_505_total_time", codLeft.value, codRight.value, codLeft.source ?? codRight.source),
     ]),
     withCommonSource(
       "strength",

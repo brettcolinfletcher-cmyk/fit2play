@@ -1026,13 +1026,22 @@ export default function AthletePdfDocument({
           </>
         ) : null}
 
-        {/* MODALITY DETAIL — only in "best" mode. */}
+        {/* MODALITY DETAIL — only in "best" mode.
+            Each banner below uses minPresenceAhead to avoid an orphaned
+            heading (banner alone at the bottom of a page, its chart pushed
+            to the next). The chart card that follows each banner is
+            wrap={false} (PdfBarChart/PdfGroupedBarChart/PdfLineChart, via
+            pdfCardStyles.card) — card padding + title + caption + a 190-196pt
+            svg is already ~245-265pt, and the grouped/line charts add a
+            legend row on top of that. 260 was observed to be too small for
+            the real chart heights (LINEAR SPRINT still orphaned in
+            production); 340 gives real headroom above the tallest case. */}
         {isBest ? (
           <>
             {showSection("linear") &&
             (pdfCharts?.sprint != null || linearBestRows.length > 0) ? (
               <View style={styles.modalitySection}>
-                <Text style={styles.sectionBanner} minPresenceAhead={260}>LINEAR SPRINT</Text>
+                <Text style={styles.sectionBanner} minPresenceAhead={340}>LINEAR SPRINT</Text>
                 {pdfCharts?.sprint ? (
                   <PdfBarChart
                     title={pdfCharts.sprint.title}
@@ -1052,7 +1061,7 @@ export default function AthletePdfDocument({
 
             {showSection("cod") && pdfCharts?.cod != null ? (
               <View style={styles.modalitySection}>
-                <Text style={styles.sectionBanner} minPresenceAhead={260}>
+                <Text style={styles.sectionBanner} minPresenceAhead={340}>
                   CHANGE OF DIRECTION ({pdfCharts.cod.title.split(" — ")[0]})
                 </Text>
                 <PdfGroupedBarChart
@@ -1082,7 +1091,7 @@ export default function AthletePdfDocument({
               cmjBestRows.length > 0 ||
               djBestRows.length > 0) ? (
               <View style={styles.modalitySection}>
-                <Text style={styles.sectionBanner} minPresenceAhead={260}>FORCE PLATE</Text>
+                <Text style={styles.sectionBanner} minPresenceAhead={340}>FORCE PLATE</Text>
                 {pdfCharts?.jump?.variant === "line" ? (
                   <PdfLineChart
                     title={pdfCharts.jump.title}
@@ -1129,7 +1138,7 @@ export default function AthletePdfDocument({
 
             {showSection("dynamometry") && pdfCharts?.strength != null ? (
               <View style={styles.modalitySection}>
-                <Text style={styles.sectionBanner} minPresenceAhead={260}>STRENGTH (DYNAMOMETRY)</Text>
+                <Text style={styles.sectionBanner} minPresenceAhead={340}>STRENGTH (DYNAMOMETRY)</Text>
                 <PdfGroupedBarChart
                   title={pdfCharts.strength.title}
                   dateCaption={pdfCharts.strength.dateCaption}
@@ -1153,7 +1162,7 @@ export default function AthletePdfDocument({
             {showSection("hop_tests") &&
             (pdfCharts?.hop != null || hopBestRows.length > 0) ? (
               <View style={styles.modalitySection}>
-                <Text style={styles.sectionBanner} minPresenceAhead={260}>HOP TESTS</Text>
+                <Text style={styles.sectionBanner} minPresenceAhead={340}>HOP TESTS</Text>
                 {pdfCharts?.hop ? (
                   <PdfGroupedBarChart
                     title={pdfCharts.hop.title}

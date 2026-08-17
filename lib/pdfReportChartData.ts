@@ -732,13 +732,20 @@ export function buildPdfReportContext(
   if (split5mF) findings.push(split5mF);
 
   // COD: total time for the slower side at the latest 5-0-5/5-10-5 session (lower is better)
+  // Band lookup + label both use the latest matching session's own
+  // test_sub_type — don't hardcode "5-10-5" here (see codProtocolLabel's own
+  // comment: "don't assume 5-10-5"). Adam Radi's real sessions are "5-0-5";
+  // a hardcoded "5-10-5" testType meant this finding could never match a
+  // "5-0-5"-specific band row in performance_bands, silently falling through
+  // to a generic (testType-less) row or no band at all.
+  const codLatestForFinding = latestSessionByDate(sessions, is505Session, metricsNorm);
   const codF = findingFromSeries(
     "cod_total_time",
     "cod",
-    `${codProtocolLabel(sessions.find(is505Session)?.test_sub_type)} total time`,
+    `${codProtocolLabel(codLatestForFinding?.test_sub_type)} total time`,
     "s",
     "total_time",
-    "5-10-5",
+    codProtocolLabel(codLatestForFinding?.test_sub_type),
     true,
     sessions,
     is505Session,
