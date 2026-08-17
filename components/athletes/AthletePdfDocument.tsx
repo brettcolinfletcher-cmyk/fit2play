@@ -22,13 +22,24 @@ import { PDF_FONT } from "@/components/athletes/pdf/charts/pdfChartTheme";
 
 // ─── Fonts ───
 // Plus Jakarta Sans, self-hosted from /public/fonts so the emailed PDF matches
-// the dashboard typography. The four static weights must exist at
+// the dashboard typography. These static weights must exist at
 // /public/fonts/*.ttf. PDF generation is client-side, so these same-origin
 // relative URLs resolve in the browser without CORS.
+//
+// PlusJakartaSans-Italic.ttf is a Latin-subset instance (covers standard
+// English punctuation plus Western-European accented characters — é, ü, ñ,
+// ç, ø, à, ö, etc.) sourced from @fontsource/plus-jakarta-sans, since the
+// original 4 static weights only shipped as upright/Regular styles. Without
+// an italic file registered, react-pdf throws "Could not resolve font for
+// Plus Jakarta Sans, fontWeight 400, fontStyle italic" and generation fails
+// outright — this was breaking every PDF export that reached the comment
+// section (styles.commentText / styles.perfSummaryNote both use
+// fontStyle: "italic").
 Font.register({
   family: PDF_FONT,
   fonts: [
     { src: "/fonts/PlusJakartaSans-Regular.ttf", fontWeight: 400 },
+    { src: "/fonts/PlusJakartaSans-Italic.ttf", fontWeight: 400, fontStyle: "italic" },
     { src: "/fonts/PlusJakartaSans-Medium.ttf", fontWeight: 500 },
     { src: "/fonts/PlusJakartaSans-SemiBold.ttf", fontWeight: 600 },
     { src: "/fonts/PlusJakartaSans-Bold.ttf", fontWeight: 700 },
