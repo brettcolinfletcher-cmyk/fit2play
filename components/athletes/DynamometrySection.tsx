@@ -16,6 +16,19 @@ import {
 } from "recharts";
 import ZoomableChart from "@/components/charts/ZoomableChart";
 import { formatDisplayDate } from "@/lib/dateDisplay";
+import {
+  buildIsoDisplayGroups,
+  isoBestSessionForDate,
+  isoGroupHeading,
+  isoGroupKey,
+  isoLatestPairedDate,
+  isoLsi,
+  isoMetricValue,
+  isoPairedGroupHeading,
+  isoSideFromGroupKey,
+  parseIsoSegmentLabel,
+  type IsoDisplayGroup,
+} from "@/lib/isometricGrouping";
 import { parseHhdMovement, type ReportVisibility } from "@/lib/reportSections";
 import { lsiColorClass, sideColor } from "@/lib/sideColors";
 import { supabase } from "@/lib/supabaseClient";
@@ -71,51 +84,12 @@ const TOOLTIP_STYLE = {
   fontSize: "11px",
 };
 
-function groupKey(s: Session): string {
-  return (s.test_sub_type ?? "Unknown").replace(/:\d+$/, "").trim();
-}
-
-// Handles two Hawkins segment-naming conventions seen in production:
-// the original hyphen-suffix style ("TS Isometric Test-Abduction-Right:1")
-// and Brett's Aug 2026 tag rename, which puts side as a colon-suffixed
-// PREFIX on the movement name instead ("TS Iso Test Left:Hip Abduction -
-// Long Lever (0 degrees):1"). Both are stripped so left/right variants of
-// the same movement collapse to one movementKey and pair up correctly.
-function movementKey(gKey: string): string {
-  return gKey
-    .replace(/-Left\b/i, "")
-    .replace(/-Right\b/i, "")
-    .replace(/\bLeft:\s*/i, "")
-    .replace(/\bRight:\s*/i, "")
-    .replace(/-{2,}/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .trim();
-}
-
-function sideFromGroupKey(gKey: string): "left" | "right" | null {
-  if (/\bleft\b/i.test(gKey)) return "left";
-  if (/\bright\b/i.test(gKey)) return "right";
-  return null;
-}
-
-function lsi(left: number, right: number): number {
-  const stronger = Math.max(left, right);
-  const weaker = Math.min(left, right);
-  return stronger === 0 ? 100 : (weaker / stronger) * 100;
-}
-
 function asymPct(left: number, right: number): number {
   const avg = (left + right) / 2;
   return avg === 0 ? 0 : ((right - left) / avg) * 100;
 }
 
-function pairedGroupHeading(mKey: string): string {
-  return parseSegmentLabel(mKey).replace(/\s*\(rep \d+\)$/, "");
-}
-
-type DisplayGroup =
-  | { kind: "single"; key: string; sessions: Session[] }
-  | { kind: "paired"; movementKey: string; left: Session[]; right: Session[] };
+type DisplayGroup = IsoDisplayGroup<Session>;
 
 function hhdMovementOf(g: DisplayGroup): string {
   if (g.kind === "paired") {
@@ -124,73 +98,6 @@ function hhdMovementOf(g: DisplayGroup): string {
   }
   const sub = g.sessions[0]?.test_sub_type ?? g.key;
   return parseHhdMovement(sub);
-}
-
-function buildDisplayGroups(groupMap: Map<string, Session[]>): DisplayGroup[] {
-  const movementIndex = new Map<
-    string,
-    { leftKey?: string; rightKey?: string }
-  >();
-  const unpairedKeys: string[] = [];
-
-  for (const gKey of groupMap.keys()) {
-    const mKey = movementKey(gKey);
-    const side = sideFromGroupKey(gKey);
-    if (side === "left" || side === "right") {
-      const entry = movementIndex.get(mKey) ?? {};
-      if (side === "left") entry.leftKey = gKey;
-      else entry.rightKey = gKey;
-      movementIndex.set(mKey, entry);
-    } else {
-      unpairedKeys.push(gKey);
-    }
-  }
-
-  const pairedKeys = new Set<string>();
-  const items: DisplayGroup[] = [];
-
-  for (const [mKey, { leftKey, rightKey }] of movementIndex) {
-    if (leftKey && rightKey) {
-      items.push({
-        kind: "paired",
-        movementKey: mKey,
-        left: groupMap.get(leftKey) ?? [],
-        right: groupMap.get(rightKey) ?? [],
-      });
-      pairedKeys.add(leftKey);
-      pairedKeys.add(rightKey);
-    } else if (leftKey) {
-      unpairedKeys.push(leftKey);
-    } else if (rightKey) {
-      unpairedKeys.push(rightKey);
-    }
-  }
-
-  for (const gKey of unpairedKeys) {
-    if (pairedKeys.has(gKey)) continue;
-    items.push({ kind: "single", key: gKey, sessions: groupMap.get(gKey) ?? [] });
-  }
-
-  items.sort((a, b) => {
-    const dateA =
-      a.kind === "single"
-        ? a.sessions[0]?.session_date ?? ""
-        : a.left[0]?.session_date ?? a.right[0]?.session_date ?? "";
-    const dateB =
-      b.kind === "single"
-        ? b.sessions[0]?.session_date ?? ""
-        : b.left[0]?.session_date ?? b.right[0]?.session_date ?? "";
-    return dateA.localeCompare(dateB);
-  });
-
-  return items;
-}
-
-function latestPairedDate(leftSessions: Session[], rightSessions: Session[]): string | null {
-  const leftDates = new Set(leftSessions.map((s) => s.session_date.slice(0, 10)));
-  const rightDates = new Set(rightSessions.map((s) => s.session_date.slice(0, 10)));
-  const common = [...leftDates].filter((d) => rightDates.has(d)).sort((a, b) => a.localeCompare(b));
-  return common.length > 0 ? common[common.length - 1]! : null;
 }
 
 function buildPairedTrendData(
@@ -204,18 +111,18 @@ function buildPairedTrendData(
     .sort((a, b) => a.localeCompare(b));
 
   return commonDates.map((date) => {
-    const leftBest = bestSessionForDate(leftSessions, date);
-    const rightBest = bestSessionForDate(rightSessions, date);
+    const leftBest = isoBestSessionForDate(leftSessions, date);
+    const rightBest = isoBestSessionForDate(rightSessions, date);
     const point: Record<string, string | number> = {
       date: formatDisplayDate(`${date}T12:00:00`),
     };
     if (leftBest && rightBest) {
       for (const def of AVAILABLE_METRICS) {
-        const lv = metricValue(leftBest.metrics, def.key);
-        const rv = metricValue(rightBest.metrics, def.key);
+        const lv = isoMetricValue(leftBest.metrics, def.key);
+        const rv = isoMetricValue(rightBest.metrics, def.key);
         if (lv != null) point[`${def.key}_left`] = lv;
         if (rv != null) point[`${def.key}_right`] = rv;
-        if (lv != null && rv != null) point[`${def.key}_lsi`] = lsi(lv, rv);
+        if (lv != null && rv != null) point[`${def.key}_lsi`] = isoLsi(lv, rv);
       }
     }
     return point;
@@ -230,56 +137,13 @@ function pairedSessionDates(leftSessions: Session[], rightSessions: Session[]) {
   ].sort((a, b) => a.localeCompare(b));
   return dates.map((date) => ({
     date,
-    left: bestSessionForDate(leftSessions, date),
-    right: bestSessionForDate(rightSessions, date),
+    left: isoBestSessionForDate(leftSessions, date),
+    right: isoBestSessionForDate(rightSessions, date),
   }));
 }
 
-function parseSegmentLabel(segment: string | null): string {
-  if (!segment) return "Unknown";
-  const cleaned = segment
-    .replace(/^TS\s+/i, "")
-    // Old tags: "Isometric Test-...". New (Aug 2026) tags: "Iso Test ...".
-    .replace(/^(?:Isometric|Iso)\s+Test[-\s:]*/i, "");
-  // Rep number is a trailing ":<digits>" only — NOT just "the last colon",
-  // since the new naming convention also uses a colon after Left/Right
-  // (e.g. "Left:Hip Abduction - Long Lever (0 degrees):1"), which a bare
-  // lastIndexOf(":") would have mistaken for the rep separator.
-  const repMatch = cleaned.match(/:(\d+)\s*$/);
-  const name = repMatch ? cleaned.slice(0, repMatch.index) : cleaned;
-  const repStr = repMatch ? repMatch[1] : "";
-  const parts = name
-    .replace(/^\s*(Left|Right)\s*:\s*/i, "") // side shown separately (sideLabel / L-R pairing); drop it from the label
-    .split("-")
-    .map((p) => p.trim())
-    .filter(Boolean);
-  const label = parts.join(" – ");
-  return repStr ? `${label} (rep ${repStr})` : label;
-}
-
-function groupHeading(segment: string | null): string {
-  return parseSegmentLabel(segment).replace(/\s*\(rep \d+\)$/, "");
-}
-
-function metricValue(metrics: MetricRow[], key: string): number | null {
-  const row = metrics.find((m) => m.key === key);
-  if (!row) return null;
-  const n = Number(row.value);
-  return Number.isFinite(n) ? n : null;
-}
-
-function bestSessionForDate(sessions: Session[], date: string): Session | null {
-  const onDate = sessions.filter((s) => s.session_date.slice(0, 10) === date.slice(0, 10));
-  if (onDate.length === 0) return null;
-  return onDate.reduce((best, cur) => {
-    const bestPeak = metricValue(best.metrics, "peak_force") ?? -Infinity;
-    const curPeak = metricValue(cur.metrics, "peak_force") ?? -Infinity;
-    return curPeak > bestPeak ? cur : best;
-  });
-}
-
 /** One entry per test date — `best` is the highest-peak_force rep on that
- * date (same selection `bestSessionForDate` uses for the trend charts),
+ * date (same selection `isoBestSessionForDate` uses for the trend charts),
  * `all` is every rep recorded that date so the UI can default to showing
  * just the best and let the user expand to see the rest. */
 function bestRepGroupsByDate(
@@ -290,7 +154,7 @@ function bestRepGroupsByDate(
   );
   return dates.map((date) => ({
     date,
-    best: bestSessionForDate(sessions, date)!,
+    best: isoBestSessionForDate(sessions, date)!,
     all: sessions.filter((s) => s.session_date.slice(0, 10) === date),
   }));
 }
@@ -300,7 +164,7 @@ function buildTrendData(sessions: Session[]): Record<string, string | number>[] 
     (a, b) => a.localeCompare(b)
   );
   return dates.map((date) => {
-    const best = bestSessionForDate(sessions, date);
+    const best = isoBestSessionForDate(sessions, date);
     const point: Record<string, string | number> = {
       date: formatDisplayDate(`${date}T12:00:00`),
     };
@@ -317,7 +181,7 @@ function buildTrendData(sessions: Session[]): Record<string, string | number>[] 
 function latestSessionMetrics(sessions: Session[]): MetricRow[] {
   if (sessions.length === 0) return [];
   const latestDate = sessions[sessions.length - 1]!.session_date.slice(0, 10);
-  return bestSessionForDate(sessions, latestDate)?.metrics ?? [];
+  return isoBestSessionForDate(sessions, latestDate)?.metrics ?? [];
 }
 
 function orderedMetricRows(metrics: MetricRow[]): MetricRow[] {
@@ -479,7 +343,7 @@ export default function DynamometrySection({
   const groupMap = useMemo(() => {
     const map = new Map<string, Session[]>();
     for (const s of sessions) {
-      const key = groupKey(s);
+      const key = isoGroupKey(s);
       const list = map.get(key) ?? [];
       list.push(s);
       map.set(key, list);
@@ -489,7 +353,7 @@ export default function DynamometrySection({
 
   const displayGroups = useMemo(
     () =>
-      buildDisplayGroups(groupMap).filter(
+      buildIsoDisplayGroups(groupMap).filter(
         (g) => !visibility || visibility.isSubtestVisible("dynamometry", hhdMovementOf(g))
       ),
     [groupMap, visibility]
@@ -549,7 +413,7 @@ export default function DynamometrySection({
           if (item.kind === "single") {
             const { key: gKey, sessions: gSessions } = item;
             const isExpanded = expandedGroup === gKey;
-            const groupLabel = groupHeading(gSessions[0]?.test_sub_type ?? null);
+            const groupLabel = isoGroupHeading(gSessions[0]?.test_sub_type ?? null);
             const trendData = buildTrendData(gSessions);
             const latestMetrics = latestSessionMetrics(gSessions);
             const side = gSessions[0]?.metrics[0]?.side;
@@ -557,7 +421,7 @@ export default function DynamometrySection({
               ? side.charAt(0).toUpperCase() + side.slice(1).toLowerCase()
               : null;
             const summaryMetrics = selectedMetricDefs.slice(0, 4);
-            const groupSide = sideFromGroupKey(gKey);
+            const groupSide = isoSideFromGroupKey(gKey);
             const singleGroupColor = sideColor(groupSide);
 
             return (
@@ -590,7 +454,7 @@ export default function DynamometrySection({
                     }}
                   >
                     {summaryMetrics.map(({ key, label, unit }) => {
-                      const val = metricValue(latestMetrics, key);
+                      const val = isoMetricValue(latestMetrics, key);
                       return (
                         <div key={key}>
                           <p className="text-xs text-slate-500">{label}</p>
@@ -716,7 +580,7 @@ export default function DynamometrySection({
                                     ) : null}
                                   </span>
                                   <span className="flex items-center gap-2 text-xs text-slate-500">
-                                    {parseSegmentLabel(s.test_sub_type)}
+                                    {parseIsoSegmentLabel(s.test_sub_type)}
                                     {all.length > 1 && i === 0 ? (
                                       <span>{dateExpanded ? "▲" : "▼"}</span>
                                     ) : null}
@@ -753,10 +617,10 @@ export default function DynamometrySection({
           const isExpanded = expandedGroup === pairKey;
           const { left, right, movementKey: mKey } = item;
           const allSessions = [...left, ...right];
-          const groupLabel = pairedGroupHeading(mKey);
-          const latestDate = latestPairedDate(left, right);
-          const leftLatest = latestDate ? bestSessionForDate(left, latestDate) : null;
-          const rightLatest = latestDate ? bestSessionForDate(right, latestDate) : null;
+          const groupLabel = isoPairedGroupHeading(mKey);
+          const latestDate = isoLatestPairedDate(left, right);
+          const leftLatest = latestDate ? isoBestSessionForDate(left, latestDate) : null;
+          const rightLatest = latestDate ? isoBestSessionForDate(right, latestDate) : null;
           const trendData = buildPairedTrendData(left, right);
           const summaryMetrics = selectedMetricDefs.slice(0, 4);
           const sessionRows = pairedSessionDates(left, right);
@@ -766,9 +630,9 @@ export default function DynamometrySection({
           // the two views read the same way at a glance.
           const pairLsiAt = (row: (typeof sessionRows)[number] | undefined): number | null => {
             if (!row) return null;
-            const lv = row.left ? metricValue(row.left.metrics, "peak_force") : null;
-            const rv = row.right ? metricValue(row.right.metrics, "peak_force") : null;
-            return lv != null && rv != null ? lsi(lv, rv) : null;
+            const lv = row.left ? isoMetricValue(row.left.metrics, "peak_force") : null;
+            const rv = row.right ? isoMetricValue(row.right.metrics, "peak_force") : null;
+            return lv != null && rv != null ? isoLsi(lv, rv) : null;
           };
           const startLsi = pairLsiAt(sessionRows[0]);
           const latestLsi = pairLsiAt(sessionRows[sessionRows.length - 1]);
@@ -835,9 +699,9 @@ export default function DynamometrySection({
               {!isExpanded && summaryMetrics.length > 0 ? (
                 <div className="space-y-3 border-t border-slate-800/60 px-5 pb-4 pt-3">
                   {summaryMetrics.map(({ key, label, unit }) => {
-                    const lv = leftLatest ? metricValue(leftLatest.metrics, key) : null;
-                    const rv = rightLatest ? metricValue(rightLatest.metrics, key) : null;
-                    const lsiVal = lv != null && rv != null ? lsi(lv, rv) : null;
+                    const lv = leftLatest ? isoMetricValue(leftLatest.metrics, key) : null;
+                    const rv = rightLatest ? isoMetricValue(rightLatest.metrics, key) : null;
+                    const lsiVal = lv != null && rv != null ? isoLsi(lv, rv) : null;
                     return (
                       <div key={key}>
                         <p className="mb-1.5 text-xs text-slate-500">{label}</p>
@@ -885,10 +749,10 @@ export default function DynamometrySection({
                         Asymmetry — {formatDisplayDate(`${latestDate}T12:00:00`)}
                       </p>
                       {selectedMetricDefs.map(({ key, label, unit }) => {
-                        const lv = metricValue(leftLatest.metrics, key);
-                        const rv = metricValue(rightLatest.metrics, key);
+                        const lv = isoMetricValue(leftLatest.metrics, key);
+                        const rv = isoMetricValue(rightLatest.metrics, key);
                         if (lv == null || rv == null) return null;
-                        const lsiVal = lsi(lv, rv);
+                        const lsiVal = isoLsi(lv, rv);
                         const asym = asymPct(lv, rv);
                         const total = lv + rv;
                         const leftPct = total > 0 ? (lv / total) * 100 : 50;
@@ -1116,10 +980,10 @@ export default function DynamometrySection({
                               {orderedMetricRows(
                                 leftS?.metrics ?? rightS?.metrics ?? []
                               ).map((m) => {
-                                const lv = leftS ? metricValue(leftS.metrics, m.key) : null;
-                                const rv = rightS ? metricValue(rightS.metrics, m.key) : null;
+                                const lv = leftS ? isoMetricValue(leftS.metrics, m.key) : null;
+                                const rv = rightS ? isoMetricValue(rightS.metrics, m.key) : null;
                                 const lsiVal =
-                                  lv != null && rv != null ? lsi(lv, rv) : null;
+                                  lv != null && rv != null ? isoLsi(lv, rv) : null;
                                 return (
                                   <tr
                                     key={m.key}

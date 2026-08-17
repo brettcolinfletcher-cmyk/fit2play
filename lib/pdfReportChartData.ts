@@ -1,10 +1,6 @@
 import { buildCmjDataPoints } from "@/components/athletes/ForcePlateCMJSection";
 import { buildDjDataPoints } from "@/components/athletes/ForcePlateDJSection";
 import {
-  buildLrDisplayRows,
-  type SummaryMap,
-} from "@/lib/metricsLrDisplay";
-import {
   bucket,
   formatChartAxisDate,
   hopTestDisplayName,
@@ -16,9 +12,19 @@ import {
   type ReportSessionRow,
 } from "@/lib/athleteReportData";
 import {
+  buildIsoDisplayGroups,
+  isoBestSessionForDate,
+  isoGroupKey,
+  isoLatestPairedDate,
+  isoMetricValue,
+  isoPairedGroupHeading,
+  type IsoSession,
+} from "@/lib/isometricGrouping";
+import {
   resolveBandForMetric,
   type NormalizedPerformanceBand,
 } from "@/lib/performanceBands";
+import { groupSessionsByDate } from "@/lib/sessionDateGroups";
 export type MetricRowWithSide = ReportMetricRow & { side?: string | null };
 
 function is1080(s: ReportSessionRow): boolean {
@@ -38,21 +44,27 @@ function codProtocolLabel(testSubType: string | null | undefined): string {
   return "COD";
 }
 
-function latestSession(
+/**
+ * Chronologically-latest session for a predicate, deduped by calendar date
+ * first — same "best rep per day" rule the dashboard trend charts use (see
+ * lib/sessionDateGroups.ts). Without this, a same-day re-test or per-leg
+ * session could get picked over the athlete's real main effort just because
+ * it happened to sort last within the day. Day-grouping is scored by
+ * top_speed (max), matching app/dashboard/athletes/[id]/page.tsx's
+ * linearDateGroups/codDateGroups exactly, so the PDF's "latest session"
+ * picks the same session the dashboard's trend chart would.
+ */
+function latestSessionByDate(
   sessions: ReportSessionRow[],
-  pred: (s: ReportSessionRow) => boolean
+  pred: (s: ReportSessionRow) => boolean,
+  metricsNorm: Map<string, MetricRowWithSide[]>
 ): ReportSessionRow | null {
-  const list = sessionsChronological(sessions.filter(pred)).filter((s) => s.session_date);
-  return list.length ? list[list.length - 1]! : null;
-}
-
-function buildSummaryMap(rows: MetricRowWithSide[]): SummaryMap {
-  const m: SummaryMap = {};
-  for (const row of rows) {
-    if (row.rep_index != null) continue;
-    if (row.value != null && typeof row.value === "number") m[row.key] = row.value;
-  }
-  return m;
+  const filtered = sessions.filter(pred).filter((s) => s.session_date);
+  if (filtered.length === 0) return null;
+  const groups = groupSessionsByDate(filtered, (s) =>
+    metricAggregate(metricsNorm as Map<string, ReportMetricRow[]>, s.id, "top_speed", "max")
+  );
+  return groups.length > 0 ? groups[groups.length - 1]!.best : null;
 }
 
 function minTotalTimeForSide(
@@ -77,6 +89,76 @@ function lsiPct(left: number, right: number): number | null {
   const hi = Math.max(left, right);
   if (hi <= 0) return null;
   return Math.round((Math.min(left, right) / hi) * 1000) / 10;
+}
+
+type IsoPdfSession = IsoSession<MetricRowWithSide>;
+
+/**
+ * Real Hawkins handheld-dynamometry (isometric) sessions, shaped for
+ * lib/isometricGrouping.ts. Previously the PDF's "Strength" section filtered
+ * on a legacy `dyno_` metric key namespace that no production session has
+ * ever written (0 rows in the metrics table — confirmed via Supabase) while
+ * the dashboard's DynamometrySection.tsx read the real data via
+ * test_type = "force_plate_isometric". This is the same query/shape
+ * DynamometrySection.tsx uses, so the PDF and dashboard read identical data.
+ */
+function buildIsoSessionsForPdf(
+  sessions: ReportSessionRow[],
+  metricsNorm: Map<string, MetricRowWithSide[]>
+): IsoPdfSession[] {
+  return sessions
+    .filter((s) => s.test_type === "force_plate_isometric" && s.session_date)
+    .map((s) => ({
+      id: s.id,
+      session_date: s.session_date!,
+      test_sub_type: s.test_sub_type,
+      metrics: metricsNorm.get(s.id) ?? [],
+    }));
+}
+
+/**
+ * One entry per paired (Left+Right) isometric movement — Knee Extension,
+ * Hip Abduction, etc. — using each movement's own most recent common test
+ * date (see isoLatestPairedDate), exactly the "collapsed" pair view
+ * DynamometrySection.tsx shows on the dashboard before it's expanded.
+ * Unpaired (single-side-only) movements are skipped, matching the old
+ * strength chart's behaviour of only showing rows with both sides present.
+ */
+function buildIsoStrengthPairs(
+  sessions: ReportSessionRow[],
+  metricsNorm: Map<string, MetricRowWithSide[]>
+): { label: string; left: number; right: number; lsiPct: number | null; date: string }[] {
+  const isoSessions = buildIsoSessionsForPdf(sessions, metricsNorm);
+  const groupMap = new Map<string, IsoPdfSession[]>();
+  for (const s of isoSessions) {
+    const key = isoGroupKey(s);
+    const list = groupMap.get(key) ?? [];
+    list.push(s);
+    groupMap.set(key, list);
+  }
+  const displayGroups = buildIsoDisplayGroups(groupMap);
+
+  const pairs: { label: string; left: number; right: number; lsiPct: number | null; date: string }[] = [];
+  for (const g of displayGroups) {
+    if (g.kind !== "paired") continue;
+    const latestDate = isoLatestPairedDate(g.left, g.right);
+    if (!latestDate) continue;
+    const leftBest = isoBestSessionForDate(g.left, latestDate);
+    const rightBest = isoBestSessionForDate(g.right, latestDate);
+    if (!leftBest || !rightBest) continue;
+    const lv = isoMetricValue(leftBest.metrics, "peak_force");
+    const rv = isoMetricValue(rightBest.metrics, "peak_force");
+    if (lv == null || rv == null) continue;
+    pairs.push({
+      label: isoPairedGroupHeading(g.movementKey),
+      left: lv,
+      right: rv,
+      lsiPct: lsiPct(lv, rv),
+      date: latestDate,
+    });
+  }
+  pairs.sort((a, b) => a.label.localeCompare(b.label));
+  return pairs;
 }
 
 export type PdfSprintSplitsChart = {
@@ -147,8 +229,10 @@ export function buildPdfReportCharts(
       ? `${rangeStart ?? "…"} – ${rangeEnd ?? "…"}`
       : "Full history";
 
-  const linearLatest = latestSession(sessions, (s) =>
-    isLinearSprintSession(s, metricsNorm as Map<string, ReportMetricRow[]>)
+  const linearLatest = latestSessionByDate(
+    sessions,
+    (s) => isLinearSprintSession(s, metricsNorm as Map<string, ReportMetricRow[]>),
+    metricsNorm
   );
   let sprint: PdfSprintSplitsChart | null = null;
   if (linearLatest) {
@@ -183,7 +267,7 @@ export function buildPdfReportCharts(
   }
 
   let cod: PdfCodChart | null = null;
-  const codLatest = latestSession(sessions, is505Session);
+  const codLatest = latestSessionByDate(sessions, is505Session, metricsNorm);
   if (codLatest) {
     const rows = metricsNorm.get(codLatest.id) ?? [];
     const left = minTotalTimeForSide(rows, "left");
@@ -261,32 +345,24 @@ export function buildPdfReportCharts(
   }
 
   let strength: PdfStrengthChart | null = null;
-  const dynoSessions = sessions
-    .filter((s) => s.session_date)
-    .sort((a, b) => {
-      const ta = new Date(a.session_date!).getTime();
-      const tb = new Date(b.session_date!).getTime();
-      return tb - ta;
-    });
-  for (const s of dynoSessions) {
-    const rows = metricsNorm.get(s.id) ?? [];
-    if (!rows.some((r) => r.key.startsWith("dyno_"))) continue;
-    const map = buildSummaryMap(rows);
-    const lr = buildLrDisplayRows(map).filter((r) => r.left != null && r.right != null);
-    if (lr.length === 0) continue;
+  const strengthPairs = buildIsoStrengthPairs(sessions, metricsNorm);
+  if (strengthPairs.length > 0) {
     strength = {
-      title: "Strength — latest session",
-      dateCaption: s.session_date ? formatChartAxisDate(s.session_date) : "—",
+      // Each movement (Knee Extension, Hip Abduction, …) can have its own
+      // most-recent paired test day, so — like the hop battery below — this
+      // isn't tied to a single session date. Same reasoning as `hop`'s
+      // dateCaption: use the report's overall range rather than implying
+      // every pair below came from one visit.
+      title: "Strength (dynamometry) — latest per movement",
+      dateCaption: rangeCaption,
       unit: "N",
-      pairs: lr.map((r) => ({
-        label: r.label,
-        left: r.left!,
-        right: r.right!,
-        lsiPct:
-          r.left != null && r.right != null ? lsiPct(r.left, r.right) : null,
+      pairs: strengthPairs.map(({ label, left, right, lsiPct: p }) => ({
+        label,
+        left,
+        right,
+        lsiPct: p,
       })),
     };
-    break;
   }
 
   let hop: PdfHopChart | null = null;
@@ -466,24 +542,35 @@ function deltaFromPair(
 }
 
 /**
- * Walk the chronologically sorted sessions and return [latest, previous]
- * pairs of (value, sessionDate) for a given numeric extractor. Sessions
- * where extractor returns null are skipped entirely — we want the previous
- * session that ACTUALLY had a comparable number, not just the prior session.
+ * Walk sessions DAY-DEDUPED FIRST (see lib/sessionDateGroups.ts) and return
+ * [latest, previous] pairs of (value, sessionDate) for a given numeric
+ * extractor. Sessions where extractor returns null are skipped entirely —
+ * we want the previous session that ACTUALLY had a comparable number, not
+ * just the prior session.
+ *
+ * Day-deduping first matters: without it, an athlete with two same-day
+ * sessions (a re-test, a warm-up rep, a per-leg session) could get "prev"
+ * silently swapped for their OTHER session from the same day instead of a
+ * genuinely earlier one, producing a delta between two efforts recorded
+ * minutes apart rather than real session-over-session progress. Day
+ * grouping is scored by top_speed (max), matching the dashboard's
+ * linearDateGroups/codDateGroups exactly.
  */
 function findLatestAndPrev(
   sessions: ReportSessionRow[],
   pred: (s: ReportSessionRow) => boolean,
-  extractor: (s: ReportSessionRow) => number | null
+  extractor: (s: ReportSessionRow) => number | null,
+  metricsNorm: Map<string, MetricRowWithSide[]>
 ): { latest: { value: number; date: string } | null; prev: { value: number; date: string } | null } {
-  const sorted = sessionsChronological(sessions.filter(pred)).filter(
-    (s) => s.session_date
+  const filtered = sessions.filter(pred).filter((s) => s.session_date);
+  const groups = groupSessionsByDate(filtered, (s) =>
+    metricAggregate(metricsNorm as Map<string, ReportMetricRow[]>, s.id, "top_speed", "max")
   );
   const valued: { value: number; date: string }[] = [];
-  for (const s of sorted) {
-    const v = extractor(s);
+  for (const g of groups) {
+    const v = extractor(g.best);
     if (v == null || !Number.isFinite(v)) continue;
-    valued.push({ value: v, date: s.session_date! });
+    valued.push({ value: v, date: g.best.session_date! });
   }
   const latest = valued.length > 0 ? valued[valued.length - 1]! : null;
   const prev = valued.length > 1 ? valued[valued.length - 2]! : null;
@@ -501,9 +588,10 @@ function findingFromSeries(
   sessions: ReportSessionRow[],
   pred: (s: ReportSessionRow) => boolean,
   extractor: (s: ReportSessionRow) => number | null,
-  bands: NormalizedPerformanceBand[]
+  bands: NormalizedPerformanceBand[],
+  metricsNorm: Map<string, MetricRowWithSide[]>
 ): PdfKeyFinding | null {
-  const { latest, prev } = findLatestAndPrev(sessions, pred, extractor);
+  const { latest, prev } = findLatestAndPrev(sessions, pred, extractor, metricsNorm);
   if (!latest) return null;
   const delta = prev
     ? deltaFromPair(latest.value, prev.value, formatChartAxisDate(prev.date), lowerIsBetter)
@@ -540,18 +628,20 @@ export function buildPdfReportContext(
   const pushTest = (
     id: string,
     modality: string,
-    sess: ReportSessionRow[]
+    sess: { session_date: string | null }[]
   ) => {
     if (sess.length === 0) return;
-    const sorted = sessionsChronological(sess.filter((s) => s.session_date));
-    const latest = sorted[sorted.length - 1];
+    const dated = sess.filter((s): s is { session_date: string } => !!s.session_date);
+    const latestDate = dated.length
+      ? dated.reduce((a, b) =>
+          new Date(a.session_date).getTime() > new Date(b.session_date).getTime() ? a : b
+        ).session_date
+      : null;
     tests.push({
       id,
       modality,
       sessions: sess.length,
-      latestDateLabel: latest?.session_date
-        ? formatChartAxisDate(latest.session_date)
-        : "\u2014",
+      latestDateLabel: latestDate ? formatChartAxisDate(latestDate) : "\u2014",
     });
   };
 
@@ -568,9 +658,7 @@ export function buildPdfReportContext(
     const tt = (s.test_type ?? "").toLowerCase();
     return tt === "force_plate_dj" || tt.includes("drop");
   });
-  const dynoSessions = sessions.filter((s) =>
-    (metricsNorm.get(s.id) ?? []).some((r) => r.key.startsWith("dyno_"))
-  );
+  const dynoSessions = buildIsoSessionsForPdf(sessions, metricsNorm);
   const hopByDate = new Set(
     hopTests.map((h) => h.session_date.slice(0, 10))
   );
@@ -615,7 +703,8 @@ export function buildPdfReportContext(
         "top_speed",
         "max"
       ),
-    bands
+    bands,
+    metricsNorm
   );
   if (topSpeedF) findings.push(topSpeedF);
 
@@ -637,7 +726,8 @@ export function buildPdfReportContext(
         "split_5m_time",
         "min"
       ),
-    bands
+    bands,
+    metricsNorm
   );
   if (split5mF) findings.push(split5mF);
 
@@ -661,7 +751,8 @@ export function buildPdfReportContext(
       if (right == null) return left;
       return Math.max(left, right); // weaker side = the time we want to track
     },
-    bands
+    bands,
+    metricsNorm
   );
   if (codF) findings.push(codF);
 
@@ -736,6 +827,37 @@ export function buildPdfReportContext(
           "force_plate_dj"
         ),
         delta,
+      });
+    }
+  }
+
+  // Strength (isometric dynamometry): lowest LSI across each movement's own
+  // latest paired (Left+Right) test — same peak_force LSI shown as the
+  // "Start LSI / Latest LSI / Change" badge on the dashboard's paired
+  // dynamometry groups, and on the patient-facing isometric strength cards.
+  const strengthPairsForFinding = buildIsoStrengthPairs(sessions, metricsNorm);
+  if (strengthPairsForFinding.length > 0) {
+    let worstStrengthLsi: { label: string; lsi: number; date: string } | null = null;
+    for (const p of strengthPairsForFinding) {
+      if (p.lsiPct == null) continue;
+      if (!worstStrengthLsi || p.lsiPct < worstStrengthLsi.lsi) {
+        worstStrengthLsi = { label: p.label, lsi: p.lsiPct, date: p.date };
+      }
+    }
+    if (worstStrengthLsi) {
+      findings.push({
+        id: "strength_min_lsi",
+        modality: "strength",
+        label: `Lowest strength LSI — ${worstStrengthLsi.label}`,
+        value: `${worstStrengthLsi.lsi.toFixed(1)} %`,
+        dateLabel: formatChartAxisDate(worstStrengthLsi.date),
+        band:
+          worstStrengthLsi.lsi >= 90
+            ? { label: "Good", tone: "good" }
+            : worstStrengthLsi.lsi >= 80
+              ? { label: "Fair", tone: "fair" }
+              : { label: "Poor", tone: "poor" },
+        delta: null,
       });
     }
   }
