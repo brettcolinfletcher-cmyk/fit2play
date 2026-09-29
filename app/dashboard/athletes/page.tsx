@@ -100,6 +100,27 @@ function statusTransitions(
   ];
 }
 
+/**
+ * Supabase caps a select at 1000 rows by default. The sessions table is past
+ * that, so an unpaged select silently dropped rows and made session counts and
+ * "last tested" dates wrong. Page through in 1000-row chunks instead.
+ */
+async function fetchAllSessions(): Promise<{ data: SessionRow[]; error: { message: string } | null }> {
+  const PAGE = 1000;
+  const all: SessionRow[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase
+      .from("sessions")
+      .select("athlete_id, session_date")
+      .order("id", { ascending: true })
+      .range(from, from + PAGE - 1);
+    if (error) return { data: all, error };
+    all.push(...((data ?? []) as SessionRow[]));
+    if (!data || data.length < PAGE) break;
+  }
+  return { data: all, error: null };
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // Page
 // ────────────────────────────────────────────────────────────────────────────
@@ -147,7 +168,7 @@ export default function AthletesListPage() {
           )
           .order("last_name", { ascending: true })
           .order("first_name", { ascending: true }),
-        supabase.from("sessions").select("athlete_id, session_date"),
+        fetchAllSessions(),
         supabase.from("teams").select("id, name, logo_url").order("name", { ascending: true }),
         supabase.from("athlete_teams").select("athlete_id, team_id"),
       ]);
