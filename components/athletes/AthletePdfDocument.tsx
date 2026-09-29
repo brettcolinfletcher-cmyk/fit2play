@@ -14,6 +14,7 @@ import type {
   PdfReportCharts,
   PdfReportContext,
   PdfTestIncluded,
+  PdfTierTag,
 } from "@/lib/pdfReportChartData";
 import type { AthleteSnapshot } from "@/lib/athleteSnapshot";
 import type { SummaryCategory, SummaryTier } from "@/lib/performanceSummary";
@@ -588,6 +589,29 @@ const PERF_TIER_COLOR: Record<SummaryTier, string> = {
   no_data: "#9ca3af",
 };
 
+/**
+ * Key Findings' equivalent of the Performance Summary panel's tier badge —
+ * same colours, same "Needs Work/Developing/Building/Good/Excellent" labels
+ * (PERF_TIER_COLOR / TIER_LABELS), so a finding badged this way reads as
+ * part of the same vocabulary as the rest of the report instead of
+ * introducing a second, population-normed Poor/Fair/Good/Elite scale
+ * (that's what BandPill/PdfBandTag is, for metrics with performance_bands
+ * rows configured).
+ */
+function TierPill({ tier }: { tier: PdfTierTag }) {
+  const color = PERF_TIER_COLOR[tier.tier];
+  return (
+    <View
+      style={[
+        styles.pill,
+        { backgroundColor: `${color}1a`, borderColor: color },
+      ]}
+    >
+      <Text style={[styles.pillLabel, { color }]}>{tier.label}</Text>
+    </View>
+  );
+}
+
 function PerformanceSummarySection({ categories }: { categories: SummaryCategory[] }) {
   const hasAnyData = categories.some((c) => c.metrics.some((m) => m.value != null));
   if (!hasAnyData) return null;
@@ -649,9 +673,13 @@ function FindingTile({ finding }: { finding: PdfKeyFinding }) {
         <Text style={styles.findingLabel}>{finding.label}</Text>
         <Text style={styles.findingValue}>{finding.value}</Text>
         <Text style={styles.findingDate}>{finding.dateLabel}</Text>
-        {(finding.band || finding.delta) && (
+        {(finding.tier || finding.band || finding.delta) && (
           <View style={styles.findingMeta}>
-            {finding.band ? <BandPill band={finding.band} /> : null}
+            {finding.tier ? (
+              <TierPill tier={finding.tier} />
+            ) : finding.band ? (
+              <BandPill band={finding.band} />
+            ) : null}
             {finding.delta ? <DeltaArrow delta={finding.delta} /> : null}
           </View>
         )}

@@ -24,6 +24,14 @@ import {
   resolveBandForMetric,
   type NormalizedPerformanceBand,
 } from "@/lib/performanceBands";
+import {
+  resolveMetricTarget,
+  ratioOf,
+  tierForRatio,
+  TIER_LABELS,
+  type MetricTarget,
+  type SummaryTier,
+} from "@/lib/performanceSummary";
 import { groupSessionsByDate } from "@/lib/sessionDateGroups";
 export type MetricRowWithSide = ReportMetricRow & { side?: string | null };
 
@@ -459,10 +467,24 @@ export type PdfKeyFinding = {
   value: string;
   /** Date label of the session this came from. */
   dateLabel: string;
-  /** Band classification when available. */
+  /** Band classification when available (population-normed Poor/Fair/Good/Elite, from performance_bands). */
   band: PdfBandTag | null;
+  /**
+   * Target-relative tier badge (Needs Work/Developing/Building/Good/Excellent)
+   * — the same scale the Performance Summary panel uses. Used instead of
+   * `band` for findings that don't have performance_bands rows configured
+   * (e.g. 5m split, 5-0-5 total time) so they still get a badge, consistent
+   * with how the rest of the report already talks about "building" etc.,
+   * rather than introducing a second, population-normed vocabulary.
+   */
+  tier: PdfTierTag | null;
   /** Delta vs previous session if there is one. */
   delta: PdfDelta | null;
+};
+
+export type PdfTierTag = {
+  tier: SummaryTier;
+  label: string;
 };
 
 export type PdfTestIncluded = {
@@ -496,6 +518,25 @@ function bandTagForMetric(
   const resolved = resolveBandForMetric(metricKey, value, bands, sessionTestType);
   if (!resolved) return null;
   return { label: resolved.label, tone: bandTone(resolved.label) };
+}
+
+/**
+ * Target-relative tier badge for a Key Finding — same Needs Work/Developing/
+ * Building/Good/Excellent scale as the Performance Summary panel, driven by
+ * the athlete's resolved target profile (registry default unless overridden).
+ * `metricId` is a lib/performanceSummary METRIC_REGISTRY id (e.g. "accel_5m"),
+ * not a raw DB metric key.
+ */
+function tierTagForMetric(
+  metricId: string,
+  value: number | null,
+  targetOverrides: Record<string, MetricTarget> | undefined
+): PdfTierTag | null {
+  if (value == null || !Number.isFinite(value)) return null;
+  const { target, direction } = resolveMetricTarget(metricId, targetOverrides);
+  const tier = tierForRatio(ratioOf(value, target, direction));
+  if (tier === "no_data") return null;
+  return { tier, label: TIER_LABELS[tier] };
 }
 
 function formatValueWithUnit(value: number | null, unit: string): string {
@@ -589,7 +630,16 @@ function findingFromSeries(
   pred: (s: ReportSessionRow) => boolean,
   extractor: (s: ReportSessionRow) => number | null,
   bands: NormalizedPerformanceBand[],
-  metricsNorm: Map<string, MetricRowWithSide[]>
+  metricsNorm: Map<string, MetricRowWithSide[]>,
+  /**
+   * When set, also (or instead of `band`) compute a target-relative tier
+   * badge for this finding, keyed to a lib/performanceSummary METRIC_REGISTRY
+   * id — used for findings that have no performance_bands rows configured
+   * (5m split, 5-0-5 total time) so they still show a badge, matching the
+   * vocabulary already used elsewhere in the report.
+   */
+  tierMetricId?: string,
+  targetOverrides?: Record<string, MetricTarget>
 ): PdfKeyFinding | null {
   const { latest, prev } = findLatestAndPrev(sessions, pred, extractor, metricsNorm);
   if (!latest) return null;
@@ -603,6 +653,7 @@ function findingFromSeries(
     value: formatValueWithUnit(latest.value, unit),
     dateLabel: formatChartAxisDate(latest.date),
     band: bandTagForMetric(metricKeyForBand, latest.value, bands, sessionTestType),
+    tier: tierMetricId ? tierTagForMetric(tierMetricId, latest.value, targetOverrides) : null,
     delta,
   };
 }
@@ -616,7 +667,9 @@ export function buildPdfReportContext(
   sessions: ReportSessionRow[],
   metricsBySession: Map<string, MetricRowWithSide[]>,
   hopTests: ReportHopTestRow[],
-  bands: NormalizedPerformanceBand[]
+  bands: NormalizedPerformanceBand[],
+  /** Athlete's resolved performance targets, for tier-badge findings (see tierTagForMetric). */
+  targetOverrides?: Record<string, MetricTarget>
 ): PdfReportContext {
   const metricsNorm = metricsBySession;
 
@@ -727,7 +780,9 @@ export function buildPdfReportContext(
         "min"
       ),
     bands,
-    metricsNorm
+    metricsNorm,
+    "accel_5m",
+    targetOverrides
   );
   if (split5mF) findings.push(split5mF);
 
@@ -759,7 +814,9 @@ export function buildPdfReportContext(
       return Math.max(left, right); // weaker side = the time we want to track
     },
     bands,
-    metricsNorm
+    metricsNorm,
+    "cod_505_total_time",
+    targetOverrides
   );
   if (codF) findings.push(codF);
 
@@ -800,6 +857,7 @@ export function buildPdfReportContext(
           bands,
           "force_plate_cmj"
         ),
+        tier: null,
         delta,
       });
     }
@@ -833,6 +891,7 @@ export function buildPdfReportContext(
           bands,
           "force_plate_dj"
         ),
+        tier: null,
         delta,
       });
     }
@@ -864,6 +923,7 @@ export function buildPdfReportContext(
             : worstStrengthLsi.lsi >= 80
               ? { label: "Fair", tone: "fair" }
               : { label: "Poor", tone: "poor" },
+        tier: null,
         delta: null,
       });
     }
@@ -912,6 +972,7 @@ export function buildPdfReportContext(
             : worstLsi.lsi >= 80
             ? { label: "Fair", tone: "fair" }
             : { label: "Poor", tone: "poor" },
+        tier: null,
         delta: null,
       });
     }

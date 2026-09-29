@@ -130,7 +130,7 @@ export const TIER_LABELS: Record<SummaryTier, string> = {
 
 // Ratio thresholds are of "how close to / past target", normalised so that
 // >=1 always means "at or beyond target" regardless of higher/lower-better.
-function tierForRatio(ratio: number | null): SummaryTier {
+export function tierForRatio(ratio: number | null): SummaryTier {
   if (ratio == null || !Number.isFinite(ratio)) return "no_data";
   if (ratio >= 1.1) return "excellent";
   if (ratio >= 1.0) return "good";
@@ -151,9 +151,27 @@ function fmt(value: number | null, decimals: number, unit: string): string {
   return `${value.toFixed(decimals)}${unit ? ` ${unit}` : ""}`;
 }
 
-function ratioOf(value: number | null, target: number, direction: Direction): number | null {
+export function ratioOf(value: number | null, target: number, direction: Direction): number | null {
   if (value == null || !Number.isFinite(value)) return null;
   return direction === "higher" ? value / target : target / value;
+}
+
+/**
+ * Resolve a metric's target + direction: the clinic's per-profile override
+ * if one exists, else the registry default. Shared by computePerformanceSummary
+ * and the PDF's Key Findings tier badges (lib/pdfReportChartData.ts) so both
+ * "how's this athlete tracking against target" reads use the exact same
+ * Needs Work/Developing/Building/Good/Excellent scale and the exact same
+ * target value — not two badge systems disagreeing on the same metric.
+ */
+export function resolveMetricTarget(
+  id: string,
+  targetOverrides?: Record<string, MetricTarget>
+): { target: number; direction: Direction } {
+  const override = targetOverrides?.[id];
+  if (override) return override;
+  const def = METRIC_BY_ID.get(id);
+  return { target: def?.defaultTarget ?? 0, direction: def?.direction ?? "higher" };
 }
 
 function is505Session(s: ReportSessionRow): boolean {
@@ -323,12 +341,7 @@ export function computePerformanceSummary(
   metricsBySession: Map<string, ReportMetricRow[]>,
   targetOverrides?: Record<string, MetricTarget>
 ): SummaryCategory[] {
-  function resolveTarget(id: string): { target: number; direction: Direction } {
-    const override = targetOverrides?.[id];
-    if (override) return override;
-    const def = METRIC_BY_ID.get(id);
-    return { target: def?.defaultTarget ?? 0, direction: def?.direction ?? "higher" };
-  }
+  const resolveTarget = (id: string) => resolveMetricTarget(id, targetOverrides);
 
   function metric(id: string, value: number | null, source: ReportSessionRow | null): SummaryMetric {
     const def = METRIC_BY_ID.get(id);

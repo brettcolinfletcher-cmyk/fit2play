@@ -228,13 +228,23 @@ export default function PdfExportModal({
               exportTo
             )
           : null;
+      // Fetched once and reused by both buildPdfReportContext (Key Findings'
+      // tier badges) and computePerformanceSummary, so a 5m split / 5-0-5
+      // total time finding and its Performance Summary counterpart always
+      // read against the exact same resolved target — never two slightly
+      // different reads of "the same" target profile.
+      const targetOverrides =
+        mode === "best"
+          ? (await fetchTargetOverridesForAthlete(supabase, athlete.target_profile_id ?? null)).targets
+          : {};
       const pdfContext: PdfReportContext | null =
         mode === "best"
           ? buildPdfReportContext(
               scopeSessions,
               metricsBySession as Map<string, MetricRowWithSide[]>,
               scopeHopTests,
-              bands
+              bands,
+              targetOverrides
             )
           : null;
       const snapshot: AthleteSnapshot | null =
@@ -252,7 +262,7 @@ export default function PdfExportModal({
           ? computePerformanceSummary(
               scopeSessions,
               metricsBySession,
-              (await fetchTargetOverridesForAthlete(supabase, athlete.target_profile_id ?? null)).targets
+              targetOverrides
             )
           : null;
       const dateComparisonData =

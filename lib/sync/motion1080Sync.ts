@@ -130,53 +130,86 @@ function extractMetricsFromTrainingData(
       const motions = mgObj.motions;
       if (!Array.isArray(motions)) continue;
 
-      for (const motion of motions) {
-        if (!motion || typeof motion !== "object") continue;
-        const m = motion as Record<string, unknown>;
-
-        const push = (key: string, value: unknown, unit: string | null = null) => {
-          if (typeof value === "number" && !Number.isNaN(value) && isFinite(value) && value !== 0) {
-            rows.push({ session_id: sessionId, key, value, rep_index: repIndex, side, unit });
+      // A motionGroup can carry more than one `motion` entry for the same
+      // rep/side. Confirmed real case (session 91706a68, "5-0-5 Assisted
+      // start", rep 1, side left): EVERY numeric field came in two versions
+      // — one set consistent with the athlete's actual sprint effort
+      // (top_speed ~6.1-6.9 m/s, total_distance 10m, peak_power up to 740W)
+      // and one ~8-9x smaller across distance/speed/force/power alike
+      // (top_speed ~0.68-0.78 m/s, total_distance ~1.2m, peak_power ~93W) —
+      // consistent with the resistance unit's own load-arm/cable motion
+      // being tracked as a second `motion` alongside the athlete's, on
+      // resisted/assisted-start sessions. total_time was the one field that
+      // nearly agreed between the two (~2.37s vs ~2.49s), as expected if
+      // both are simultaneous readings of roughly the same rep duration.
+      //
+      // Pushing every motion unfiltered means both readings land under the
+      // identical (session_id, key, rep_index, side) row identity with
+      // nothing to tell them apart — any consumer reading "the" value for a
+      // rep is picking one arbitrarily. Instead, when a group has more than
+      // one motion, keep only the one with the largest totalDistance: a
+      // resistance/load-arm attachment point virtually always displaces
+      // less over a rep than the athlete's own whole-body effort, so the
+      // furthest-travelled motion is the athlete's. Groups with exactly one
+      // motion (the normal case for unresisted sessions) are unaffected.
+      let primaryMotion: unknown = motions[0];
+      if (motions.length > 1) {
+        let bestDistance = -Infinity;
+        for (const motion of motions) {
+          if (!motion || typeof motion !== "object") continue;
+          const d = (motion as Record<string, unknown>).totalDistance;
+          if (typeof d === "number" && d > bestDistance) {
+            bestDistance = d;
+            primaryMotion = motion;
           }
-        };
-
-        // Peak values
-        const peaks = m.peakValues as Record<string, unknown> | undefined;
-        if (peaks) {
-          push("peak_speed", peaks.speed, "m/s");
-          push("peak_force", peaks.force, "N");
-          push("peak_power", peaks.power, "W");
-          push("peak_acceleration", peaks.acceleration, "m/s2");
         }
+      }
 
-        // Average values
-        const avgs = m.averageValues as Record<string, unknown> | undefined;
-        if (avgs) {
-          push("avg_speed", avgs.speed, "m/s");
-          push("avg_force", avgs.force, "N");
-          push("avg_power", avgs.power, "W");
-          push("avg_acceleration", avgs.acceleration, "m/s2");
+      if (!primaryMotion || typeof primaryMotion !== "object") continue;
+      const m = primaryMotion as Record<string, unknown>;
+
+      const push = (key: string, value: unknown, unit: string | null = null) => {
+        if (typeof value === "number" && !Number.isNaN(value) && isFinite(value) && value !== 0) {
+          rows.push({ session_id: sessionId, key, value, rep_index: repIndex, side, unit });
         }
+      };
 
-        // Top-level motion values
-        push("top_speed", m.topSpeed, "m/s");
-        push("total_distance", m.totalDistance, "m");
-        push("total_time", m.totalTime, "s");
+      // Peak values
+      const peaks = m.peakValues as Record<string, unknown> | undefined;
+      if (peaks) {
+        push("peak_speed", peaks.speed, "m/s");
+        push("peak_force", peaks.force, "N");
+        push("peak_power", peaks.power, "W");
+        push("peak_acceleration", peaks.acceleration, "m/s2");
+      }
 
-        // Accel/decel stats (sprint only)
-        const stats = m.accelDecelStats as Record<string, unknown> | undefined;
-        if (stats) {
-          push("accel_max", stats.accelerationMax, "m/s2");
-          push("decel_max", stats.decelerationMax, "m/s2");
-          push("decel_time", stats.decelerationTime, "s");
-          push("top_speed_position", stats.topSpeedPosition, "m");
-        }
+      // Average values
+      const avgs = m.averageValues as Record<string, unknown> | undefined;
+      if (avgs) {
+        push("avg_speed", avgs.speed, "m/s");
+        push("avg_force", avgs.force, "N");
+        push("avg_power", avgs.power, "W");
+        push("avg_acceleration", avgs.acceleration, "m/s2");
+      }
 
-        // Load settings
-        const res = m.resistanceValues as Record<string, unknown> | undefined;
-        if (res) {
-          push("external_load", res.concentricLoad, "kg");
-        }
+      // Top-level motion values
+      push("top_speed", m.topSpeed, "m/s");
+      push("total_distance", m.totalDistance, "m");
+      push("total_time", m.totalTime, "s");
+
+      // Accel/decel stats (sprint only)
+      const stats = m.accelDecelStats as Record<string, unknown> | undefined;
+      if (stats) {
+        push("accel_max", stats.accelerationMax, "m/s2");
+        push("decel_max", stats.decelerationMax, "m/s2");
+        push("decel_time", stats.decelerationTime, "s");
+        push("top_speed_position", stats.topSpeedPosition, "m");
+      }
+
+      // Load settings
+      const res = m.resistanceValues as Record<string, unknown> | undefined;
+      if (res) {
+        push("external_load", res.concentricLoad, "kg");
       }
     }
   }
@@ -406,12 +439,33 @@ async function sync1080SprintTimeSeries(
         const motions = mgObj.motions;
         if (!Array.isArray(motions)) continue;
 
-        const combined: DecodedMotionSample[] = [];
-        for (const motion of motions) {
-          if (!motion || typeof motion !== "object") continue;
-          const m = motion as Record<string, unknown>;
-          combined.push(...decodeSampleDataBinary(m.sampleData));
+        // Same dual-motion issue as extractMetricsFromTrainingData above
+        // (see its comment): on resisted/assisted-start sessions a group can
+        // carry a second, much-shorter-distance `motion` alongside the
+        // athlete's real effort. Concatenating both motions' sampleData
+        // (the old behaviour) blended two physically different position/
+        // speed tracks into one array, which would garble the sprint curve
+        // for affected reps rather than merely picking a duplicate number.
+        // Keep only the motion with the largest totalDistance, same as the
+        // metrics extractor, so the time series and the metrics table agree
+        // on which motion is "the athlete's" for a given rep.
+        let primaryMotion: unknown = motions[0];
+        if (motions.length > 1) {
+          let bestDistance = -Infinity;
+          for (const motion of motions) {
+            if (!motion || typeof motion !== "object") continue;
+            const d = (motion as Record<string, unknown>).totalDistance;
+            if (typeof d === "number" && d > bestDistance) {
+              bestDistance = d;
+              primaryMotion = motion;
+            }
+          }
         }
+
+        const combined: DecodedMotionSample[] =
+          primaryMotion && typeof primaryMotion === "object"
+            ? decodeSampleDataBinary((primaryMotion as Record<string, unknown>).sampleData)
+            : [];
 
         if (combined.length === 0) continue;
 
