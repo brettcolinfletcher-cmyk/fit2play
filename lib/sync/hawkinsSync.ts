@@ -281,6 +281,7 @@ export async function runHawkinsSync(
         : [];
 
     const athleteIdCache = new Map<string, string>();
+    const skippedNoAthlete = new Set<string>();
 
     for (const raw of tests) {
       if (!raw || typeof raw !== "object") continue;
@@ -300,8 +301,15 @@ export async function runHawkinsSync(
           .select("id")
           .eq("hawkins_external_id", extAthleteId)
           .maybeSingle();
-        if (aErr || !ath?.id) {
-          errors.push(`test ${hawkinsTestId}: no local athlete for ${extAthleteId}`);
+        if (aErr) {
+          errors.push(`test ${hawkinsTestId}: athlete lookup ${aErr.message}`);
+          continue;
+        }
+        if (!ath?.id) {
+          // Test belongs to an athlete outside the key's roster (usually inactive
+          // in Hawkins). Skip quietly so it doesn't count as a failed run and
+          // block the watermark.
+          skippedNoAthlete.add(extAthleteId);
           continue;
         }
         internalAthleteId = ath.id as string;
@@ -373,6 +381,12 @@ export async function runHawkinsSync(
           errors.push(`test ${hawkinsTestId} metrics: ${mErr.message}`);
         }
       }
+    }
+
+    if (skippedNoAthlete.size > 0) {
+      console.warn(
+        `Hawkins sync: skipped tests for ${skippedNoAthlete.size} athlete(s) not on roster: ${[...skippedNoAthlete].join(", ")}`
+      );
     }
 
     const errStr = errors.length ? errors.join(" | ") : null;
