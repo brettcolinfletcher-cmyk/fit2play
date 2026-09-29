@@ -907,6 +907,27 @@ export default function AthleteDetailPage() {
 
   const protocolActive = !!protocol && (!!protocol.protocolId || protocol.tests.length > 0);
 
+  // Performance-mode header: score rings or team-ranking dials. A saved choice
+  // wins; otherwise athletes on a protocol open on the dials.
+  const [topViewChoice, setTopViewChoice] = useState<"rings" | "dials" | null>(null);
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem("f2p.athleteTopView");
+      if (saved === "rings" || saved === "dials") setTopViewChoice(saved);
+    } catch {
+      // storage unavailable: fall back to the protocol default
+    }
+  }, []);
+  const topView: "rings" | "dials" = topViewChoice ?? (protocolActive ? "dials" : "rings");
+  const chooseTopView = useCallback((v: "rings" | "dials") => {
+    setTopViewChoice(v);
+    try {
+      window.localStorage.setItem("f2p.athleteTopView", v);
+    } catch {
+      // ignore
+    }
+  }, []);
+
   const inProtocol = useCallback(
     (section: string) => {
       if (!protocol || !protocolActive || showAllTests) return true;
@@ -1197,7 +1218,34 @@ export default function AthleteDetailPage() {
             {dashboardMode === "performance" ? (
               <div className="mt-6 space-y-6">
                 <AthleteIdentityCard athlete={athlete} />
-                <AthleteRingPanel metricLatest={perfMetricLatest} metricPrev={perfMetricPrev} />
+                <div className="flex justify-end">
+                  <div className="inline-flex rounded-full bg-white p-1 text-xs shadow-[0_1px_4px_rgba(0,0,0,0.06)] ring-1 ring-slate-200">
+                    {(
+                      [
+                        ["rings", "Score rings"],
+                        ["dials", "Team ranking"],
+                      ] as const
+                    ).map(([v, label]) => (
+                      <button
+                        key={v}
+                        type="button"
+                        onClick={() => chooseTopView(v)}
+                        className={
+                          topView === v
+                            ? "rounded-full bg-slate-900 px-3 py-1 font-medium text-white"
+                            : "rounded-full px-3 py-1 text-slate-600 hover:text-slate-900"
+                        }
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {topView === "rings" ? (
+                  <AthleteRingPanel metricLatest={perfMetricLatest} metricPrev={perfMetricPrev} />
+                ) : (
+                  <TeamRankDials athleteId={id} />
+                )}
                 {perfDataLoading ? (
                   <p className="text-xs text-slate-400">Loading performance data…</p>
                 ) : null}
@@ -1221,7 +1269,7 @@ export default function AthleteDetailPage() {
             )}
 
             <div className="mt-6">
-              <TeamRankDials athleteId={id} />
+              {dashboardMode !== "performance" ? <TeamRankDials athleteId={id} /> : null}
               {protocolActive ? (
                 <p className="mt-2 text-xs text-slate-500">
                   {showAllTests
