@@ -555,6 +555,35 @@ export async function runMotion1080Sync(
 
       const heightCm = extractHeightCm(row);
 
+      // Link to an athlete another source (e.g. Hawkins) already created, instead
+      // of making a duplicate: if nobody holds this 1080 id yet, and exactly one
+      // athlete with the same name has no 1080 id, claim that record.
+      const { data: existing } = await supabase
+        .from("athletes")
+        .select("id")
+        .eq("motion1080_external_id", extId)
+        .maybeSingle();
+      if (!existing && first_name) {
+        let q = supabase
+          .from("athletes")
+          .select("id")
+          .is("motion1080_external_id", null)
+          .ilike("first_name", first_name);
+        q = last_name ? q.ilike("last_name", last_name) : q.is("last_name", null);
+        const { data: sameName } = await q.limit(2);
+        if (sameName && sameName.length === 1) {
+          const { error: linkErr } = await supabase
+            .from("athletes")
+            .update({
+              motion1080_external_id: extId,
+              ...(heightCm != null ? { height_cm: heightCm } : {}),
+            })
+            .eq("id", (sameName[0] as { id: string }).id);
+          if (linkErr) errors.push(`athlete ${extId} link: ${linkErr.message}`);
+          continue;
+        }
+      }
+
       const { error: upErr } = await supabase.from("athletes").upsert(
         {
           motion1080_external_id: extId,
