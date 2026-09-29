@@ -38,6 +38,8 @@ type FormState = {
   dominant_leg: string;
   dominant_hand: string;
   notes: string;
+  sex: string;
+  date_of_birth: string;
 };
 
 const emptyForm: FormState = {
@@ -53,6 +55,8 @@ const emptyForm: FormState = {
   dominant_leg: "",
   dominant_hand: "",
   notes: "",
+  sex: "",
+  date_of_birth: "",
 };
 
 export default function EditAthletePage() {
@@ -114,6 +118,8 @@ export default function EditAthletePage() {
         dominant_leg: String(a.dominant_leg ?? ""),
         dominant_hand: String(a.dominant_hand ?? ""),
         notes: String(a.notes ?? ""),
+        sex: a.sex === "female" || a.sex === "male" ? String(a.sex) : "",
+        date_of_birth: a.date_of_birth ? String(a.date_of_birth).slice(0, 10) : "",
       });
       setPhotoUrl(a.profile_image_url ? String(a.profile_image_url) : null);
       setLoading(false);
@@ -184,6 +190,8 @@ export default function EditAthletePage() {
       notes: form.notes.trim() || null,
       dominant_leg: form.dominant_leg || null,
       dominant_hand: form.dominant_hand || null,
+      sex: form.sex || null,
+      date_of_birth: form.date_of_birth || null,
     };
 
     const h = parseFloat(form.height_cm);
@@ -352,6 +360,30 @@ export default function EditAthletePage() {
                   onChange={(e) =>
                     setForm((f) => ({ ...f, primary_sport: e.target.value }))
                   }
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-xs text-slate-400">Sex</label>
+                <select
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-slate-100"
+                  value={form.sex}
+                  onChange={(e) => setForm((f) => ({ ...f, sex: e.target.value }))}
+                >
+                  <option value="">Not set</option>
+                  <option value="female">Female</option>
+                  <option value="male">Male</option>
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-slate-400">Date of birth</label>
+                <input
+                  type="date"
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-slate-100"
+                  value={form.date_of_birth}
+                  onChange={(e) => setForm((f) => ({ ...f, date_of_birth: e.target.value }))}
                 />
               </div>
             </div>

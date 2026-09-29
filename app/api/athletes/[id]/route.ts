@@ -18,6 +18,8 @@ const ALLOWED_PATCH = [
   "notes",
   "status",
   "dashboard_mode",
+  "sex",
+  "date_of_birth",
 ] as const;
 
 const VALID_STATUSES = new Set(["active", "monitoring", "archived"]);
@@ -40,6 +42,9 @@ function pickAllowedPatch(body: Record<string, unknown>) {
     !VALID_DASHBOARD_MODES.has(String(out.dashboard_mode))
   ) {
     throw new Error(`Invalid dashboard_mode: must be one of rtp, performance`);
+  }
+  if ("sex" in out && out.sex !== null && out.sex !== "female" && out.sex !== "male") {
+    throw new Error(`Invalid sex: must be female or male`);
   }
   return out;
 }
