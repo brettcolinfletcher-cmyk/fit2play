@@ -43,10 +43,6 @@ type RankRow = {
 
 // Red (developing) -> dark green (elite), matching the report mock-up.
 const SEGMENTS = ["#dc2626", "#f97316", "#facc15", "#84cc16", "#15803d"];
-// One category per colour band, read off where the needle lands.
-const CATEGORIES = ["Developing", "Building", "Competitive", "Strong", "Elite"];
-// Text colours a touch darker than the bands so yellow stays readable on white.
-const CATEGORY_TEXT = ["#b91c1c", "#c2410c", "#a16207", "#4d7c0f", "#15803d"];
 
 const CX = 60;
 const CY = 62;
@@ -85,11 +81,11 @@ function SpeedDial({ def, row }: { def: DialDef; row: RankRow | undefined }) {
   const seg = 1 / SEGMENTS.length;
   const valueText = value != null ? value.toFixed(def.decimals) : "–";
   // Pill width scales with the text so short and long values both sit centred.
-  const pillW = Math.max(30, (valueText.length + def.unit.length) * 5.2 + 14);
+  const pillW = Math.max(40, valueText.length * 8 + def.unit.length * 5 + 20);
 
   return (
     <div className="rounded-xl bg-white p-3 text-center shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
-      <svg viewBox="0 0 120 96" className="w-full" role="img" aria-label={`${def.label} dial`}>
+      <svg viewBox="0 0 120 104" className="w-full" role="img" aria-label={`${def.label} dial`}>
         {SEGMENTS.map((c, i) => {
           const [x1, y1] = point(i * seg, 46);
           const [x2, y2] = point((i + 1) * seg, 46);
@@ -108,35 +104,26 @@ function SpeedDial({ def, row }: { def: DialDef; row: RankRow | undefined }) {
           <line x1={CX} y1={CY} x2={nx} y2={ny} stroke="#1e293b" strokeWidth={3} strokeLinecap="round" />
         ) : null}
         <circle cx={CX} cy={CY} r={5} fill="#1e293b" opacity={hasRank ? 1 : 0.25} />
-        <rect x={CX - pillW / 2} y={CY + 7} width={pillW} height={15} rx={7.5} fill="#1e293b" />
-        <text x={CX} y={CY + 18} textAnchor="middle" fill="#ffffff">
-          <tspan fontSize={9.5} fontWeight={700}>
+        <rect x={CX - pillW / 2} y={CY + 7} width={pillW} height={22} rx={11} fill="#1e293b" />
+        <text x={CX} y={CY + 22.5} textAnchor="middle" fill="#ffffff">
+          <tspan fontSize={14} fontWeight={800}>
             {valueText}
           </tspan>
-          <tspan fontSize={6.5} dx={1.5}>
+          <tspan fontSize={8} dx={2} fill="#cbd5e1">
             {def.unit}
           </tspan>
         </text>
-        <text x={6} y={CY + 30} fontSize={7} fontWeight={600} fill={SEGMENTS[0]}>
+        <text x={6} y={CY + 39} fontSize={7} fontWeight={600} fill={SEGMENTS[0]}>
           Developing
         </text>
-        <text x={114} y={CY + 30} fontSize={7} fontWeight={600} textAnchor="end" fill={SEGMENTS[SEGMENTS.length - 1]}>
+        <text x={114} y={CY + 39} fontSize={7} fontWeight={600} textAnchor="end" fill={SEGMENTS[SEGMENTS.length - 1]}>
           Elite
         </text>
       </svg>
       <div className="mt-1 text-sm font-medium text-slate-700">{def.label}</div>
-      {f != null ? (
-        (() => {
-          const band = Math.min(CATEGORIES.length - 1, Math.floor(f * CATEGORIES.length));
-          return (
-            <div className="text-xs font-semibold" style={{ color: CATEGORY_TEXT[band] }}>
-              {CATEGORIES[band]}
-            </div>
-          );
-        })()
-      ) : (
+      {f == null ? (
         <div className="text-xs text-slate-400">{value != null ? "Not ranked" : "Not tested"}</div>
-      )}
+      ) : null}
     </div>
   );
 }
