@@ -190,6 +190,37 @@ export async function runHawkinsSync(
       }
     }
 
+    // Reconcile roster: the Hawkins key is scoped to the Fit2Play teams, so any
+    // Hawkins-linked athlete no longer returned by /athletes is archived (soft,
+    // reversible from the Archived tab; sessions/metrics untouched). Skipped when
+    // the list is empty so a bad response can never archive everyone.
+    const liveHawkinsIds = new Set<string>();
+    for (const raw of athleteList) {
+      const id = (raw as { id?: unknown } | null)?.id;
+      if (id != null) liveHawkinsIds.add(String(id));
+    }
+    if (liveHawkinsIds.size > 0) {
+      const { data: linked, error: linkErr } = await supabase
+        .from("athletes")
+        .select("id, hawkins_external_id")
+        .not("hawkins_external_id", "is", null)
+        .neq("status", "archived");
+      if (linkErr) {
+        errors.push(`roster reconcile: ${linkErr.message}`);
+      } else {
+        const staleIds = (linked ?? [])
+          .filter((a) => !liveHawkinsIds.has(String(a.hawkins_external_id)))
+          .map((a) => a.id as string);
+        for (let i = 0; i < staleIds.length; i += 100) {
+          const { error: archErr } = await supabase
+            .from("athletes")
+            .update({ status: "archived" })
+            .in("id", staleIds.slice(i, i + 100));
+          if (archErr) errors.push(`roster reconcile archive: ${archErr.message}`);
+        }
+      }
+    }
+
     let fromUnix: number;
     let nowUnix: number;
 
