@@ -36,6 +36,7 @@ import PerformanceSummaryGrid from "@/components/athletes/PerformanceSummaryGrid
 import SprintPerformanceCharts from "@/components/athletes/SprintPerformanceCharts";
 import TimepointSummary from "@/components/athletes/TimepointSummary";
 import AthleteRingPanel from "@/components/AthleteRingPanel";
+import TeamRankDials from "@/components/athletes/TeamRankDials";
 import AthleteTestSummary from "@/components/AthleteTestSummary";
 import AthleteIdentityCard from "@/components/athletes/AthleteIdentityCard";
 import SessionDetailByDate from "@/components/athletes/SessionDetailByDate";
@@ -1168,6 +1169,10 @@ export default function AthleteDetailPage() {
                 criteria={criteria}
               />
             )}
+
+            <div className="mt-6">
+              <TeamRankDials athleteId={id} />
+            </div>
 
             <div className="mt-6">
               <PerformanceSummaryGrid
