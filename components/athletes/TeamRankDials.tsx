@@ -43,6 +43,10 @@ type RankRow = {
 
 // Red (developing) -> dark green (elite), matching the report mock-up.
 const SEGMENTS = ["#dc2626", "#f97316", "#facc15", "#84cc16", "#15803d"];
+// One category per colour band, read off where the needle lands.
+const CATEGORIES = ["Developing", "Building", "Competitive", "Strong", "Elite"];
+// Text colours a touch darker than the bands so yellow stays readable on white.
+const CATEGORY_TEXT = ["#b91c1c", "#c2410c", "#a16207", "#4d7c0f", "#15803d"];
 
 const CX = 60;
 const CY = 62;
@@ -50,12 +54,6 @@ const CY = 62;
 function point(f: number, r: number): [number, number] {
   const a = Math.PI * (1 - f);
   return [CX + r * Math.cos(a), CY - r * Math.sin(a)];
-}
-
-function ordinal(n: number): string {
-  const s = ["th", "st", "nd", "rd"];
-  const v = n % 100;
-  return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
 function normSpec(s: Partial<ComparisonSpec> | null | undefined): ComparisonSpec {
@@ -127,9 +125,18 @@ function SpeedDial({ def, row }: { def: DialDef; row: RankRow | undefined }) {
         </text>
       </svg>
       <div className="mt-1 text-sm font-medium text-slate-700">{def.label}</div>
-      <div className="text-xs text-slate-400">
-        {hasRank ? `${ordinal(rank!)} of ${n}` : value != null ? "Not ranked" : "Not tested"}
-      </div>
+      {f != null ? (
+        (() => {
+          const band = Math.min(CATEGORIES.length - 1, Math.floor(f * CATEGORIES.length));
+          return (
+            <div className="text-xs font-semibold" style={{ color: CATEGORY_TEXT[band] }}>
+              {CATEGORIES[band]}
+            </div>
+          );
+        })()
+      ) : (
+        <div className="text-xs text-slate-400">{value != null ? "Not ranked" : "Not tested"}</div>
+      )}
     </div>
   );
 }
