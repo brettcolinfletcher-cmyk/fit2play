@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import DashboardNav from "@/components/DashboardNav";
 import { useRequireDashboardStaff } from "@/lib/useRequireDashboardStaff";
 import { supabase } from "@/lib/supabaseClient";
+import { LEVELS, levelLabel } from "@/lib/athleteLevels";
 
 type Team = {
   id: string;
@@ -11,6 +12,7 @@ type Team = {
   sport: string | null;
   created_at: string;
   protocol_id: string | null;
+  level: string | null;
 };
 
 type ProtocolLite = { id: string; name: string };
@@ -52,6 +54,7 @@ export default function TeamsPage() {
   const [teamName, setTeamName] = useState("");
   const [teamSport, setTeamSport] = useState("");
   const [teamProtocolId, setTeamProtocolId] = useState<string>("");
+  const [teamLevel, setTeamLevel] = useState<string>("");
   const [protocols, setProtocols] = useState<ProtocolLite[]>([]);
   const [selectedAthleteIds, setSelectedAthleteIds] = useState<string[]>([]);
   const [search, setSearch] = useState("");
@@ -62,7 +65,7 @@ export default function TeamsPage() {
     setLoading(true);
     setError(null);
     const [tRes, atRes, aRes, pRes] = await Promise.all([
-      supabase.from("teams").select("id, name, sport, created_at, protocol_id").order("name"),
+      supabase.from("teams").select("id, name, sport, created_at, protocol_id, level").order("name"),
       supabase
         .from("athlete_teams")
         .select("team_id, athlete_id, athletes(id, first_name, last_name)"),
@@ -121,6 +124,7 @@ export default function TeamsPage() {
     setTeamName("");
     setTeamSport("");
     setTeamProtocolId("");
+    setTeamLevel("");
     setSelectedAthleteIds([]);
     setSearch("");
     setSaveError(null);
@@ -132,6 +136,7 @@ export default function TeamsPage() {
     setTeamName(team.name);
     setTeamSport(team.sport ?? "");
     setTeamProtocolId(team.protocol_id ?? "");
+    setTeamLevel(team.level ?? "");
     const members = membersByTeamId.get(team.id) ?? [];
     setSelectedAthleteIds(members.map((x) => x.id));
     setSearch("");
@@ -170,13 +175,23 @@ export default function TeamsPage() {
       if (teamId) {
         const { error: uErr } = await supabase
           .from("teams")
-          .update({ name, sport: teamSport.trim() || null, protocol_id: teamProtocolId || null })
+          .update({
+            name,
+            sport: teamSport.trim() || null,
+            protocol_id: teamProtocolId || null,
+            level: teamLevel || null,
+          })
           .eq("id", teamId);
         if (uErr) throw new Error(uErr.message);
       } else {
         const { data: inserted, error: iErr } = await supabase
           .from("teams")
-          .insert({ name, sport: teamSport.trim() || null, protocol_id: teamProtocolId || null })
+          .insert({
+            name,
+            sport: teamSport.trim() || null,
+            protocol_id: teamProtocolId || null,
+            level: teamLevel || null,
+          })
           .select("id")
           .single();
         if (iErr || !inserted) throw new Error(iErr?.message ?? "Insert failed");
@@ -281,6 +296,11 @@ export default function TeamsPage() {
                           {protocols.find((p) => p.id === team.protocol_id)?.name ?? "Protocol"}
                         </span>
                       ) : null}
+                      {team.level ? (
+                        <span className="rounded-full border border-slate-700 bg-slate-950 px-2.5 py-1 text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                          {levelLabel(team.level)}
+                        </span>
+                      ) : null}
                       <span className="rounded-full border border-slate-700 bg-slate-950 px-2.5 py-1 text-[10px] font-medium uppercase tracking-wide text-slate-400">
                         {team.sport?.trim() || "Sport —"}
                       </span>
@@ -353,6 +373,24 @@ export default function TeamsPage() {
                   onChange={(e) => setTeamSport(e.target.value)}
                   className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-200"
                 />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-400">Level</label>
+                <select
+                  value={teamLevel}
+                  onChange={(e) => setTeamLevel(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-200"
+                >
+                  <option value="">Not set</option>
+                  {LEVELS.map((l) => (
+                    <option key={l.value} value={l.value}>
+                      {l.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-[11px] text-slate-500">
+                  Athletes without their own level use this for comparisons.
+                </p>
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-400">Testing protocol</label>

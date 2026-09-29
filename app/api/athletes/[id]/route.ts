@@ -20,6 +20,7 @@ const ALLOWED_PATCH = [
   "dashboard_mode",
   "sex",
   "date_of_birth",
+  "level",
 ] as const;
 
 const VALID_STATUSES = new Set(["active", "monitoring", "archived"]);
@@ -45,6 +46,13 @@ function pickAllowedPatch(body: Record<string, unknown>) {
   }
   if ("sex" in out && out.sex !== null && out.sex !== "female" && out.sex !== "male") {
     throw new Error(`Invalid sex: must be female or male`);
+  }
+  if (
+    "level" in out &&
+    out.level !== null &&
+    !["elite", "semi_pro", "amateur", "junior"].includes(String(out.level))
+  ) {
+    throw new Error(`Invalid level: must be one of elite, semi_pro, amateur, junior`);
   }
   return out;
 }
