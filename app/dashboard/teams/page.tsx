@@ -10,7 +10,10 @@ type Team = {
   name: string;
   sport: string | null;
   created_at: string;
+  protocol_id: string | null;
 };
+
+type ProtocolLite = { id: string; name: string };
 
 type AthleteLite = {
   id: string;
@@ -48,6 +51,8 @@ export default function TeamsPage() {
   const [editingTeam, setEditingTeam] = useState<Team | null>(null);
   const [teamName, setTeamName] = useState("");
   const [teamSport, setTeamSport] = useState("");
+  const [teamProtocolId, setTeamProtocolId] = useState<string>("");
+  const [protocols, setProtocols] = useState<ProtocolLite[]>([]);
   const [selectedAthleteIds, setSelectedAthleteIds] = useState<string[]>([]);
   const [search, setSearch] = useState("");
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -56,12 +61,13 @@ export default function TeamsPage() {
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const [tRes, atRes, aRes] = await Promise.all([
-      supabase.from("teams").select("id, name, sport, created_at").order("name"),
+    const [tRes, atRes, aRes, pRes] = await Promise.all([
+      supabase.from("teams").select("id, name, sport, created_at, protocol_id").order("name"),
       supabase
         .from("athlete_teams")
         .select("team_id, athlete_id, athletes(id, first_name, last_name)"),
       supabase.from("athletes").select("id, first_name, last_name").order("last_name"),
+      supabase.from("test_protocols").select("id, name").order("sort_order"),
     ]);
     if (tRes.error) {
       setError(tRes.error.message);
@@ -81,6 +87,7 @@ export default function TeamsPage() {
     setTeams((tRes.data ?? []) as Team[]);
     setAthleteTeams((atRes.data ?? []) as AthleteTeamRow[]);
     setAllAthletes((aRes.data ?? []) as AthleteLite[]);
+    setProtocols((pRes.data ?? []) as ProtocolLite[]);
     setLoading(false);
   }, []);
 
@@ -113,6 +120,7 @@ export default function TeamsPage() {
     setEditingTeam(null);
     setTeamName("");
     setTeamSport("");
+    setTeamProtocolId("");
     setSelectedAthleteIds([]);
     setSearch("");
     setSaveError(null);
@@ -123,6 +131,7 @@ export default function TeamsPage() {
     setEditingTeam(team);
     setTeamName(team.name);
     setTeamSport(team.sport ?? "");
+    setTeamProtocolId(team.protocol_id ?? "");
     const members = membersByTeamId.get(team.id) ?? [];
     setSelectedAthleteIds(members.map((x) => x.id));
     setSearch("");
@@ -161,13 +170,13 @@ export default function TeamsPage() {
       if (teamId) {
         const { error: uErr } = await supabase
           .from("teams")
-          .update({ name, sport: teamSport.trim() || null })
+          .update({ name, sport: teamSport.trim() || null, protocol_id: teamProtocolId || null })
           .eq("id", teamId);
         if (uErr) throw new Error(uErr.message);
       } else {
         const { data: inserted, error: iErr } = await supabase
           .from("teams")
-          .insert({ name, sport: teamSport.trim() || null })
+          .insert({ name, sport: teamSport.trim() || null, protocol_id: teamProtocolId || null })
           .select("id")
           .single();
         if (iErr || !inserted) throw new Error(iErr?.message ?? "Insert failed");
@@ -267,6 +276,11 @@ export default function TeamsPage() {
                       </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
+                      {team.protocol_id ? (
+                        <span className="rounded-full border border-lime-400/40 bg-lime-400/10 px-2.5 py-1 text-[10px] font-medium uppercase tracking-wide text-lime-300">
+                          {protocols.find((p) => p.id === team.protocol_id)?.name ?? "Protocol"}
+                        </span>
+                      ) : null}
                       <span className="rounded-full border border-slate-700 bg-slate-950 px-2.5 py-1 text-[10px] font-medium uppercase tracking-wide text-slate-400">
                         {team.sport?.trim() || "Sport —"}
                       </span>
@@ -339,6 +353,24 @@ export default function TeamsPage() {
                   onChange={(e) => setTeamSport(e.target.value)}
                   className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-200"
                 />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-400">Testing protocol</label>
+                <select
+                  value={teamProtocolId}
+                  onChange={(e) => setTeamProtocolId(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-200"
+                >
+                  <option value="">None (show all tests)</option>
+                  {protocols.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-[11px] text-slate-500">
+                  Every athlete in this team inherits it. Individual tests can be changed on the athlete&apos;s edit page.
+                </p>
               </div>
               <div>
                 <p className="text-xs font-medium text-slate-400">Athletes</p>

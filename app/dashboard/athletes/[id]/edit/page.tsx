@@ -7,6 +7,7 @@ import DashboardNav from "@/components/DashboardNav";
 import AthleteAvatar from "@/components/AthleteAvatar";
 import { useRequireDashboardStaff } from "@/lib/useRequireDashboardStaff";
 import { supabase } from "@/lib/supabaseClient";
+import AthleteProtocolEditor from "@/components/athletes/AthleteProtocolEditor";
 
 const LR_OPTIONS = ["Left", "Right", "Both"] as const;
 
@@ -497,6 +498,8 @@ export default function EditAthletePage() {
             </button>
           </form>
         )}
+
+        {!loading && id ? <AthleteProtocolEditor athleteId={id} /> : null}
 
         {!loading ? (
           <div className="mt-12 border-t border-slate-800 pt-8">

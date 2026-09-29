@@ -37,6 +37,8 @@ import SprintPerformanceCharts from "@/components/athletes/SprintPerformanceChar
 import TimepointSummary from "@/components/athletes/TimepointSummary";
 import AthleteRingPanel from "@/components/AthleteRingPanel";
 import TeamRankDials from "@/components/athletes/TeamRankDials";
+import { protocolIncludes, resolveAthleteProtocol, type ResolvedProtocol } from "@/lib/protocols";
+import type { TestKey } from "@/lib/testCatalogue";
 import AthleteTestSummary from "@/components/AthleteTestSummary";
 import AthleteIdentityCard from "@/components/athletes/AthleteIdentityCard";
 import SessionDetailByDate from "@/components/athletes/SessionDetailByDate";
@@ -77,6 +79,19 @@ import {
   CHART_TOOLTIP_STYLE,
   ChartDefs,
 } from "@/components/athletes/chartTheme";
+
+// Which protocol tests each dashboard section belongs to. An empty list means
+// the section isn't part of any protocol, so it hides when a protocol is set.
+// Sections not listed here (e.g. lr_settings) always show.
+const SECTION_TESTS: Record<string, TestKey[]> = {
+  linear: ["sprint_40m"],
+  cod: ["cod_505"],
+  cmj: ["cmj"],
+  drop_jump: [],
+  drop_jump_single: [],
+  hop_tests: ["broad_jump", "sl_hop_distance"],
+  dynamometry: ["adductor_squeeze", "abductor_squeeze", "iso_hamstring"],
+};
 
 const ALL_VISIBLE: ReportVisibility = {
   isSectionVisible: () => true,
@@ -872,17 +887,51 @@ export default function AthleteDetailPage() {
     [filteredHopTests]
   );
 
+  const [protocol, setProtocol] = useState<ResolvedProtocol | null>(null);
+  const [showAllTests, setShowAllTests] = useState(false);
+
+  useEffect(() => {
+    if (!staffOk || !id) return;
+    let cancelled = false;
+    resolveAthleteProtocol(supabase, id)
+      .then((p) => {
+        if (!cancelled) setProtocol(p);
+      })
+      .catch(() => {
+        if (!cancelled) setProtocol(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [staffOk, id]);
+
+  const protocolActive = !!protocol && (!!protocol.protocolId || protocol.tests.length > 0);
+
+  const inProtocol = useCallback(
+    (section: string) => {
+      if (!protocol || !protocolActive || showAllTests) return true;
+      const keys = SECTION_TESTS[section];
+      if (!keys) return true;
+      return keys.some((k) => protocolIncludes(protocol, k));
+    },
+    [protocol, protocolActive, showAllTests]
+  );
+
   const sectionsWithData = useMemo(() => {
     const keys: string[] = ["summary"];
-    if (has1080Charts && hasLinearSprint && visibility.isSectionVisible("linear"))
+    if (has1080Charts && hasLinearSprint && visibility.isSectionVisible("linear") && inProtocol("linear"))
       keys.push("linear");
-    if (has505 && visibility.isSectionVisible("cod")) keys.push("cod");
-    if (cmjSeries.length > 0 && visibility.isSectionVisible("cmj")) keys.push("cmj");
-    if (djSeries.length > 0 && visibility.isSectionVisible("drop_jump"))
+    if (has505 && visibility.isSectionVisible("cod") && inProtocol("cod")) keys.push("cod");
+    if (cmjSeries.length > 0 && visibility.isSectionVisible("cmj") && inProtocol("cmj")) keys.push("cmj");
+    if (djSeries.length > 0 && visibility.isSectionVisible("drop_jump") && inProtocol("drop_jump"))
       keys.push("drop_jump");
-    if (slDjSeries.length > 0 && visibility.isSectionVisible("drop_jump_single"))
+    if (
+      slDjSeries.length > 0 &&
+      visibility.isSectionVisible("drop_jump_single") &&
+      inProtocol("drop_jump_single")
+    )
       keys.push("drop_jump_single");
-    if (visibility.isSectionVisible("hop_tests")) keys.push("hop_tests");
+    if (visibility.isSectionVisible("hop_tests") && inProtocol("hop_tests")) keys.push("hop_tests");
     return keys;
   }, [
     has1080Charts,
@@ -892,6 +941,7 @@ export default function AthleteDetailPage() {
     djSeries.length,
     slDjSeries.length,
     visibility,
+    inProtocol,
   ]);
 
   function sectionNote(section: string): string | null {
@@ -1172,6 +1222,20 @@ export default function AthleteDetailPage() {
 
             <div className="mt-6">
               <TeamRankDials athleteId={id} />
+              {protocolActive ? (
+                <p className="mt-2 text-xs text-slate-500">
+                  {showAllTests
+                    ? "Showing all tests."
+                    : `Showing ${protocol?.protocolName ?? "protocol"}${protocol?.modified ? " (modified)" : ""} tests only.`}{" "}
+                  <button
+                    type="button"
+                    onClick={() => setShowAllTests((v) => !v)}
+                    className="text-lime-600 hover:underline"
+                  >
+                    {showAllTests ? "Show protocol tests only" : "Show all tests"}
+                  </button>
+                </p>
+              ) : null}
             </div>
 
             <div className="mt-6">
@@ -1234,7 +1298,7 @@ export default function AthleteDetailPage() {
             />
 
             {/* ── Linear sprint trends (1080) ── */}
-            {has1080Charts && hasLinearSprint && visibility.isSectionVisible("linear") && (
+            {has1080Charts && hasLinearSprint && visibility.isSectionVisible("linear") && inProtocol("linear") && (
               <section id="linear" className="scroll-mt-28 mt-8">
                 <div className="flex items-start justify-between gap-3">
                   <h2 className="text-sm font-semibold uppercase tracking-wide text-lime-300">
@@ -1282,7 +1346,7 @@ export default function AthleteDetailPage() {
             )}
 
             {/* ── COD trends (5-0-5 / 5-10-5) ── */}
-            {has505 && visibility.isSectionVisible("cod") && (
+            {has505 && visibility.isSectionVisible("cod") && inProtocol("cod") && (
               <section id="cod" className="scroll-mt-28 mt-10">
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -1335,7 +1399,7 @@ export default function AthleteDetailPage() {
               </section>
             )}
 
-            {cmjSeries.length > 0 && visibility.isSectionVisible("cmj") && (
+            {cmjSeries.length > 0 && visibility.isSectionVisible("cmj") && inProtocol("cmj") && (
               <ForcePlateCMJSection
                 athleteId={id}
                 data={cmjSeries}
@@ -1345,7 +1409,7 @@ export default function AthleteDetailPage() {
               />
             )}
 
-            {djSeries.length > 0 && visibility.isSectionVisible("drop_jump") && (
+            {djSeries.length > 0 && visibility.isSectionVisible("drop_jump") && inProtocol("drop_jump") && (
               <ForcePlateDJSection
                 athleteId={id}
                 data={djSeries}
@@ -1355,7 +1419,9 @@ export default function AthleteDetailPage() {
               />
             )}
 
-            {slDjSeries.length > 0 && visibility.isSectionVisible("drop_jump_single") && (
+            {slDjSeries.length > 0 &&
+              visibility.isSectionVisible("drop_jump_single") &&
+              inProtocol("drop_jump_single") && (
               <ForcePlateSingleLegDJSection
                 athleteId={id}
                 data={slDjSeries}
@@ -1363,7 +1429,7 @@ export default function AthleteDetailPage() {
               />
             )}
 
-            {visibility.isSectionVisible("hop_tests") && (
+            {visibility.isSectionVisible("hop_tests") && inProtocol("hop_tests") && (
               <HopTestsSection
                 athleteId={id}
                 blocks={hopTestBlocks}
@@ -1379,7 +1445,7 @@ export default function AthleteDetailPage() {
               />
             )}
 
-            {visibility.isSectionVisible("dynamometry") && (
+            {visibility.isSectionVisible("dynamometry") && inProtocol("dynamometry") && (
               <DynamometrySection
                 athleteId={id}
                 sectionComment={sectionNote("dynamometry")}
