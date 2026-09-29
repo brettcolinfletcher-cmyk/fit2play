@@ -1230,9 +1230,12 @@ export default function AthleteDetailPage() {
                         key={v}
                         type="button"
                         onClick={() => chooseTopView(v)}
+                        // Inline colours: the frosted theme overrides bg-slate-900, which left
+                        // the active option white-on-white.
+                        style={topView === v ? { backgroundColor: "#0f172a", color: "#ffffff" } : undefined}
                         className={
                           topView === v
-                            ? "rounded-full bg-slate-900 px-3 py-1 font-medium text-white"
+                            ? "rounded-full px-3 py-1 font-medium"
                             : "rounded-full px-3 py-1 text-slate-600 hover:text-slate-900"
                         }
                       >
