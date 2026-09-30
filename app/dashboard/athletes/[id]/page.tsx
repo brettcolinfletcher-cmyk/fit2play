@@ -35,11 +35,20 @@ import SnapshotHeader from "@/components/athletes/SnapshotHeader";
 import PerformanceSummaryGrid from "@/components/athletes/PerformanceSummaryGrid";
 import SprintPerformanceCharts from "@/components/athletes/SprintPerformanceCharts";
 import TimepointSummary from "@/components/athletes/TimepointSummary";
-import AthleteRingPanel from "@/components/AthleteRingPanel";
+import AthleteDashboardBody, {
+  parseAthleteViewData,
+  type AthleteViewData,
+} from "@/components/athletes/AthleteDashboardBody";
 import TeamRankDials from "@/components/athletes/TeamRankDials";
-import { protocolIncludes, resolveAthleteProtocol, type ResolvedProtocol } from "@/lib/protocols";
-import type { TestKey } from "@/lib/testCatalogue";
-import AthleteTestSummary from "@/components/AthleteTestSummary";
+import { resolveAthleteProtocol, type ResolvedProtocol } from "@/lib/protocols";
+import {
+  parseTopView,
+  resolveTopView,
+  sectionInProtocol,
+  type AthleteViewSettings,
+  type TopView,
+} from "@/lib/athleteViewSettings";
+import { athleteHeaderStats } from "@/lib/athleteHeaderStats";
 import AthleteIdentityCard from "@/components/athletes/AthleteIdentityCard";
 import SessionDetailByDate from "@/components/athletes/SessionDetailByDate";
 import ZoomableChart from "@/components/charts/ZoomableChart";
@@ -79,19 +88,6 @@ import {
   CHART_TOOLTIP_STYLE,
   ChartDefs,
 } from "@/components/athletes/chartTheme";
-
-// Which protocol tests each dashboard section belongs to. An empty list means
-// the section isn't part of any protocol, so it hides when a protocol is set.
-// Sections not listed here (e.g. lr_settings) always show.
-const SECTION_TESTS: Record<string, TestKey[]> = {
-  linear: ["sprint_40m"],
-  cod: ["cod_505"],
-  cmj: ["cmj"],
-  drop_jump: [],
-  drop_jump_single: [],
-  hop_tests: ["broad_jump", "sl_hop_distance"],
-  dynamometry: ["adductor_squeeze", "abductor_squeeze", "iso_hamstring"],
-};
 
 const ALL_VISIBLE: ReportVisibility = {
   isSectionVisible: () => true,
@@ -480,17 +476,9 @@ export default function AthleteDetailPage() {
   const [athlete, setAthlete] = useState<Athlete | null>(null);
   const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [metricsBySession, setMetricsBySession] = useState<Map<string, MetricRow[]>>(() => new Map());
-  const [perfMetricLatest, setPerfMetricLatest] = useState<Record<string, number>>({});
-  const [perfMetricPrev, setPerfMetricPrev] = useState<Record<string, number>>({});
-  const [perfMetricSides, setPerfMetricSides] = useState<Record<string, number>>({});
-  const [perfIsoLatest, setPerfIsoLatest] = useState<
-    | {
-        kneeExtension: { left: number | null; right: number | null };
-        kneeFlexion: { left: number | null; right: number | null };
-        hipAbduction: { left: number | null; right: number | null };
-      }
-    | undefined
-  >(undefined);
+  // The athlete's own dashboard data (same API the athlete login uses), so the
+  // shared body below shows exactly what the athlete sees.
+  const [athleteView, setAthleteView] = useState<AthleteViewData | null>(null);
   const [perfDataLoading, setPerfDataLoading] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [loading, setLoading] = useState(true);
@@ -758,11 +746,11 @@ export default function AthleteDetailPage() {
       ? "performance"
       : "rtp";
 
-  // Performance-mode score data comes from a different pipeline (RPC-backed,
-  // not date-filtered) than the RTP gauges above, so it's fetched separately
-  // and only when this athlete is actually in performance mode.
+  // The athlete's own dashboard payload (same API the athlete login uses). Fetched for
+  // both modes: the shared body below renders it, so the practitioner sees what the
+  // athlete sees. It isn't date-filtered, same as the athlete's own page.
   useEffect(() => {
-    if (!staffOk || !id || dashboardMode !== "performance") return;
+    if (!staffOk || !id) return;
     let cancelled = false;
     (async () => {
       setPerfDataLoading(true);
@@ -776,51 +764,13 @@ export default function AthleteDetailPage() {
       });
       const json = await res.json().catch(() => ({}));
       if (cancelled) return;
-      if (!res.ok) {
-        setPerfDataLoading(false);
-        return;
-      }
-      setPerfMetricLatest((json.metricLatest as Record<string, number>) ?? {});
-      setPerfMetricPrev((json.metricPrev as Record<string, number>) ?? {});
-      setPerfMetricSides((json.metricSides as Record<string, number>) ?? {});
-
-      const fpTrendMetrics = (json.fpTrendMetrics as {
-        session_date: string;
-        test_type: string;
-        test_sub_type: string | null;
-        key: string;
-        value: string;
-        side: string | null;
-      }[]) ?? [];
-      const isoRows = fpTrendMetrics.filter((r) => r.test_type === "force_plate_isometric");
-      const latestDate = isoRows.length
-        ? [...new Set(isoRows.map((r) => r.session_date.slice(0, 10)))].sort().at(-1)
-        : null;
-      if (latestDate) {
-        const day = isoRows.filter((r) => r.session_date.slice(0, 10) === latestDate);
-        const getSide = (subKeyword: string, side: string): number | null => {
-          const r = day.find(
-            (x) =>
-              (x.test_sub_type ?? "").toLowerCase().includes(subKeyword) &&
-              x.key === "peak_force" &&
-              x.side === side
-          );
-          return r ? Number(r.value) : null;
-        };
-        setPerfIsoLatest({
-          kneeExtension: { left: getSide("knee extension", "left"), right: getSide("knee extension", "right") },
-          kneeFlexion: { left: getSide("knee flexion", "left"), right: getSide("knee flexion", "right") },
-          hipAbduction: { left: getSide("hip abduction", "left"), right: getSide("hip abduction", "right") },
-        });
-      } else {
-        setPerfIsoLatest(undefined);
-      }
+      if (res.ok) setAthleteView(parseAthleteViewData(json));
       setPerfDataLoading(false);
     })();
     return () => {
       cancelled = true;
     };
-  }, [staffOk, id, dashboardMode]);
+  }, [staffOk, id]);
 
   const grouped = useMemo(() => {
     const h: SessionRow[] = [], m: SessionRow[] = [], c: SessionRow[] = [];
@@ -907,35 +857,56 @@ export default function AthleteDetailPage() {
 
   const protocolActive = !!protocol && (!!protocol.protocolId || protocol.tests.length > 0);
 
-  // Performance-mode header: score rings or team-ranking dials. A saved choice
-  // wins; otherwise athletes on a protocol open on the dials.
-  const [topViewChoice, setTopViewChoice] = useState<"rings" | "dials" | null>(null);
+  // Which panel the athlete's own dashboard opens on: score rings or team ranking.
+  // Saved on the athlete (athletes.top_view) so the athlete sees what's picked here.
+  // Unsaved: athletes on a protocol open on the dials, everyone else on the rings.
+  const [topViewChoice, setTopViewChoice] = useState<TopView | null>(null);
+  const [topViewError, setTopViewError] = useState<string | null>(null);
+  const savedTopView = athlete?.top_view;
   useEffect(() => {
-    try {
-      const saved = window.localStorage.getItem("f2p.athleteTopView");
-      if (saved === "rings" || saved === "dials") setTopViewChoice(saved);
-    } catch {
-      // storage unavailable: fall back to the protocol default
-    }
-  }, []);
-  const topView: "rings" | "dials" = topViewChoice ?? (protocolActive ? "dials" : "rings");
-  const chooseTopView = useCallback((v: "rings" | "dials") => {
-    setTopViewChoice(v);
-    try {
-      window.localStorage.setItem("f2p.athleteTopView", v);
-    } catch {
-      // ignore
-    }
-  }, []);
+    setTopViewChoice(parseTopView(savedTopView));
+  }, [savedTopView]);
+  const topView: TopView = topViewChoice ?? resolveTopView(null, protocol);
+  const chooseTopView = useCallback(
+    async (v: TopView) => {
+      const previous = topViewChoice;
+      setTopViewChoice(v);
+      setTopViewError(null);
+      const { error: upErr } = await supabase.from("athletes").update({ top_view: v }).eq("id", id);
+      if (upErr) {
+        setTopViewChoice(previous);
+        setTopViewError(`Could not save: ${upErr.message}`);
+      }
+    },
+    [id, topViewChoice]
+  );
 
   const inProtocol = useCallback(
-    (section: string) => {
-      if (!protocol || !protocolActive || showAllTests) return true;
-      const keys = SECTION_TESTS[section];
-      if (!keys) return true;
-      return keys.some((k) => protocolIncludes(protocol, k));
-    },
-    [protocol, protocolActive, showAllTests]
+    (section: string) => sectionInProtocol(section, protocol, showAllTests),
+    [protocol, showAllTests]
+  );
+
+  // Same settings the athlete's page builds (report builder + protocol), plus the
+  // practitioner-only "show all tests" override, so the shared body previews the athlete's view.
+  const viewSettings = useMemo<AthleteViewSettings>(
+    () => ({ visibility, protocol, showAllTests }),
+    [visibility, protocol, showAllTests]
+  );
+
+  // Live section comments win over the copy in the API payload (fetched at page load).
+  const viewData = useMemo<AthleteViewData | null>(() => {
+    if (!athleteView) return null;
+    const comments: Record<string, string> = {};
+    for (const [k, v] of Object.entries(sectionCommentBySection)) {
+      if (v) comments[k] = v;
+    }
+    return { ...athleteView, sectionComments: comments };
+  }, [athleteView, sectionCommentBySection]);
+
+  const headerStats = useMemo(
+    () =>
+      athleteHeaderStats(sessions.map((s) => ({ testType: s.test_type, date: s.session_date }))),
+    [sessions]
   );
 
   const sectionsWithData = useMemo(() => {
@@ -1181,6 +1152,21 @@ export default function AthleteDetailPage() {
     accelMax505: trend505AccelMax,
   };
 
+  // Editable performance summary (target profile picker, clinician note). Slots into the
+  // shared body in place of the athlete's read-only version.
+  const performanceSummaryGrid = (
+    <PerformanceSummaryGrid
+      athleteId={id}
+      targetProfileId={(athlete?.target_profile_id as string | null) ?? null}
+      sessions={filteredSessions}
+      metricsBySession={metricsBySession}
+      sectionComment={sectionNote("performance_summary")}
+      onProfileChange={(pid) =>
+        setAthlete((a) => (a ? { ...a, target_profile_id: pid } : a))
+      }
+    />
+  );
+
   if (!staffOk) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#f8fafc] text-slate-900 athlete-frosted" data-theme="light">
@@ -1192,7 +1178,7 @@ export default function AthleteDetailPage() {
   return (
     <main className="min-h-screen bg-[#f8fafc] text-slate-900 athlete-frosted" data-theme="light">
       <DashboardNav lightTheme />
-      <section className="mx-auto max-w-4xl px-4 pt-8 pb-20">
+      <section className="mx-auto max-w-7xl px-4 pt-8 pb-20">
         <div className="flex flex-wrap items-center gap-3">
           <Link href="/dashboard/athletes" className="text-xs text-slate-400 hover:text-lime-300">← Athletes</Link>
           <div className="ml-auto flex flex-wrap items-center gap-3">
@@ -1217,8 +1203,21 @@ export default function AthleteDetailPage() {
           <>
             {dashboardMode === "performance" ? (
               <div className="mt-6 space-y-6">
-                <AthleteIdentityCard athlete={athlete} />
-                <div className="flex justify-end">
+                <AthleteIdentityCard
+                  athlete={athlete}
+                  footer={
+                    <dl className="flex flex-wrap gap-x-6 gap-y-2">
+                      {headerStats.map(({ label, value }) => (
+                        <div key={label}>
+                          <dt className="text-[0.62rem] uppercase tracking-widest text-slate-500">{label}</dt>
+                          <dd className="mt-0.5 text-sm font-semibold text-slate-900">{value}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  }
+                />
+                <div className="flex flex-wrap items-center justify-end gap-3">
+                  <span className="text-xs text-slate-500">Athlete sees</span>
                   <div className="inline-flex rounded-full bg-white p-1 text-xs shadow-[0_1px_4px_rgba(0,0,0,0.06)] ring-1 ring-slate-200">
                     {(
                       [
@@ -1244,21 +1243,7 @@ export default function AthleteDetailPage() {
                     ))}
                   </div>
                 </div>
-                {topView === "rings" ? (
-                  <AthleteRingPanel metricLatest={perfMetricLatest} metricPrev={perfMetricPrev} />
-                ) : (
-                  <TeamRankDials athleteId={id} />
-                )}
-                {perfDataLoading ? (
-                  <p className="text-xs text-slate-400">Loading performance data…</p>
-                ) : null}
-                <AthleteTestSummary
-                  metricLatest={perfMetricLatest}
-                  metricPrev={perfMetricPrev}
-                  metricSides={perfMetricSides}
-                  sectionComments={sectionCommentBySection as Record<string, string>}
-                  isoLatest={perfIsoLatest}
-                />
+                {topViewError ? <p className="text-xs text-rose-500">{topViewError}</p> : null}
               </div>
             ) : (
               <SnapshotHeader
@@ -1289,21 +1274,42 @@ export default function AthleteDetailPage() {
               ) : null}
             </div>
 
-            <div className="mt-6">
-              <PerformanceSummaryGrid
-                athleteId={id}
-                targetProfileId={(athlete?.target_profile_id as string | null) ?? null}
-                sessions={filteredSessions}
-                metricsBySession={metricsBySession}
-                sectionComment={sectionNote("performance_summary")}
-                onProfileChange={(pid) =>
-                  setAthlete((a) => (a ? { ...a, target_profile_id: pid } : a))
+            {perfDataLoading && !viewData ? (
+              <p className="mt-6 text-xs text-slate-400">Loading athlete view…</p>
+            ) : null}
+
+            {/* Everything from the top panel down to the longitudinal trends is the same
+                component the athlete's own page renders, filtered by the same settings.
+                Editable versions of the top panel (ranking controls) and the performance
+                summary (target profile, note) slot in. */}
+            {viewData ? (
+              <AthleteDashboardBody
+                data={viewData}
+                settings={viewSettings}
+                topView={topView}
+                topPanel={
+                  dashboardMode !== "performance"
+                    ? null
+                    : topView === "dials"
+                      ? <TeamRankDials athleteId={id} />
+                      : undefined
                 }
+                performanceSummary={performanceSummaryGrid}
               />
-            </div>
+            ) : (
+              <div className="mt-6">{performanceSummaryGrid}</div>
+            )}
 
             <div className="mt-6">
               <SprintPerformanceCharts athleteId={id} />
+            </div>
+
+            <div className="mt-12 flex items-center gap-4">
+              <div className="h-px flex-1 bg-slate-800" />
+              <p className="text-[0.62rem] uppercase tracking-widest text-slate-500">
+                Practitioner tools &amp; detail
+              </p>
+              <div className="h-px flex-1 bg-slate-800" />
             </div>
 
             <SectionJumpNav sectionsWithData={sectionsWithData} />

@@ -12,19 +12,17 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import DashboardNav from "@/components/DashboardNav";
-import AthleteRingPanel from "@/components/AthleteRingPanel";
-import AthleteTestSummary from "@/components/AthleteTestSummary";
-import SprintTrendPanel, {
-  type SprintReportRow,
-} from "@/components/SprintTrendPanel";
-import CmjTrendPanel, { type CmjRow } from "@/components/CmjTrendPanel";
-import DjTrendPanel, { type DjRow } from "@/components/DjTrendPanel";
-import SlDjTrendPanel, { type SlDjRow } from "@/components/SlDjTrendPanel";
 import AthleteAvatar from "@/components/AthleteAvatar";
-import DynamometryTrendPanel, { type DynamometryRows } from "@/components/DynamometryTrendPanel";
-import HopJumpTrendPanel, { type HopJumpRows } from "@/components/HopJumpTrendPanel";
-import PerformanceSummaryCategories from "@/components/athletes/PerformanceSummaryCategories";
-import type { SummaryCategory } from "@/lib/performanceSummary";
+import AthleteDashboardBody, {
+  parseAthleteViewData,
+  type AthleteViewData,
+} from "@/components/athletes/AthleteDashboardBody";
+import { athleteHeaderStats } from "@/lib/athleteHeaderStats";
+import {
+  resolveTopView,
+  visibilityFromRows,
+  type AthleteViewSettings,
+} from "@/lib/athleteViewSettings";
 import type { NormalizedSession } from "@/lib/athleteDashboardData";
 import { formatDisplayDate } from "@/lib/dateDisplay";
 import {
@@ -41,6 +39,7 @@ type AthleteRow = {
   team: string | null;
   organisation: string | null;
   profile_image_url: string | null;
+  top_view: string | null;
 };
 
 type InjuryRow = {
@@ -98,26 +97,7 @@ export default function AthleteProfilePage() {
   });
   const [injurySaving, setInjurySaving] = useState(false);
   const [injuryError, setInjuryError] = useState<string | null>(null);
-  const [metricLatest, setMetricLatest] = useState<Record<string, number>>({});
-  const [metricPrev, setMetricPrev] = useState<Record<string, number>>({});
-  const [metricSides, setMetricSides] = useState<Record<string, number>>({});
-  const [sectionComments, setSectionComments] = useState<Record<string, string>>({});
-  const [performanceSummary, setPerformanceSummary] = useState<SummaryCategory[]>([]);
-  const [fpTrendMetrics, setFpTrendMetrics] = useState<{
-    session_date: string;
-    test_type: string;
-    test_sub_type: string | null;
-    key: string;
-    value: string;
-    side: string | null;
-  }[]>([]);
-  const [hopJumpMetrics, setHopJumpMetrics] = useState<{
-    session_date: string;
-    test_sub_type: string;
-    key: string;
-    value: string;
-    side: string | null;
-  }[]>([]);
+  const [viewData, setViewData] = useState<AthleteViewData | null>(null);
   const [showAllSessions, setShowAllSessions] = useState(false);
   // Theme: Frosted (hardcoded)
   const t = {
@@ -173,27 +153,17 @@ export default function AthleteProfilePage() {
         setAthlete(null);
         setSessions([]);
         setInjuries([]);
-        setMetricLatest({});
-        setMetricPrev({});
-        setMetricSides({});
+        setViewData(null);
         return;
       }
       setAthlete(json.athlete as AthleteRow);
       setSessions((json.sessions as NormalizedSession[]) ?? []);
       setInjuries((json.injuries as InjuryRow[]) ?? []);
-      setMetricLatest((json.metricLatest as Record<string, number>) ?? {});
-      setMetricPrev((json.metricPrev as Record<string, number>) ?? {});
-      setMetricSides((json.metricSides as Record<string, number>) ?? {});
-      setSectionComments((json.sectionComments as Record<string, string>) ?? {});
-      setFpTrendMetrics((json.fpTrendMetrics as typeof fpTrendMetrics) ?? []);
-      setHopJumpMetrics((json.hopJumpMetrics as typeof hopJumpMetrics) ?? []);
-      setPerformanceSummary((json.performanceSummary as SummaryCategory[]) ?? []);
+      setViewData(parseAthleteViewData(json));
     } catch {
       setLoadError("Failed to load athlete");
       setAthlete(null);
-      setMetricLatest({});
-      setMetricPrev({});
-      setMetricSides({});
+      setViewData(null);
     } finally {
       setLoading(false);
     }
@@ -213,262 +183,25 @@ export default function AthleteProfilePage() {
     [sessions]
   );
 
-  const sprintChrono = useMemo(
+  const headerStats = useMemo(
     () =>
-      sessions
-        .filter((s) => isSprintLikeType(s.testType))
-        .sort(
-          (a, b) =>
-            new Date(a.sessionDate ?? a.createdAt).getTime() -
-            new Date(b.sessionDate ?? b.createdAt).getTime()
-        ),
+      athleteHeaderStats(
+        sessions.map((s) => ({ testType: s.testType, date: s.sessionDate ?? s.createdAt }))
+      ),
     [sessions]
   );
 
-  const dynoChrono = useMemo(
+  // What the practitioner has chosen this athlete sees (report builder, protocol,
+  // and which top panel to open on). Resolved server-side in /api/athlete-dashboard
+  // because those tables are staff-only under RLS.
+  const viewSettings = useMemo<AthleteViewSettings | null>(
     () =>
-      sessions
-        .filter((s) => s.testType === "force_plate_isometric")
-        .sort(
-          (a, b) =>
-            new Date(a.sessionDate ?? a.createdAt).getTime() -
-            new Date(b.sessionDate ?? b.createdAt).getTime()
-        ),
-    [sessions]
+      viewData
+        ? { visibility: visibilityFromRows(viewData.reportVisibility), protocol: viewData.protocol }
+        : null,
+    [viewData]
   );
-
-  const lastTestDate = useMemo(() => {
-    if (!sessions.length) return null;
-    const t = Math.max(
-      ...sessions.map((s) => new Date(s.sessionDate ?? s.createdAt).getTime())
-    );
-    return new Date(t);
-  }, [sessions]);
-
-  // One sprint row per date (best peak speed) so "vs previous" compares dates,
-  // not two runs on the same day.
-  const sprintByDate = useMemo(() => {
-    const map = new Map<string, NormalizedSession>();
-    for (const s of sprintChrono) {
-      const d = (s.sessionDate ?? s.createdAt).slice(0, 10);
-      const cur = map.get(d);
-      if (!cur || (s.peakSpeed ?? -Infinity) > (cur.peakSpeed ?? -Infinity)) {
-        map.set(d, s);
-      }
-    }
-    return [...map.values()].sort(
-      (a, b) =>
-        new Date(a.sessionDate ?? a.createdAt).getTime() -
-        new Date(b.sessionDate ?? b.createdAt).getTime()
-    );
-  }, [sprintChrono]);
-
-  const lastSprintDomain = useMemo(() => {
-    const arr = sessions.filter((s) => isSprintLikeType(s.testType));
-    if (!arr.length) return null;
-    return new Date(
-      Math.max(...arr.map((s) => new Date(s.sessionDate ?? s.createdAt).getTime()))
-    );
-  }, [sessions]);
-
-  const lastForcePlateDomain = useMemo(() => {
-    const arr = sessions.filter((s) => isForcePlateType(s.testType));
-    if (!arr.length) return null;
-    return new Date(
-      Math.max(...arr.map((s) => new Date(s.sessionDate ?? s.createdAt).getTime()))
-    );
-  }, [sessions]);
-
-  const lastDynoDomain = useMemo(() => {
-    const arr = sessions.filter((s) => s.testType === "force_plate_isometric");
-    if (!arr.length) return null;
-    return new Date(
-      Math.max(...arr.map((s) => new Date(s.sessionDate ?? s.createdAt).getTime()))
-    );
-  }, [sessions]);
-
-  const sprintReportRows = useMemo<SprintReportRow[]>(
-    () =>
-      sprintByDate.map((s) => ({
-        date: formatDisplayDate(s.sessionDate ?? s.createdAt),
-        rawDate: s.sessionDate ?? s.createdAt,
-        topSpeed: s.peakSpeed,
-        totalTime: s.totalTime,
-        split5m: s.split05m,
-        maxAcceleration: s.maxAcceleration,
-      })),
-    [sprintByDate]
-  );
-
-  const cmjRows = useMemo<CmjRow[]>(() => {
-    const dates = [...new Set(
-      fpTrendMetrics
-        .filter((r) => r.test_type === "force_plate_cmj")
-        .map((r) => r.session_date.slice(0, 10))
-    )].sort();
-    return dates.map((d) => {
-      const rows = fpTrendMetrics.filter(
-        (r) => r.test_type === "force_plate_cmj" && r.session_date.slice(0, 10) === d
-      );
-      const get = (key: string) => {
-        const r = rows.find((x) => x.key === key);
-        return r ? Number(r.value) : null;
-      };
-      const jumpM = get("fp_jump_height");
-      return {
-        date: formatDisplayDate(d),
-        rawDate: d,
-        jumpHeightCm: jumpM != null ? Math.round(jumpM * 1000) / 10 : null,
-        mrsi: get("fp_mrsi"),
-        peakPropulsiveForce: get("fp_peak_propulsive_force"),
-        lrAsymmetryPct: get("fp_lr_peak_propulsive_force"),
-      };
-    });
-  }, [fpTrendMetrics]);
-
-  const djRows = useMemo<DjRow[]>(() => {
-    const dates = [...new Set(
-      fpTrendMetrics
-        .filter((r) => r.test_type === "force_plate_dj")
-        .map((r) => r.session_date.slice(0, 10))
-    )].sort();
-    return dates.map((d) => {
-      const rows = fpTrendMetrics.filter(
-        (r) => r.test_type === "force_plate_dj" && r.session_date.slice(0, 10) === d
-      );
-      const get = (key: string) => {
-        const r = rows.find((x) => x.key === key);
-        return r ? Number(r.value) : null;
-      };
-      const jumpM = get("fp_jump_height");
-      return {
-        date: formatDisplayDate(d),
-        rawDate: d,
-        rsi: get("fp_rsi_best"),
-        jumpHeightCm: jumpM != null ? Math.round(jumpM * 1000) / 10 : null,
-        contactTime: get("fp_contact_time"),
-        flightTime: get("fp_flight_time"),
-      };
-    });
-  }, [fpTrendMetrics]);
-
-  const slDjRows = useMemo<SlDjRow[]>(() => {
-    const dates = [...new Set(
-      fpTrendMetrics
-        .filter((r) => r.test_type === "force_plate_dj_single")
-        .map((r) => r.session_date.slice(0, 10))
-    )].sort();
-    return dates.map((d) => {
-      const rows = fpTrendMetrics.filter(
-        (r) => r.test_type === "force_plate_dj_single" && r.session_date.slice(0, 10) === d
-      );
-      const getSide = (key: string, side: string) => {
-        const r = rows.find((x) => x.key === key && x.side === side);
-        return r ? Number(r.value) : null;
-      };
-      const jumpL = getSide("fp_jump_height", "left");
-      const jumpR = getSide("fp_jump_height", "right");
-      return {
-        date: formatDisplayDate(d),
-        rawDate: d,
-        rsiLeft: getSide("fp_rsi_best", "left"),
-        rsiRight: getSide("fp_rsi_best", "right"),
-        jumpLeft: jumpL != null ? Math.round(jumpL * 1000) / 10 : null,
-        jumpRight: jumpR != null ? Math.round(jumpR * 1000) / 10 : null,
-      };
-    });
-  }, [fpTrendMetrics]);
-
-  const dynamometryRows = useMemo<DynamometryRows>(() => {
-    const isoRows = fpTrendMetrics.filter(
-      (r) => r.test_type === "force_plate_isometric"
-    );
-    const dates = [...new Set(isoRows.map((r) => r.session_date.slice(0, 10)))].sort();
-
-    function buildSubTest(
-      subKeyword: string
-    ): import("@/components/DynamometryTrendPanel").IsoTestRow[] {
-      return dates.map((d) => {
-        const dayRows = isoRows.filter(
-          (r) =>
-            r.session_date.slice(0, 10) === d &&
-            (r.test_sub_type ?? "").toLowerCase().includes(subKeyword)
-        );
-        const get = (key: string, side: string) => {
-          const r = dayRows.find((x) => x.key === key && x.side === side);
-          return r ? Number(r.value) : null;
-        };
-        return {
-          date: formatDisplayDate(d),
-          rawDate: d,
-          leftForce: get("peak_force", "left"),
-          rightForce: get("peak_force", "right"),
-          leftRfd: get("peak_rfd", "left"),
-          rightRfd: get("peak_rfd", "right"),
-        };
-      }).filter((r) => r.leftForce != null || r.rightForce != null);
-    }
-
-    return {
-      kneeExtension: buildSubTest("knee extension"),
-      kneeFlexion: buildSubTest("knee flexion"),
-      hipAbduction: buildSubTest("hip abduction"),
-    };
-  }, [fpTrendMetrics]);
-
-  const hopJumpRows = useMemo<HopJumpRows>(() => {
-    function buildRows(
-      subType: string,
-      bilateral: boolean
-    ): import("@/components/HopJumpTrendPanel").HopJumpRow[] {
-      const rows = hopJumpMetrics.filter((r) => r.test_sub_type === subType);
-      const dates = [...new Set(rows.map((r) => r.session_date.slice(0, 10)))].sort();
-      return dates.map((d) => {
-        const day = rows.filter((r) => r.session_date.slice(0, 10) === d);
-        const get = (key: string, side: string | null) => {
-          const r = day.find((x) => x.key === key && x.side === side);
-          return r ? Number(r.value) : null;
-        };
-        return {
-          date: formatDisplayDate(d),
-          rawDate: d,
-          distLeft: bilateral ? get("total_distance", null) : get("total_distance", "left"),
-          distRight: bilateral ? null : get("total_distance", "right"),
-          peakForce: bilateral ? get("peak_force", null) : null,
-          peakForceLeft: bilateral ? null : get("peak_force", "left"),
-          peakForceRight: bilateral ? null : get("peak_force", "right"),
-        };
-      });
-    }
-    return {
-      broadJump: buildRows("Broad Jump", true),
-      slHop: buildRows("Single Leg Hop", false),
-      tripleHop: buildRows("Triple Hop", false),
-    };
-  }, [hopJumpMetrics]);
-
-  const isoLatest = useMemo(() => {
-    const isoRows = fpTrendMetrics.filter((r) => r.test_type === "force_plate_isometric");
-    const latestDate = isoRows.length
-      ? [...new Set(isoRows.map((r) => r.session_date.slice(0, 10)))].sort().at(-1)
-      : null;
-    if (!latestDate) return undefined;
-    const day = isoRows.filter((r) => r.session_date.slice(0, 10) === latestDate);
-    function getSide(subKeyword: string, side: string): number | null {
-      const r = day.find(
-        (x) =>
-          (x.test_sub_type ?? "").toLowerCase().includes(subKeyword) &&
-          x.key === "peak_force" &&
-          x.side === side
-      );
-      return r ? Number(r.value) : null;
-    }
-    return {
-      kneeExtension: { left: getSide("knee extension", "left"), right: getSide("knee extension", "right") },
-      kneeFlexion: { left: getSide("knee flexion", "left"), right: getSide("knee flexion", "right") },
-      hipAbduction: { left: getSide("hip abduction", "left"), right: getSide("hip abduction", "right") },
-    };
-  }, [fpTrendMetrics]);
+  const topView = resolveTopView(athlete?.top_view, viewData?.protocol ?? null);
 
   async function handleAddInjury(e: FormEvent) {
     e.preventDefault();
@@ -563,13 +296,7 @@ export default function AthleteProfilePage() {
                   </div>
                 </div>
                 <dl className="flex flex-wrap gap-5 md:text-right">
-                  {[
-                    { label: "Last tested", value: lastTestDate ? formatDisplayDate(lastTestDate) : "—" },
-                    { label: "Sprint", value: lastSprintDomain ? formatDisplayDate(lastSprintDomain) : "—" },
-                    { label: "Force plate", value: lastForcePlateDomain ? formatDisplayDate(lastForcePlateDomain) : "—" },
-                    { label: "Strength", value: lastDynoDomain ? formatDisplayDate(lastDynoDomain) : "—" },
-                    { label: "Sessions", value: String(sessions.length) },
-                  ].map(({ label, value }) => (
+                  {headerStats.map(({ label, value }) => (
                     <div key={label}>
                       <dt className="text-[0.62rem] uppercase tracking-widest text-slate-500">{label}</dt>
                       <dd className="mt-0.5 text-sm font-semibold text-slate-100">{value}</dd>
@@ -579,54 +306,13 @@ export default function AthleteProfilePage() {
               </div>
             </header>
 
-            {/* ── Performance score ───────────────────────────────────── */}
-            <div className="mt-6">
-              <AthleteRingPanel metricLatest={metricLatest} metricPrev={metricPrev} />
-            </div>
-
-            {/* ── Latest results ──────────────────────────────────────── */}
-            <AthleteTestSummary
-              metricLatest={metricLatest}
-              metricPrev={metricPrev}
-              metricSides={metricSides}
-              sectionComments={sectionComments}
-              isoLatest={isoLatest}
-            />
-
-            {/* ── Performance summary (read-only; targets set by your clinician) ── */}
-            {performanceSummary.length > 0 ? (
-              <div className="mt-6 space-y-3">
-                <PerformanceSummaryCategories categories={performanceSummary} />
-                {sectionComments.performance_summary?.trim() ? (
-                  <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-4">
-                    <p className="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">
-                      Clinician note
-                    </p>
-                    <p className="mt-2 whitespace-pre-wrap text-sm text-slate-300">
-                      {sectionComments.performance_summary}
-                    </p>
-                  </div>
-                ) : null}
-              </div>
+            {/* ── Dashboard body ──────────────────────────────────────── */}
+            {/* Same component the practitioner's page renders, so both see the same thing.
+                What shows here follows the practitioner's report builder, protocol and
+                top-panel choice (see /api/athlete-dashboard). */}
+            {viewData && viewSettings ? (
+              <AthleteDashboardBody data={viewData} settings={viewSettings} topView={topView} />
             ) : null}
-
-            {/* ── Trend data ──────────────────────────────────────────── */}
-            <div className="mt-12 space-y-10">
-              {/* Section eyebrow */}
-              <div className="flex items-center gap-4">
-                <div className="h-px flex-1 bg-slate-800" />
-                <p className="text-[0.62rem] uppercase tracking-widest text-slate-500">Longitudinal trends</p>
-                <div className="h-px flex-1 bg-slate-800" />
-              </div>
-
-              <SprintTrendPanel rows={sprintReportRows} />
-
-              {cmjRows.length > 0 && <CmjTrendPanel rows={cmjRows} />}
-              {djRows.length > 0 && <DjTrendPanel rows={djRows} />}
-              {slDjRows.length > 0 && <SlDjTrendPanel rows={slDjRows} />}
-              <DynamometryTrendPanel rows={dynamometryRows} />
-              <HopJumpTrendPanel rows={hopJumpRows} />
-            </div>
 
             {/* ── Admin (collapsed) ───────────────────────────────────── */}
             <div className="mt-12 space-y-4">

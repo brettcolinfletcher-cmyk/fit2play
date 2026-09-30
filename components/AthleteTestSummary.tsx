@@ -12,6 +12,8 @@ type Props = {
     kneeFlexion: { left: number | null; right: number | null };
     hipAbduction: { left: number | null; right: number | null };
   };
+  /** Section keys (linear, cmj, drop_jump, drop_jump_single, dynamometry) the practitioner has hidden from this athlete. */
+  hiddenSections?: ReadonlySet<string>;
 };
 
 type HeadlineMetric = {
@@ -139,9 +141,9 @@ function SymmetryBars({
 }
 
 export default function AthleteTestSummary({
-  metricLatest, metricPrev, metricSides, sectionComments = {}, isoLatest,
+  metricLatest, metricPrev, metricSides, sectionComments = {}, isoLatest, hiddenSections,
 }: Props) {
-  const cards = TESTS.map((t) => {
+  const cards = TESTS.filter((t) => !hiddenSections?.has(SECTION_KEY[t.type] ?? "")).map((t) => {
     const metrics = t.headline
       .map((h) => {
         const rawLatest = metricLatest[`${t.type}:${h.key}`] ?? null;
@@ -171,9 +173,11 @@ export default function AthleteTestSummary({
     feeds: string[];
   }[];
 
-  if (!cards.length && !isoLatest) return null;
+  const isoShown = !!isoLatest && !hiddenSections?.has("dynamometry");
 
-  const isoSubTests = isoLatest ? [
+  if (!cards.length && !isoShown) return null;
+
+  const isoSubTests = isoShown && isoLatest ? [
     { label: "Knee Extension", ...isoLatest.kneeExtension },
     { label: "Knee Flexion", ...isoLatest.kneeFlexion },
     { label: "Hip Abduction", ...isoLatest.hipAbduction },

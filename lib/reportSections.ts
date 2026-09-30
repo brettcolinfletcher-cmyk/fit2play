@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabaseClient";
 import { normaliseSubType, parseHhdMovement } from "@/lib/reportCore";
+import { visibilityFromRows } from "@/lib/athleteViewSettings";
 
 // Re-exported for backward compatibility — these now live in the
 // dependency-free lib/reportCore.ts so server routes can use them without
@@ -23,10 +24,6 @@ export const REPORT_SECTIONS: ReportSection[] = [
   { key: "hop_tests", label: "Hop tests", source: "mixed" },
 ];
 
-function visibilityMapKey(section: string, subKey: string): string {
-  return `${section}|${subKey}`;
-}
-
 export type ReportVisibility = {
   isSectionVisible: (section: string) => boolean;
   isSubtestVisible: (section: string, subKey: string) => boolean;
@@ -45,27 +42,9 @@ export async function fetchReportVisibility(
     console.error("fetchReportVisibility:", error.message);
   }
 
-  const raw = new Map<string, boolean>();
-  for (const row of data ?? []) {
-    raw.set(
-      visibilityMapKey(row.section, row.sub_key ?? ""),
-      row.visible
-    );
-  }
-
-  return {
-    raw,
-    isSectionVisible(section: string) {
-      const stored = raw.get(visibilityMapKey(section, ""));
-      return stored ?? true;
-    },
-    isSubtestVisible(section: string, subKey: string) {
-      const stored = raw.get(
-        visibilityMapKey(section, normaliseSubType(subKey))
-      );
-      return stored ?? true;
-    },
-  };
+  // Shared with the athlete's own dashboard (lib/athleteViewSettings) so both
+  // resolve report-builder visibility identically.
+  return visibilityFromRows(data ?? []);
 }
 
 export async function setReportVisibility(args: {

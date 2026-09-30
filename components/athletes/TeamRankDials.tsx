@@ -29,7 +29,7 @@ export type ComparisonSpec = {
   levels: string[];
 };
 
-type RankRow = {
+export type RankRow = {
   metric: DialMetric | "adductor" | "_meta";
   val: number | string | null;
   rnk: number | null;
@@ -125,6 +125,71 @@ function SpeedDial({ def, row }: { def: DialDef; row: RankRow | undefined }) {
         <div className="text-xs text-slate-400">{value != null ? "Not ranked" : "Not tested"}</div>
       ) : null}
     </div>
+  );
+}
+
+/** The dial grid plus the adductor line. Shared by the editable and read-only panels. */
+function DialGrid({ protocol, rows }: { protocol: ResolvedProtocol; rows: RankRow[] }) {
+  const dials = DIALS.filter((d) => protocolIncludes(protocol, d.testKey));
+  const showAdductor = protocolIncludes(protocol, "adductor_squeeze");
+  const adductor = rows.find((r) => r.metric === "adductor");
+  const byMetric = new Map<RankRow["metric"], RankRow>(rows.map((r) => [r.metric, r] as const));
+
+  return (
+    <>
+      {dials.length > 0 ? (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          {dials.map((d) => (
+            <SpeedDial key={d.metric} def={d} row={byMetric.get(d.metric)} />
+          ))}
+        </div>
+      ) : null}
+
+      {showAdductor ? (
+        <div className="mt-3 flex items-baseline justify-between rounded-xl bg-white px-4 py-3 shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
+          <span className="text-sm text-slate-600">Adductor squeeze (60° hip flexion)</span>
+          <span className="text-lg font-semibold text-slate-900">
+            {adductor?.val != null ? Math.round(Number(adductor.val)) : "–"}{" "}
+            <span className="text-xs font-normal text-slate-500">N</span>
+          </span>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+/**
+ * What the athlete sees on their own dashboard when the practitioner has chosen
+ * the team-ranking panel: same dials, none of the compare-to controls. The ranks
+ * and protocol come from /api/athlete-dashboard (service role), because an athlete
+ * login can't read teams or athlete_teams directly.
+ */
+export function ReadOnlyRankDials({
+  protocol,
+  rows,
+}: {
+  protocol: ResolvedProtocol | null;
+  rows: RankRow[];
+}) {
+  if (!protocol) return null;
+  const meta = rows.find((r) => r.metric === "_meta");
+
+  return (
+    <section className="rounded-2xl bg-slate-50 p-4">
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <h2 className="text-sm font-semibold text-slate-900">Ranking</h2>
+        {protocol.protocolName ? (
+          <span className="rounded-full bg-white px-2.5 py-0.5 text-xs text-slate-700 ring-1 ring-slate-200">
+            {protocol.protocolName}
+          </span>
+        ) : null}
+      </div>
+      <p className="mb-3 text-xs text-slate-500">
+        Compared to {meta?.cohort_label ?? "—"}
+        {meta?.cohort_size != null ? ` (${meta.cohort_size} athletes)` : ""}
+      </p>
+      <DialGrid protocol={protocol} rows={rows} />
+    </section>
   );
 }
 
@@ -306,11 +371,6 @@ export default function TeamRankDials({ athleteId }: { athleteId: string }) {
 
   if (loading) return <p className="text-xs text-slate-400">Loading rankings…</p>;
   if (!protocol) return null;
-
-  const dials = DIALS.filter((d) => protocolIncludes(protocol, d.testKey));
-  const showAdductor = protocolIncludes(protocol, "adductor_squeeze");
-  const adductor = rows.find((r) => r.metric === "adductor");
-  const byMetric = new Map<RankRow["metric"], RankRow>(rows.map((r) => [r.metric, r] as const));
 
   const groupValue = current.base === "team" && !ownTeamId ? "all" : current.base;
 
@@ -501,23 +561,7 @@ export default function TeamRankDials({ athleteId }: { athleteId: string }) {
       </p>
       {error ? <p className="mb-3 text-xs text-rose-500">{error}</p> : null}
 
-      {dials.length > 0 ? (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-          {dials.map((d) => (
-            <SpeedDial key={d.metric} def={d} row={byMetric.get(d.metric)} />
-          ))}
-        </div>
-      ) : null}
-
-      {showAdductor ? (
-        <div className="mt-3 flex items-baseline justify-between rounded-xl bg-white px-4 py-3 shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
-          <span className="text-sm text-slate-600">Adductor squeeze (60° hip flexion)</span>
-          <span className="text-lg font-semibold text-slate-900">
-            {adductor?.val != null ? Math.round(Number(adductor.val)) : "–"}{" "}
-            <span className="text-xs font-normal text-slate-500">N</span>
-          </span>
-        </div>
-      ) : null}
+      <DialGrid protocol={protocol} rows={rows} />
     </section>
   );
 }

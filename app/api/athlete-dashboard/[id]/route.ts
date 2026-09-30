@@ -4,6 +4,7 @@ import { normalizeSessionRow } from "@/lib/athleteDashboardData";
 import type { NormalizedSession } from "@/lib/athleteDashboardData";
 import { computePerformanceSummary } from "@/lib/performanceSummary";
 import { fetchTargetOverridesForAthlete } from "@/lib/performanceTargets";
+import { resolveAthleteProtocol } from "@/lib/protocols";
 import type { ReportMetricRow, ReportSessionRow } from "@/lib/athleteReportData";
 
 export const dynamic = "force-dynamic";
@@ -170,6 +171,22 @@ export async function GET(
     p_athlete: id,
   });
 
+  // What the practitioner has chosen this athlete sees. athlete_report_sections,
+  // athlete_teams and teams are staff-only under RLS, so an athlete login's browser
+  // client can't read them. This route uses the service role, so it resolves them here.
+  const { data: visRows } = await supabase
+    .from("athlete_report_sections")
+    .select("section, sub_key, visible")
+    .eq("athlete_id", id);
+
+  const protocol = await resolveAthleteProtocol(supabase, id).catch(() => null);
+
+  // Team-ranking dials. p_comparison null = use the saved spec (athlete, then team).
+  const { data: rankRows } = await supabase.rpc("athlete_cohort_ranks", {
+    p_athlete_id: id,
+    p_comparison: null,
+  });
+
   // Performance Summary (CMJ/Power/Speed/Accel/Decel/COD/Strength) — computed
   // server-side here so the athlete-facing page can render it read-only
   // without needing raw sessions/metrics client-side.
@@ -214,5 +231,8 @@ export async function GET(
     fpTrendMetrics: fpRows ?? [],
     hopJumpMetrics: hopRows ?? [],
     performanceSummary,
+    reportVisibility: visRows ?? [],
+    protocol,
+    cohortRanks: rankRows ?? [],
   });
 }
