@@ -89,3 +89,16 @@ export function parseTopView(v: unknown): TopView | null {
 export function resolveTopView(saved: unknown, protocol: ResolvedProtocol | null): TopView {
   return parseTopView(saved) ?? (protocolIsActive(protocol) ? "dials" : "rings");
 }
+
+// ── Card look (light vs dark "latest results" tiles) ──────────────────────────────────────────────
+
+export type CardTone = "light" | "dark";
+
+export function parseCardTone(v: unknown): CardTone | null {
+  return v === "light" || v === "dark" ? v : null;
+}
+
+/** Unsaved = light (the frosted look). */
+export function resolveCardTone(saved: unknown): CardTone {
+  return parseCardTone(saved) ?? "light";
+}

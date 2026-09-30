@@ -42,10 +42,13 @@ import AthleteDashboardBody, {
 import TeamRankDials from "@/components/athletes/TeamRankDials";
 import { resolveAthleteProtocol, type ResolvedProtocol } from "@/lib/protocols";
 import {
+  parseCardTone,
   parseTopView,
+  resolveCardTone,
   resolveTopView,
   sectionInProtocol,
   type AthleteViewSettings,
+  type CardTone,
   type TopView,
 } from "@/lib/athleteViewSettings";
 import { athleteHeaderStats } from "@/lib/athleteHeaderStats";
@@ -469,6 +472,44 @@ function ChartShell({
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
+const CARD_TONE_OPTIONS: readonly (readonly [CardTone, string])[] = [
+  ["light", "Light"],
+  ["dark", "Dark"],
+];
+
+/** Small pill switch for the "what the athlete sees" settings. */
+function PillToggle<T extends string>({
+  value,
+  options,
+  onChange,
+}: {
+  value: T;
+  options: readonly (readonly [T, string])[];
+  onChange: (v: T) => void;
+}) {
+  return (
+    <div className="inline-flex rounded-full bg-white p-1 text-xs shadow-[0_1px_4px_rgba(0,0,0,0.06)] ring-1 ring-slate-200">
+      {options.map(([v, label]) => (
+        <button
+          key={v}
+          type="button"
+          onClick={() => onChange(v)}
+          // Inline colours: the frosted theme overrides bg-slate-900, which left the
+          // active option white-on-white.
+          style={value === v ? { backgroundColor: "#0f172a", color: "#ffffff" } : undefined}
+          className={
+            value === v
+              ? "rounded-full px-3 py-1 font-medium"
+              : "rounded-full px-3 py-1 text-slate-600 hover:text-slate-900"
+          }
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export default function AthleteDetailPage() {
   const { id } = useParams<{ id: string }>();
   const staffOk = useRequireDashboardStaff();
@@ -881,6 +922,29 @@ export default function AthleteDetailPage() {
     [id, topViewChoice]
   );
 
+  // Look of the athlete's latest-results cards (light or dark). Saved on the athlete
+  // (athletes.card_theme) so the athlete sees what's picked here. Unsaved = light.
+  const [cardToneChoice, setCardToneChoice] = useState<CardTone | null>(null);
+  const [cardToneError, setCardToneError] = useState<string | null>(null);
+  const savedCardTone = athlete?.card_theme;
+  useEffect(() => {
+    setCardToneChoice(parseCardTone(savedCardTone));
+  }, [savedCardTone]);
+  const cardTone: CardTone = resolveCardTone(cardToneChoice);
+  const chooseCardTone = useCallback(
+    async (v: CardTone) => {
+      const previous = cardToneChoice;
+      setCardToneChoice(v);
+      setCardToneError(null);
+      const { error: upErr } = await supabase.from("athletes").update({ card_theme: v }).eq("id", id);
+      if (upErr) {
+        setCardToneChoice(previous);
+        setCardToneError(`Could not save: ${upErr.message}`);
+      }
+    },
+    [id, cardToneChoice]
+  );
+
   const inProtocol = useCallback(
     (section: string) => sectionInProtocol(section, protocol, showAllTests),
     [protocol, showAllTests]
@@ -1242,7 +1306,10 @@ export default function AthleteDetailPage() {
                       </button>
                     ))}
                   </div>
+                  <span className="ml-2 text-xs text-slate-500">Cards</span>
+                  <PillToggle value={cardTone} options={CARD_TONE_OPTIONS} onChange={chooseCardTone} />
                 </div>
+                {cardToneError ? <p className="text-xs text-rose-500">{cardToneError}</p> : null}
                 {topViewError ? <p className="text-xs text-rose-500">{topViewError}</p> : null}
               </div>
             ) : (
@@ -1274,6 +1341,14 @@ export default function AthleteDetailPage() {
               ) : null}
             </div>
 
+            {dashboardMode !== "performance" ? (
+              <div className="mt-6 flex flex-wrap items-center justify-end gap-3">
+                <span className="text-xs text-slate-500">Athlete sees cards</span>
+                <PillToggle value={cardTone} options={CARD_TONE_OPTIONS} onChange={chooseCardTone} />
+                {cardToneError ? <span className="text-xs text-rose-500">{cardToneError}</span> : null}
+              </div>
+            ) : null}
+
             {perfDataLoading && !viewData ? (
               <p className="mt-6 text-xs text-slate-400">Loading athlete view…</p>
             ) : null}
@@ -1287,6 +1362,7 @@ export default function AthleteDetailPage() {
                 data={viewData}
                 settings={viewSettings}
                 topView={topView}
+                cardTone={cardTone}
                 topPanel={
                   dashboardMode !== "performance"
                     ? null

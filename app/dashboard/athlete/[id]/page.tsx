@@ -19,6 +19,7 @@ import AthleteDashboardBody, {
 } from "@/components/athletes/AthleteDashboardBody";
 import { athleteHeaderStats } from "@/lib/athleteHeaderStats";
 import {
+  resolveCardTone,
   resolveTopView,
   visibilityFromRows,
   type AthleteViewSettings,
@@ -40,6 +41,7 @@ type AthleteRow = {
   organisation: string | null;
   profile_image_url: string | null;
   top_view: string | null;
+  card_theme: string | null;
 };
 
 type InjuryRow = {
@@ -311,7 +313,12 @@ export default function AthleteProfilePage() {
                 What shows here follows the practitioner's report builder, protocol and
                 top-panel choice (see /api/athlete-dashboard). */}
             {viewData && viewSettings ? (
-              <AthleteDashboardBody data={viewData} settings={viewSettings} topView={topView} />
+              <AthleteDashboardBody
+                data={viewData}
+                settings={viewSettings}
+                topView={topView}
+                cardTone={resolveCardTone(athlete.card_theme)}
+              />
             ) : null}
 
             {/* ── Admin (collapsed) ───────────────────────────────────── */}

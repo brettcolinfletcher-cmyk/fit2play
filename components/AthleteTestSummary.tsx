@@ -14,6 +14,11 @@ type Props = {
   };
   /** Section keys (linear, cmj, drop_jump, drop_jump_single, dynamometry) the practitioner has hidden from this athlete. */
   hiddenSections?: ReadonlySet<string>;
+  /**
+   * "light" = white frosted cards (the athlete page's original look); "dark" = the navy
+   * anchor tiles. Chosen by the practitioner per athlete (athletes.card_theme).
+   */
+  tone?: "light" | "dark";
 };
 
 type HeadlineMetric = {
@@ -141,8 +146,15 @@ function SymmetryBars({
 }
 
 export default function AthleteTestSummary({
-  metricLatest, metricPrev, metricSides, sectionComments = {}, isoLatest, hiddenSections,
+  metricLatest, metricPrev, metricSides, sectionComments = {}, isoLatest, hiddenSections, tone = "dark",
 }: Props) {
+  // Dark tiles are forced navy by .f2p-dark-tile in globals.css. Light tiles use plain
+  // slate classes so the frosted light-theme overrides turn them white.
+  const tileClass =
+    tone === "dark"
+      ? "f2p-dark-tile rounded-xl border p-5 transition-all duration-200"
+      : "rounded-xl border border-slate-800 bg-slate-900/40 p-5 transition-all duration-200";
+
   const cards = TESTS.filter((t) => !hiddenSections?.has(SECTION_KEY[t.type] ?? "")).map((t) => {
     const metrics = t.headline
       .map((h) => {
@@ -197,7 +209,7 @@ export default function AthleteTestSummary({
         {cards.map(({ t, metrics, sym, feeds }) => (
           <div
             key={t.type}
-            className="f2p-dark-tile rounded-xl border p-5 transition-all duration-200"
+            className={tileClass}
           >
             {/* Card header */}
             <div className="mb-4 flex items-center gap-2">
@@ -266,7 +278,7 @@ export default function AthleteTestSummary({
 
         {/* Isometric strength card — stacked sub-tests */}
         {isoHasData && (
-          <div className="f2p-dark-tile rounded-xl border p-5 transition-all duration-200">
+          <div className={tileClass}>
             <div className="mb-4 flex items-center gap-2">
               <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-800 text-sm">▮</span>
               <p className="text-sm font-semibold text-slate-100">Isometric strength</p>

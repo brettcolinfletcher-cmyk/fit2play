@@ -31,6 +31,7 @@ import { formatDisplayDate } from "@/lib/dateDisplay";
 import {
   sectionShown,
   type AthleteViewSettings,
+  type CardTone,
   type ReportVisibilityRow,
   type TopView,
 } from "@/lib/athleteViewSettings";
@@ -101,6 +102,8 @@ type Props = {
   data: AthleteViewData;
   settings: AthleteViewSettings;
   topView: TopView;
+  /** Look of the latest-results cards. Defaults to light. Set per athlete by the practitioner. */
+  cardTone?: CardTone;
   /**
    * undefined = default (score rings, or read-only ranking dials when topView is "dials").
    * null = no top panel. A node replaces it (the practitioner's editable dials).
@@ -114,6 +117,7 @@ export default function AthleteDashboardBody({
   data,
   settings,
   topView,
+  cardTone = "light",
   topPanel,
   performanceSummary,
 }: Props) {
@@ -377,6 +381,7 @@ export default function AthleteDashboardBody({
         sectionComments={sectionComments}
         isoLatest={isoLatest}
         hiddenSections={hiddenSections}
+        tone={cardTone}
       />
 
       {/* ── Performance summary (targets set by the clinician) ─── */}
