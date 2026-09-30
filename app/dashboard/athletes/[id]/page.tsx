@@ -1225,6 +1225,7 @@ export default function AthleteDetailPage() {
       sessions={filteredSessions}
       metricsBySession={metricsBySession}
       sectionComment={sectionNote("performance_summary")}
+      tone={cardTone}
       onProfileChange={(pid) =>
         setAthlete((a) => (a ? { ...a, target_profile_id: pid } : a))
       }

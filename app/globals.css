@@ -751,3 +751,13 @@ body {
 [data-theme="tinted"] .f2p-dark-panel .border-slate-800\/80,
 [data-theme="tinted"] .f2p-dark-tile .border-slate-800\/80 { border-color: rgba(30,41,59,0.8) !important; }
 
+/* Row dividers inside the dark anchor zones. The generic light-theme rule
+   (.divide-y > * + *) paints them near-white, which showed as bright lines across the
+   dark Performance Summary panel. Keep them subtle. */
+[data-theme="light"] .f2p-dark-panel .divide-y > * + *,
+[data-theme="light"] .f2p-dark-tile .divide-y > * + *,
+[data-theme="bordered"] .f2p-dark-panel .divide-y > * + *,
+[data-theme="bordered"] .f2p-dark-tile .divide-y > * + *,
+[data-theme="tinted"] .f2p-dark-panel .divide-y > * + *,
+[data-theme="tinted"] .f2p-dark-tile .divide-y > * + * { border-color: rgba(51,65,85,0.6) !important; }
+

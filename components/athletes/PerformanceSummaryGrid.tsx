@@ -20,6 +20,8 @@ type Props = {
   metricsBySession: Map<string, ReportMetricRow[]>;
   sectionComment: string | null;
   onProfileChange?: (profileId: string | null) => void;
+  /** Follows the athlete's card_theme so this panel matches the latest-results cards. */
+  tone?: "light" | "dark";
 };
 
 /**
@@ -36,6 +38,7 @@ export default function PerformanceSummaryGrid({
   metricsBySession,
   sectionComment,
   onProfileChange,
+  tone = "dark",
 }: Props) {
   const [profiles, setProfiles] = useState<TargetProfile[]>([]);
   const [activeProfileId, setActiveProfileId] = useState<string | null>(targetProfileId);
@@ -91,10 +94,17 @@ export default function PerformanceSummaryGrid({
 
   if (!loaded) return null;
 
+  // The picker sets its own colours inline (native selects ignore the theme overrides).
+  const selectColors =
+    tone === "light"
+      ? { backgroundColor: "#ffffff", color: "#0f172a" }
+      : { backgroundColor: "#020617", color: "#e2e8f0" };
+
   return (
     <div className="space-y-3">
       <PerformanceSummaryCategories
         categories={categories}
+        tone={tone}
         headerRight={
           <label className="flex items-center gap-2 text-[0.7rem] text-slate-400">
             Targets
@@ -102,11 +112,13 @@ export default function PerformanceSummaryGrid({
               <select
                 value={activeProfileId ?? ""}
                 onChange={(e) => void handleProfileChange(e.target.value)}
-                className="appearance-none rounded-lg border border-slate-700 bg-slate-950 py-1 pl-2 pr-6 text-xs text-slate-200 focus:border-lime-500 focus:outline-none [color-scheme:dark]"
-                style={{ backgroundColor: "#020617", color: "#e2e8f0" }}
+                className={`appearance-none rounded-lg border border-slate-700 bg-slate-950 py-1 pl-2 pr-6 text-xs text-slate-200 focus:border-lime-500 focus:outline-none ${
+                  tone === "light" ? "[color-scheme:light]" : "[color-scheme:dark]"
+                }`}
+                style={selectColors}
               >
                 {profiles.map((p) => (
-                  <option key={p.id} value={p.id} style={{ backgroundColor: "#020617", color: "#e2e8f0" }}>
+                  <option key={p.id} value={p.id} style={selectColors}>
                     {p.name}
                     {p.is_default ? " (default)" : ""}
                   </option>
@@ -127,7 +139,11 @@ export default function PerformanceSummaryGrid({
             </span>
             <a
               href="/dashboard/performance-targets"
-              className="text-lime-400/90 hover:text-lime-300 hover:underline"
+              className={
+                tone === "light"
+                  ? "text-lime-700 hover:underline"
+                  : "text-lime-400/90 hover:text-lime-300 hover:underline"
+              }
             >
               Manage →
             </a>

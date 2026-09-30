@@ -389,7 +389,7 @@ export default function AthleteDashboardBody({
         performanceSummary ? <div className="mt-6">{performanceSummary}</div> : null
       ) : data.performanceSummary.length > 0 ? (
         <div className="mt-6 space-y-3">
-          <PerformanceSummaryCategories categories={data.performanceSummary} />
+          <PerformanceSummaryCategories categories={data.performanceSummary} tone={cardTone} />
           {sectionComments.performance_summary?.trim() ? (
             <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-4">
               <p className="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">
