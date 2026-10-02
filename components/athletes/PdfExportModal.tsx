@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { pdf } from "@react-pdf/renderer";
 import AthletePdfDocument from "@/components/athletes/AthletePdfDocument";
 import {
-  computeBestInRangeData,
   computeDateComparisonData,
   formatChartAxisDate,
   sessionOptionLabel,
@@ -42,7 +41,9 @@ type AthleteForPdf = {
   /** Optional extended fields used by the new snapshot page. */
   primary_sport?: string | null;
   team?: string | null;
-  date_of_birth?: string | null;
+  /** Numeric columns can arrive as strings from PostgREST; the PDF coerces. */
+  height_cm?: number | string | null;
+  weight_kg?: number | string | null;
   target_profile_id?: string | null;
   /** "rtp" (exit-criteria/READINESS gauges) vs "performance" (composite monitoring, no READINESS). */
   dashboard_mode?: string | null;
@@ -213,11 +214,6 @@ export default function PdfExportModal({
         return;
       }
 
-      const bestInRange = computeBestInRangeData(
-        scopeSessions,
-        metricsBySession,
-        scopeHopTests
-      );
       const pdfCharts =
         mode === "best"
           ? buildPdfReportCharts(
@@ -298,7 +294,8 @@ export default function PdfExportModal({
           athleteName={athleteName}
           athleteSport={athlete.primary_sport ?? null}
           athleteTeam={athlete.team ?? null}
-          athleteDob={athlete.date_of_birth ?? null}
+          athleteHeightCm={athlete.height_cm ?? null}
+          athleteWeightKg={athlete.weight_kg ?? null}
           rangeStart={exportFrom}
           rangeEnd={exportTo}
           mode={mode}
@@ -307,7 +304,6 @@ export default function PdfExportModal({
           includeNotes={includeNotes}
           summaryComment={summaryComment.trim() || null}
           sectionComments={sectionComments}
-          bestInRange={bestInRange}
           dateComparisonData={dateComparisonData}
           pdfCharts={pdfCharts}
           pdfContext={pdfContext}
@@ -335,7 +331,8 @@ export default function PdfExportModal({
     athlete.id,
     athlete.primary_sport,
     athlete.team,
-    athlete.date_of_birth,
+    athlete.height_cm,
+    athlete.weight_kg,
     athlete.target_profile_id,
     dashboardMode,
     athleteName,
