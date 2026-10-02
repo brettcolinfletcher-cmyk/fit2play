@@ -13,6 +13,7 @@ import type {
 import type { AthleteSnapshot } from "@/lib/athleteSnapshot";
 import type { SummaryCategory } from "@/lib/performanceSummary";
 import type { ReportVisibility } from "@/lib/reportSections";
+import { PDF_CATEGORY_TITLE, PDF_METRIC_COPY, plainTarget, plainValue } from "@/lib/pdfSummaryCopy";
 import { PDF_FONT } from "@/components/athletes/pdf/charts/pdfChartTheme";
 
 // ─── Fonts ───
@@ -455,6 +456,87 @@ const styles = StyleSheet.create({
     color: "#6b7280",
     marginBottom: 5,
   },
+  // ─── Performance summary (client-friendly: two balanced columns) ───
+  sumIntro: {
+    fontSize: 7,
+    color: "#6b7280",
+    marginBottom: 6,
+  },
+  sumCols: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+  },
+  sumColLeft: {
+    width: "50%",
+    paddingRight: 5,
+  },
+  sumColRight: {
+    width: "50%",
+    paddingLeft: 5,
+  },
+  sumCard: {
+    borderWidth: 0.75,
+    borderColor: "#e5e7eb",
+    borderRadius: 6,
+    paddingVertical: 7,
+    paddingHorizontal: 9,
+    backgroundColor: "#fafafa",
+    marginBottom: 8,
+  },
+  sumCardHead: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    justifyContent: "space-between",
+    marginBottom: 3,
+  },
+  sumCardTitle: {
+    fontSize: 9,
+    fontWeight: 700,
+    color: "#111827",
+  },
+  sumCardDate: {
+    fontSize: 6.5,
+    color: "#9ca3af",
+  },
+  sumRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    paddingVertical: 5,
+    borderTopWidth: 0.5,
+    borderTopColor: "#e5e7eb",
+  },
+  sumRowLeft: {
+    flex: 1,
+    paddingRight: 8,
+  },
+  sumRowRight: {
+    maxWidth: 112,
+    alignItems: "flex-end",
+  },
+  sumLabel: {
+    fontSize: 8,
+    fontWeight: 700,
+    color: "#111827",
+  },
+  sumHint: {
+    fontSize: 6.8,
+    color: "#6b7280",
+    marginTop: 1.5,
+    lineHeight: 1.3,
+  },
+  sumValue: {
+    fontSize: 10.5,
+    fontWeight: 700,
+    color: "#111827",
+    textAlign: "right",
+  },
+  sumTarget: {
+    fontSize: 6.5,
+    color: "#9ca3af",
+    marginTop: 1.5,
+    textAlign: "right",
+  },
   // ─── Footer ───
   footer: {
     position: "absolute",
@@ -534,38 +616,65 @@ function DeltaArrow({ delta }: { delta: PdfDelta }) {
 // The PDF shows absolute values only: no Needs Work / Good / Poor verdict
 // pills on Performance Summary rows or Key Findings tiles. Where the athlete
 // sits against the group is carried by the ranking dials instead.
+// Wording comes from lib/pdfSummaryCopy.ts (plain language for clients).
 function PerformanceSummarySection({ categories }: { categories: SummaryCategory[] }) {
   // Only what was actually measured: no empty "No data" rows or cards.
   const shown = categories
     .map((c) => ({ ...c, metrics: c.metrics.filter((m) => m.value != null) }))
     .filter((c) => c.metrics.length > 0);
   if (shown.length === 0) return null;
+
+  // Two balanced columns instead of paired rows, so a short card never leaves
+  // a big gap next to a tall one.
+  const cols: [SummaryCategory[], SummaryCategory[]] = [[], []];
+  const weight: [number, number] = [0, 0];
+  for (const cat of shown) {
+    const i: 0 | 1 = weight[0] <= weight[1] ? 0 : 1;
+    cols[i].push(cat);
+    weight[i] += 1.3 + cat.metrics.length;
+  }
+
   return (
-    <View>
+    <View wrap={false}>
       <Text style={styles.sectionBanner}>PERFORMANCE SUMMARY</Text>
-      <View style={styles.perfSummaryGrid}>
-        {shown.map((cat) => (
-          <View key={cat.id} style={styles.perfSummaryCard} wrap={false}>
-            <View style={styles.perfSummaryCardInner}>
-              <View style={styles.perfSummaryCardTitleRow}>
-                <Text style={styles.perfSummaryCardTitle}>{cat.label}</Text>
-                {cat.commonSourceLabel ? (
-                  <Text style={styles.perfSummaryCardSource}>{cat.commonSourceLabel}</Text>
-                ) : null}
-              </View>
-              {cat.metrics.map((m) => (
-                <View key={m.id} style={styles.perfSummaryRow}>
-                  <Text style={styles.perfSummaryLabel}>{m.label}</Text>
-                  {!cat.commonSourceLabel && m.sourceDate ? (
-                    <Text style={styles.perfSummaryDate}>{m.sourceDate}</Text>
-                  ) : null}
-                  <View style={styles.perfSummaryRowBottom}>
-                    <Text style={styles.perfSummaryValue}>{m.displayValue}</Text>
-                    <Text style={styles.perfSummaryTarget}>Target {m.targetLabel}</Text>
+      <Text style={styles.sumIntro}>
+        The most recent result for each test. Targets are a guide to work towards.
+      </Text>
+      <View style={styles.sumCols}>
+        {cols.map((col, ci) => (
+          <View key={ci} style={ci === 0 ? styles.sumColLeft : styles.sumColRight}>
+            {col.map((cat) => {
+              const dates = [
+                ...new Set(cat.metrics.map((m) => m.sourceDate).filter((d): d is string => !!d)),
+              ];
+              const commonDate = dates.length === 1 ? dates[0]! : null;
+              return (
+                <View key={cat.id} style={styles.sumCard} wrap={false}>
+                  <View style={styles.sumCardHead}>
+                    <Text style={styles.sumCardTitle}>{PDF_CATEGORY_TITLE[cat.id] ?? cat.label}</Text>
+                    {commonDate ? <Text style={styles.sumCardDate}>{commonDate}</Text> : null}
                   </View>
+                  {cat.metrics.map((m) => {
+                    const copy = PDF_METRIC_COPY[m.id];
+                    const hint = [copy?.hint, !commonDate ? m.sourceDate : null]
+                      .filter(Boolean)
+                      .join(" \u00b7 ");
+                    return (
+                      <View key={m.id} style={styles.sumRow}>
+                        <View style={styles.sumRowLeft}>
+                          <Text style={styles.sumLabel}>{copy?.label ?? m.label}</Text>
+                          {hint ? <Text style={styles.sumHint}>{hint}</Text> : null}
+                        </View>
+                        <View style={styles.sumRowRight}>
+                          <Text style={styles.sumValue}>{plainValue(m.displayValue)}</Text>
+                          <Text style={styles.sumTarget}>{plainTarget(m.targetLabel)}</Text>
+                        </View>
+                      </View>
+                    );
+                  })}
                 </View>
-              ))}
-            </View>
+              );
+            })}
           </View>
         ))}
       </View>
@@ -836,8 +945,8 @@ export default function AthletePdfDocument({
         {isBest && ctx ? (
           <>
             {ctx.findings.length > 0 ? (
-              <View>
-                <Text style={styles.sectionBanner} minPresenceAhead={120}>KEY FINDINGS</Text>
+              <View wrap={false}>
+                <Text style={styles.sectionBanner}>KEY FINDINGS</Text>
                 <View style={styles.findingsGrid}>
                   {ctx.findings.map((f) => (
                     <FindingTile key={f.id} finding={f} />
