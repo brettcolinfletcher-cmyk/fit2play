@@ -5,16 +5,13 @@ import PdfLineChart from "@/components/athletes/pdf/charts/PdfLineChart";
 import PdfRankDials, { type PdfRankDial } from "@/components/athletes/pdf/charts/PdfRankDials";
 import type { DateComparisonData } from "@/lib/athleteReportData";
 import type {
-  PdfBandTag,
-  PdfBandTone,
   PdfDelta,
   PdfKeyFinding,
   PdfReportCharts,
   PdfReportContext,
-  PdfTierTag,
 } from "@/lib/pdfReportChartData";
 import type { AthleteSnapshot } from "@/lib/athleteSnapshot";
-import type { SummaryCategory, SummaryTier } from "@/lib/performanceSummary";
+import type { SummaryCategory } from "@/lib/performanceSummary";
 import type { ReportVisibility } from "@/lib/reportSections";
 import { PDF_FONT } from "@/components/athletes/pdf/charts/pdfChartTheme";
 
@@ -514,34 +511,6 @@ function formatWeight(v: number | string | null | undefined): string | null {
   return `${Number.isInteger(n) ? n : n.toFixed(1)} kg`;
 }
 
-// ─── Band pill colours ───
-// Mirrors `bandLabelToClasses` in lib/performanceBands.ts but as hex colours
-// for the PDF (Tailwind classes don't compile into @react-pdf).
-const BAND_COLORS: Record<
-  PdfBandTone,
-  { bg: string; text: string; border: string }
-> = {
-  elite: { bg: "#d1fae5", text: "#047857", border: "#a7f3d0" },
-  good: { bg: "#fef9c3", text: "#a16207", border: "#fef08a" },
-  fair: { bg: "#ffedd5", text: "#9a3412", border: "#fed7aa" },
-  poor: { bg: "#fee2e2", text: "#b91c1c", border: "#fecaca" },
-  neutral: { bg: "#f3f4f6", text: "#374151", border: "#e5e7eb" },
-};
-
-function BandPill({ band }: { band: PdfBandTag }) {
-  const c = BAND_COLORS[band.tone] ?? BAND_COLORS.neutral;
-  return (
-    <View
-      style={[
-        styles.pill,
-        { backgroundColor: c.bg, borderColor: c.border },
-      ]}
-    >
-      <Text style={[styles.pillLabel, { color: c.text }]}>{band.label}</Text>
-    </View>
-  );
-}
-
 function DeltaArrow({ delta }: { delta: PdfDelta }) {
   const isFlat = delta.absoluteChange === 0;
   const isImprovement = delta.lowerIsBetter
@@ -562,46 +531,20 @@ function DeltaArrow({ delta }: { delta: PdfDelta }) {
   );
 }
 
-const PERF_TIER_COLOR: Record<SummaryTier, string> = {
-  needs_work: "#dc2626",
-  developing: "#ea580c",
-  building: "#d97706",
-  good: "#65a30d",
-  excellent: "#16a34a",
-  no_data: "#9ca3af",
-};
-
-/**
- * Key Findings' equivalent of the Performance Summary panel's tier badge —
- * same colours, same "Needs Work/Developing/Building/Good/Excellent" labels
- * (PERF_TIER_COLOR / TIER_LABELS), so a finding badged this way reads as
- * part of the same vocabulary as the rest of the report instead of
- * introducing a second, population-normed Poor/Fair/Good/Elite scale
- * (that's what BandPill/PdfBandTag is, for metrics with performance_bands
- * rows configured).
- */
-function TierPill({ tier }: { tier: PdfTierTag }) {
-  const color = PERF_TIER_COLOR[tier.tier];
-  return (
-    <View
-      style={[
-        styles.pill,
-        { backgroundColor: `${color}1a`, borderColor: color },
-      ]}
-    >
-      <Text style={[styles.pillLabel, { color }]}>{tier.label}</Text>
-    </View>
-  );
-}
-
+// The PDF shows absolute values only: no Needs Work / Good / Poor verdict
+// pills on Performance Summary rows or Key Findings tiles. Where the athlete
+// sits against the group is carried by the ranking dials instead.
 function PerformanceSummarySection({ categories }: { categories: SummaryCategory[] }) {
-  const hasAnyData = categories.some((c) => c.metrics.some((m) => m.value != null));
-  if (!hasAnyData) return null;
+  // Only what was actually measured: no empty "No data" rows or cards.
+  const shown = categories
+    .map((c) => ({ ...c, metrics: c.metrics.filter((m) => m.value != null) }))
+    .filter((c) => c.metrics.length > 0);
+  if (shown.length === 0) return null;
   return (
     <View>
       <Text style={styles.sectionBanner}>PERFORMANCE SUMMARY</Text>
       <View style={styles.perfSummaryGrid}>
-        {categories.map((cat) => (
+        {shown.map((cat) => (
           <View key={cat.id} style={styles.perfSummaryCard} wrap={false}>
             <View style={styles.perfSummaryCardInner}>
               <View style={styles.perfSummaryCardTitleRow}>
@@ -610,33 +553,18 @@ function PerformanceSummarySection({ categories }: { categories: SummaryCategory
                   <Text style={styles.perfSummaryCardSource}>{cat.commonSourceLabel}</Text>
                 ) : null}
               </View>
-              {cat.metrics.map((m) => {
-                const color = PERF_TIER_COLOR[m.tier];
-                return (
-                  <View key={m.id} style={styles.perfSummaryRow}>
-                    <View style={styles.perfSummaryRowTop}>
-                      <View>
-                        <Text style={styles.perfSummaryLabel}>{m.label}</Text>
-                        {!cat.commonSourceLabel && m.sourceDate ? (
-                          <Text style={styles.perfSummaryDate}>{m.sourceDate}</Text>
-                        ) : null}
-                      </View>
-                      <View
-                        style={[
-                          styles.perfBadge,
-                          { backgroundColor: `${color}1a`, borderColor: color },
-                        ]}
-                      >
-                        <Text style={[styles.perfBadgeText, { color }]}>{m.tierLabel}</Text>
-                      </View>
-                    </View>
-                    <View style={styles.perfSummaryRowBottom}>
-                      <Text style={styles.perfSummaryValue}>{m.displayValue}</Text>
-                      <Text style={styles.perfSummaryTarget}>Target {m.targetLabel}</Text>
-                    </View>
+              {cat.metrics.map((m) => (
+                <View key={m.id} style={styles.perfSummaryRow}>
+                  <Text style={styles.perfSummaryLabel}>{m.label}</Text>
+                  {!cat.commonSourceLabel && m.sourceDate ? (
+                    <Text style={styles.perfSummaryDate}>{m.sourceDate}</Text>
+                  ) : null}
+                  <View style={styles.perfSummaryRowBottom}>
+                    <Text style={styles.perfSummaryValue}>{m.displayValue}</Text>
+                    <Text style={styles.perfSummaryTarget}>Target {m.targetLabel}</Text>
                   </View>
-                );
-              })}
+                </View>
+              ))}
             </View>
           </View>
         ))}
@@ -652,16 +580,11 @@ function FindingTile({ finding }: { finding: PdfKeyFinding }) {
         <Text style={styles.findingLabel}>{finding.label}</Text>
         <Text style={styles.findingValue}>{finding.value}</Text>
         <Text style={styles.findingDate}>{finding.dateLabel}</Text>
-        {(finding.tier || finding.band || finding.delta) && (
+        {finding.delta ? (
           <View style={styles.findingMeta}>
-            {finding.tier ? (
-              <TierPill tier={finding.tier} />
-            ) : finding.band ? (
-              <BandPill band={finding.band} />
-            ) : null}
-            {finding.delta ? <DeltaArrow delta={finding.delta} /> : null}
+            <DeltaArrow delta={finding.delta} />
           </View>
-        )}
+        ) : null}
       </View>
     </View>
   );
