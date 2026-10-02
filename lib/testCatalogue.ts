@@ -68,6 +68,6 @@ export const DIALS: DialDef[] = [
   { metric: "max_speed", label: "Max speed", unit: "km/h", decimals: 1, testKey: "sprint_40m" },
   { metric: "acceleration", label: "Acceleration", unit: "m/s²", decimals: 1, testKey: "sprint_40m" },
   { metric: "deceleration", label: "Deceleration", unit: "m/s²", decimals: 1, testKey: "cod_505" },
-  { metric: "cod", label: "5-0-5 COD", unit: "s", decimals: 2, testKey: "cod_505" },
+  { metric: "cod", label: "Change of direction", unit: "s", decimals: 2, testKey: "cod_505" },
   { metric: "jump_height", label: "Jump height", unit: "cm", decimals: 1, testKey: "cmj" },
 ];

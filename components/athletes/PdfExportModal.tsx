@@ -99,6 +99,7 @@ export default function PdfExportModal({
   const [dateAId, setDateAId] = useState<string | null>(null);
   const [dateBId, setDateBId] = useState<string | null>(null);
   const [includeNotes, setIncludeNotes] = useState(false);
+  const [includeTargets, setIncludeTargets] = useState(false);
   const [summaryComment, setSummaryComment] = useState("");
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -110,6 +111,7 @@ export default function PdfExportModal({
     setFormError(null);
     setMode("best");
     setIncludeNotes(false);
+    setIncludeTargets(false);
     setSummaryComment("");
   }, [open, rangeStart, rangeEnd]);
 
@@ -291,6 +293,7 @@ export default function PdfExportModal({
           compareDateALabel={compareDateALabel}
           compareDateBLabel={compareDateBLabel}
           includeNotes={includeNotes}
+          showTargets={includeTargets}
           summaryComment={summaryComment.trim() || null}
           sectionComments={sectionComments}
           dateComparisonData={dateComparisonData}
@@ -332,6 +335,7 @@ export default function PdfExportModal({
     exportFrom,
     exportTo,
     includeNotes,
+    includeTargets,
     metricsBySession,
     mode,
     onClose,
@@ -451,6 +455,16 @@ export default function PdfExportModal({
               className="rounded border-slate-600 bg-slate-950 text-lime-500 focus:ring-lime-500/40"
             />
             Include clinical notes
+          </label>
+
+          <label className="flex cursor-pointer items-center gap-2 text-xs text-slate-300">
+            <input
+              type="checkbox"
+              checked={includeTargets}
+              onChange={(e) => setIncludeTargets(e.target.checked)}
+              className="rounded border-slate-600 bg-slate-950 text-lime-500 focus:ring-lime-500/40"
+            />
+            Show targets in the performance summary
           </label>
 
           <div>

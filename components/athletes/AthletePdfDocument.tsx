@@ -591,7 +591,14 @@ function formatWeight(v: number | string | null | undefined): string | null {
 // pills on the Performance Summary. Where the athlete
 // sits against the group is carried by the ranking dials instead.
 // Wording comes from lib/pdfSummaryCopy.ts (plain language for clients).
-function PerformanceSummarySection({ categories }: { categories: SummaryCategory[] }) {
+function PerformanceSummarySection({
+  categories,
+  showTargets,
+}: {
+  categories: SummaryCategory[];
+  /** Off by default: targets are still placeholders. Switched on per export in the modal. */
+  showTargets: boolean;
+}) {
   // Only what was actually measured: no empty "No data" rows or cards.
   const shown = categories
     .map((c) => ({ ...c, metrics: c.metrics.filter((m) => m.value != null) }))
@@ -612,7 +619,9 @@ function PerformanceSummarySection({ categories }: { categories: SummaryCategory
     <View wrap={false}>
       <Text style={styles.sectionBanner}>PERFORMANCE SUMMARY</Text>
       <Text style={styles.sumIntro}>
-        The most recent result for each test. Targets are a guide to work towards.
+        {showTargets
+          ? "The most recent result for each test. Targets are a guide to work towards."
+          : "The most recent result for each test."}
       </Text>
       <View style={styles.sumCols}>
         {cols.map((col, ci) => (
@@ -641,7 +650,9 @@ function PerformanceSummarySection({ categories }: { categories: SummaryCategory
                         </View>
                         <View style={styles.sumRowRight}>
                           <Text style={styles.sumValue}>{plainValue(m.displayValue)}</Text>
-                          <Text style={styles.sumTarget}>{plainTarget(m.targetLabel)}</Text>
+                          {showTargets ? (
+                            <Text style={styles.sumTarget}>{plainTarget(m.targetLabel)}</Text>
+                          ) : null}
                         </View>
                       </View>
                     );
@@ -694,6 +705,8 @@ export type PdfProps = {
   compareDateALabel?: string;
   compareDateBLabel?: string;
   includeNotes: boolean;
+  /** Show the "Target ..." line under each Performance Summary value (default off). */
+  showTargets?: boolean;
   summaryComment: string | null;
   sectionComments: Record<string, string | null>;
   dateComparisonData?: DateComparisonData;
@@ -754,6 +767,7 @@ export default function AthletePdfDocument({
   compareDateALabel = "Date A",
   compareDateBLabel = "Date B",
   includeNotes,
+  showTargets = false,
   summaryComment,
   sectionComments,
   dateComparisonData,
@@ -888,7 +902,7 @@ export default function AthletePdfDocument({
 
         {/* PERFORMANCE SUMMARY — CMJ/Power/Speed/Accel/Decel/COD at a glance. */}
         {isBest && performanceSummary ? (
-          <PerformanceSummarySection categories={performanceSummary} />
+          <PerformanceSummarySection categories={performanceSummary} showTargets={showTargets} />
         ) : null}
 
         {/* The sprint section's clinician note (the sprint chart itself is replaced by
