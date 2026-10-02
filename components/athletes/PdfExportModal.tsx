@@ -14,14 +14,8 @@ import {
 } from "@/lib/athleteReportData";
 import {
   buildPdfReportCharts,
-  buildPdfReportContext,
   type MetricRowWithSide,
-  type PdfReportContext,
 } from "@/lib/pdfReportChartData";
-import {
-  normalizePerformanceBandRow,
-  type NormalizedPerformanceBand,
-} from "@/lib/performanceBands";
 import {
   computeAthleteSnapshot,
   type AthleteSnapshot,
@@ -108,34 +102,6 @@ export default function PdfExportModal({
   const [summaryComment, setSummaryComment] = useState("");
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
-  const [bands, setBands] = useState<NormalizedPerformanceBand[]>([]);
-
-  // Fetch performance bands once the modal opens; cached in state for the
-  // lifetime of the modal. Empty array on error — the resolver falls back to
-  // its built-in defaults (currently only peakSpeed has one).
-  useEffect(() => {
-    if (!open) return;
-    let cancelled = false;
-    (async () => {
-      const { data, error } = await supabase
-        .from("performance_bands")
-        .select("*");
-      if (cancelled) return;
-      if (error || !data) {
-        setBands([]);
-        return;
-      }
-      const norm: NormalizedPerformanceBand[] = [];
-      for (const row of data) {
-        const r = normalizePerformanceBandRow(row as Record<string, unknown>);
-        if (r) norm.push(r);
-      }
-      setBands(norm);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -228,25 +194,11 @@ export default function PdfExportModal({
               exportTo
             )
           : null;
-      // Fetched once and reused by both buildPdfReportContext (Key Findings'
-      // tier badges) and computePerformanceSummary, so a 5m split / 5-0-5
-      // total time finding and its Performance Summary counterpart always
-      // read against the exact same resolved target — never two slightly
-      // different reads of "the same" target profile.
+      // Resolved once: the same target profile drives every Performance Summary row.
       const targetOverrides =
         mode === "best"
           ? (await fetchTargetOverridesForAthlete(supabase, athlete.target_profile_id ?? null)).targets
           : {};
-      const pdfContext: PdfReportContext | null =
-        mode === "best"
-          ? buildPdfReportContext(
-              scopeSessions,
-              metricsBySession as Map<string, MetricRowWithSide[]>,
-              scopeHopTests,
-              bands,
-              targetOverrides
-            )
-          : null;
       const snapshot: AthleteSnapshot | null =
         mode === "best" && dashboardMode === "rtp"
           ? computeAthleteSnapshot(
@@ -348,7 +300,6 @@ export default function PdfExportModal({
           sectionComments={sectionComments}
           dateComparisonData={dateComparisonData}
           pdfCharts={pdfCharts}
-          pdfContext={pdfContext}
           snapshot={snapshot}
           rankDials={rankDials}
           rankCaption={rankCaption}
@@ -380,7 +331,6 @@ export default function PdfExportModal({
     athlete.target_profile_id,
     dashboardMode,
     athleteName,
-    bands,
     compareDateALabel,
     compareDateBLabel,
     dateAId,

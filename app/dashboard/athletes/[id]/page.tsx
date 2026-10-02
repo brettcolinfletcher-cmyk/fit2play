@@ -159,12 +159,15 @@ const METRIC_LABELS: Record<string, string> = {
   decel_time: "Decel Time",
   top_speed_position: "Top Speed Position",
   external_load: "External Load",
-  split_5m_time: "5m Split Time",
+  split_0_5m_time: "0–5 m Time",
+  split_5m_time: "5m Segment Time",
   split_5m_top_speed: "5m Top Speed",
   split_5m_max_force: "5m Max Force",
-  split_10m_time: "10m Split Time",
+  split_10m_time: "0–10 m Time",
   split_10m_top_speed: "10m Top Speed",
-  split_20m_time: "20m Split Time",
+  split_20m_time: "0–20 m Time",
+  split_30m_time: "0–30 m Time",
+  split_40m_time: "0–40 m Time",
 };
 
 function titleCaseWords(s: string): string {
@@ -269,14 +272,16 @@ function sessionsChronological(sess: SessionRow[]): SessionRow[] {
 
 // ─── Sprint / COD metric pickers ─────────────────────────────────────────────
 
-type SprintChartId = "topSpeed" | "peakForce" | "peakPower" | "split5m";
+type SprintChartId = "topSpeed" | "peakForce" | "peakPower" | "split5m" | "split10m" | "split20m";
 type CodChartId = "topSpeed505" | "decelMax505" | "accelMax505";
 
 const SPRINT_METRICS = [
   { key: "topSpeed", label: "Top Speed", unit: "m/s" },
   { key: "peakForce", label: "Peak Force", unit: "N" },
   { key: "peakPower", label: "Peak Power", unit: "W" },
-  { key: "split5m", label: "5m Split Time", unit: "s" },
+  { key: "split5m", label: "0–5 m Time", unit: "s" },
+  { key: "split10m", label: "0–10 m Time", unit: "s" },
+  { key: "split20m", label: "0–20 m Time", unit: "s" },
 ] as const;
 
 const SPRINT_DEFAULT = new Set<string>(["topSpeed", "peakForce", "peakPower"]);
@@ -1061,8 +1066,22 @@ export default function AthleteDetailPage() {
     [linearDateGroups, trendFromDateGroups]
   );
 
-  const trendSplit5m = useMemo(
-    () => trendFromDateGroups(linearDateGroups, "split_5m_time", "min"),
+  // 0-5 / 0-10 / 0-20 m are cumulative times derived from the sprint time series
+  // (refresh_sprint_splits). 0-5 m falls back to the device's older 5 m interval rows.
+  const trendSplit5m = useMemo(() => {
+    const cumulative = trendFromDateGroups(linearDateGroups, "split_0_5m_time", "min");
+    return cumulative.points.length > 0
+      ? cumulative
+      : trendFromDateGroups(linearDateGroups, "split_5m_time", "min");
+  }, [linearDateGroups, trendFromDateGroups]);
+
+  const trendSplit10m = useMemo(
+    () => trendFromDateGroups(linearDateGroups, "split_10m_time", "min"),
+    [linearDateGroups, trendFromDateGroups]
+  );
+
+  const trendSplit20m = useMemo(
+    () => trendFromDateGroups(linearDateGroups, "split_20m_time", "min"),
     [linearDateGroups, trendFromDateGroups]
   );
 
@@ -1205,6 +1224,8 @@ export default function AthleteDetailPage() {
     peakForce: trendPeakForce,
     peakPower: trendPeakPower,
     split5m: trendSplit5m,
+    split10m: trendSplit10m,
+    split20m: trendSplit20m,
   };
 
   const codTrendByKey: Record<

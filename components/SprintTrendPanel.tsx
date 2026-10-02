@@ -30,12 +30,21 @@ export type SprintReportRow = {
   topSpeed: number | null;
   totalTime: number | null;
   split5m: number | null;
+  /** Cumulative time to reach 10 m / 20 m (derived from the sprint time series). */
+  split10m?: number | null;
+  split20m?: number | null;
   maxAcceleration: number | null;
   peakForce?: number | null;
   peakPower?: number | null;
 };
 
-type MetricKey = "topSpeed" | "totalTime" | "split5m" | "maxAcceleration";
+type MetricKey =
+  | "topSpeed"
+  | "totalTime"
+  | "split5m"
+  | "split10m"
+  | "split20m"
+  | "maxAcceleration";
 
 const METRIC_CONFIG: {
   key: MetricKey;
@@ -46,6 +55,8 @@ const METRIC_CONFIG: {
 }[] = [
   { key: "topSpeed", label: "Top Speed (m/s)", color: "#a3e635", axis: "speed", lowerIsBetter: false },
   { key: "split5m", label: "0–5 m Time (s)", color: "#60a5fa", axis: "time", lowerIsBetter: true },
+  { key: "split10m", label: "0–10 m Time (s)", color: "#38bdf8", axis: "time", lowerIsBetter: true },
+  { key: "split20m", label: "0–20 m Time (s)", color: "#c084fc", axis: "time", lowerIsBetter: true },
   { key: "totalTime", label: "Total Time (s)", color: "#f97316", axis: "time", lowerIsBetter: true },
   { key: "maxAcceleration", label: "Max Accel (m/s²)", color: "#34d399", axis: "speed", lowerIsBetter: false },
 ];
@@ -70,11 +81,19 @@ export default function SprintTrendPanel({
 
   const hasForce = rows.some((r) => r.peakForce != null);
   const hasPower = rows.some((r) => r.peakPower != null);
+  const hasSplit10 = rows.some((r) => r.split10m != null);
+  const hasSplit20 = rows.some((r) => r.split20m != null);
+  // The 10 m / 20 m splits only appear once an athlete has them.
+  const metricConfig = METRIC_CONFIG.filter(
+    (m) => (m.key !== "split10m" || hasSplit10) && (m.key !== "split20m" || hasSplit20)
+  );
 
   const avg = useMemo(() => {
     const cols: (keyof SprintReportRow)[] = [
       "topSpeed",
       "split5m",
+      "split10m",
+      "split20m",
       "totalTime",
       "maxAcceleration",
       "peakForce",
@@ -109,7 +128,7 @@ export default function SprintTrendPanel({
     );
   }
 
-  const activeList = METRIC_CONFIG.filter((m) => activeMetrics.has(m.key));
+  const activeList = metricConfig.filter((m) => activeMetrics.has(m.key));
 
   return (
     <div className="space-y-4">
@@ -117,7 +136,7 @@ export default function SprintTrendPanel({
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <h2 className="mb-4 text-xs uppercase tracking-wide text-slate-500">{title}</h2>
           <div className="flex flex-wrap gap-2">
-            {METRIC_CONFIG.map((m) => (
+            {metricConfig.map((m) => (
               <button
                 key={m.key}
                 type="button"
@@ -204,6 +223,8 @@ export default function SprintTrendPanel({
               <th className="py-3 pl-5 pr-4 font-medium">Date</th>
               <th className="py-3 px-4 font-medium">Top Speed (m/s)</th>
               <th className="py-3 px-4 font-medium">0–5 m Time (s)</th>
+              {hasSplit10 ? <th className="py-3 px-4 font-medium">0–10 m Time (s)</th> : null}
+              {hasSplit20 ? <th className="py-3 px-4 font-medium">0–20 m Time (s)</th> : null}
               <th className="py-3 px-4 font-medium">Total Time (s)</th>
               <th className="py-3 px-4 font-medium">Max Accel (m/s²)</th>
               {hasForce ? <th className="py-3 px-4 font-medium">Peak Force (N)</th> : null}
@@ -218,6 +239,8 @@ export default function SprintTrendPanel({
                 </td>
                 <MC value={row.topSpeed} avg={avg.topSpeed} lb={false} dp={2} />
                 <MC value={row.split5m} avg={avg.split5m} lb={true} dp={2} />
+                {hasSplit10 ? <MC value={row.split10m ?? null} avg={avg.split10m} lb={true} dp={2} /> : null}
+                {hasSplit20 ? <MC value={row.split20m ?? null} avg={avg.split20m} lb={true} dp={2} /> : null}
                 <MC value={row.totalTime} avg={avg.totalTime} lb={true} dp={2} />
                 <MC value={row.maxAcceleration} avg={avg.maxAcceleration} lb={false} dp={2} />
                 {hasForce ? (
@@ -234,6 +257,8 @@ export default function SprintTrendPanel({
               <td className="py-3 pl-5 pr-4 text-slate-500">Average</td>
               <td className="py-3 px-4 text-lime-600">{fmt(avg.topSpeed)}</td>
               <td className="py-3 px-4">{fmt(avg.split5m)}</td>
+              {hasSplit10 ? <td className="py-3 px-4">{fmt(avg.split10m)}</td> : null}
+              {hasSplit20 ? <td className="py-3 px-4">{fmt(avg.split20m)}</td> : null}
               <td className="py-3 px-4">{fmt(avg.totalTime)}</td>
               <td className="py-3 px-4">{fmt(avg.maxAcceleration)}</td>
               {hasForce ? <td className="py-3 px-4">{fmt(avg.peakForce, 0)}</td> : null}

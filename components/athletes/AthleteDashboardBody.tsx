@@ -174,6 +174,8 @@ export default function AthleteDashboardBody({
         topSpeed: s.peakSpeed,
         totalTime: s.totalTime,
         split5m: s.split05m,
+        split10m: s.split10m,
+        split20m: s.split20m,
         maxAcceleration: s.maxAcceleration,
       }));
   }, [sessions, show.linear, show.cod, visibility]);

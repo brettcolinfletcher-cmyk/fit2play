@@ -1,15 +1,9 @@
 import { Document, Font, Image, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
-import PdfBarChart from "@/components/athletes/pdf/charts/PdfBarChart";
 import PdfGroupedBarChart from "@/components/athletes/pdf/charts/PdfGroupedBarChart";
 import PdfLineChart from "@/components/athletes/pdf/charts/PdfLineChart";
 import PdfRankDials, { type PdfRankDial } from "@/components/athletes/pdf/charts/PdfRankDials";
 import type { DateComparisonData } from "@/lib/athleteReportData";
-import type {
-  PdfDelta,
-  PdfKeyFinding,
-  PdfReportCharts,
-  PdfReportContext,
-} from "@/lib/pdfReportChartData";
+import type { PdfReportCharts } from "@/lib/pdfReportChartData";
 import type { AthleteSnapshot } from "@/lib/athleteSnapshot";
 import type { SummaryCategory } from "@/lib/performanceSummary";
 import type { ReportVisibility } from "@/lib/reportSections";
@@ -593,28 +587,8 @@ function formatWeight(v: number | string | null | undefined): string | null {
   return `${Number.isInteger(n) ? n : n.toFixed(1)} kg`;
 }
 
-function DeltaArrow({ delta }: { delta: PdfDelta }) {
-  const isFlat = delta.absoluteChange === 0;
-  const isImprovement = delta.lowerIsBetter
-    ? delta.absoluteChange < 0
-    : delta.absoluteChange > 0;
-  const color = isFlat ? "#9ca3af" : isImprovement ? "#059669" : "#dc2626";
-  const pct = delta.pctChange;
-  // Signed magnitude (no ▲/▼ — built-in Helvetica lacks those glyphs).
-  // Number shows the actual change; colour shows whether it's good or bad.
-  const label = isFlat
-    ? "0.0%"
-    : `${pct > 0 ? "+" : "-"}${Math.abs(pct).toFixed(1)}%`;
-  return (
-    <View style={styles.delta}>
-      <Text style={[styles.deltaPct, { color }]}>{label}</Text>
-      <Text style={styles.deltaPrev}>vs {delta.previousDateLabel}</Text>
-    </View>
-  );
-}
-
 // The PDF shows absolute values only: no Needs Work / Good / Poor verdict
-// pills on Performance Summary rows or Key Findings tiles. Where the athlete
+// pills on the Performance Summary. Where the athlete
 // sits against the group is carried by the ranking dials instead.
 // Wording comes from lib/pdfSummaryCopy.ts (plain language for clients).
 function PerformanceSummarySection({ categories }: { categories: SummaryCategory[] }) {
@@ -682,23 +656,6 @@ function PerformanceSummarySection({ categories }: { categories: SummaryCategory
   );
 }
 
-function FindingTile({ finding }: { finding: PdfKeyFinding }) {
-  return (
-    <View style={styles.findingTile} wrap={false}>
-      <View style={styles.findingTileInner}>
-        <Text style={styles.findingLabel}>{finding.label}</Text>
-        <Text style={styles.findingValue}>{finding.value}</Text>
-        <Text style={styles.findingDate}>{finding.dateLabel}</Text>
-        {finding.delta ? (
-          <View style={styles.findingMeta}>
-            <DeltaArrow delta={finding.delta} />
-          </View>
-        ) : null}
-      </View>
-    </View>
-  );
-}
-
 function MetaPill({ label, value }: { label: string; value: string }) {
   return (
     <View style={styles.metaPill}>
@@ -742,8 +699,6 @@ export type PdfProps = {
   dateComparisonData?: DateComparisonData;
   /** Native SVG charts for "best" mode only */
   pdfCharts?: PdfReportCharts | null;
-  /** Snapshot context (tests-included + key findings); "best" mode only. */
-  pdfContext?: PdfReportContext | null;
   /** Computed athlete snapshot (readiness + symmetry gauges); "best" mode only. */
   snapshot?: AthleteSnapshot | null;
   /** Team-ranking speed dials (same as the dashboard); "best" mode only. */
@@ -804,7 +759,6 @@ export default function AthletePdfDocument({
   sectionComments,
   dateComparisonData,
   pdfCharts = null,
-  pdfContext = null,
   snapshot = null,
   rankDials = null,
   rankCaption = null,
@@ -818,7 +772,6 @@ export default function AthletePdfDocument({
   const gen = generatedStamp();
 
   const dc = dateComparisonData;
-  const ctx = pdfContext ?? null;
   const isBest = mode === "best";
   const showSection = (key: string): boolean =>
     visibility ? visibility.isSectionVisible(key) : true;
@@ -941,20 +894,10 @@ export default function AthletePdfDocument({
           <PerformanceSummarySection categories={performanceSummary} />
         ) : null}
 
-        {/* SNAPSHOT — only in "best" mode and only when context is provided. */}
-        {isBest && ctx ? (
-          <>
-            {ctx.findings.length > 0 ? (
-              <View wrap={false}>
-                <Text style={styles.sectionBanner}>KEY FINDINGS</Text>
-                <View style={styles.findingsGrid}>
-                  {ctx.findings.map((f) => (
-                    <FindingTile key={f.id} finding={f} />
-                  ))}
-                </View>
-              </View>
-            ) : null}
-          </>
+        {/* The sprint section's clinician note (the sprint chart itself is replaced by
+            the split times in the Performance Summary). */}
+        {isBest && includeNotes && showSection("linear") ? (
+          <SectionCommentBlock comment={sectionComments.linear} />
         ) : null}
 
         {/* DATE COMPARISON mode keeps its existing table-only layout. */}
@@ -1005,23 +948,6 @@ export default function AthletePdfDocument({
             production); 340 gives real headroom above the tallest case. */}
         {isBest ? (
           <>
-            {showSection("linear") &&
-            pdfCharts?.sprint != null &&
-            pdfCharts.sprint.items.length >= 2 ? (
-              <View style={styles.modalitySection}>
-                <Text style={styles.sectionBanner} minPresenceAhead={340}>LINEAR SPRINT</Text>
-                <PdfBarChart
-                  title={pdfCharts.sprint.title}
-                  dateCaption={pdfCharts.sprint.dateCaption}
-                  unit={pdfCharts.sprint.unit}
-                  items={pdfCharts.sprint.items}
-                />
-                {includeNotes ? (
-                  <SectionCommentBlock comment={sectionComments.linear} />
-                ) : null}
-              </View>
-            ) : null}
-
             {showSection("cod") && pdfCharts?.cod != null ? (
               <View style={styles.modalitySection}>
                 <Text style={styles.sectionBanner} minPresenceAhead={340}>

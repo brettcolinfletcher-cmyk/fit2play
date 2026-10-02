@@ -78,6 +78,7 @@ export const METRIC_REGISTRY: {
   { id: "power_cmj_peak_power", categoryId: "power", categoryLabel: "Power", label: "CMJ Peak Power", unit: "W", decimals: 0, direction: "higher", defaultTarget: 3500 },
   { id: "power_cmj_rsi_mod", categoryId: "power", categoryLabel: "Power", label: "CMJ RSI (mod)", unit: "", decimals: 2, direction: "higher", defaultTarget: 0.35 },
   { id: "power_1080_peak_power", categoryId: "power", categoryLabel: "Power", label: "1080 Peak Power", unit: "W", decimals: 0, direction: "higher", defaultTarget: 500 },
+  { id: "speed_top_speed", categoryId: "speed", categoryLabel: "Speed", label: "Top Speed", unit: "km/h", decimals: 1, direction: "higher", defaultTarget: 30 },
   { id: "speed_40m", categoryId: "speed", categoryLabel: "Speed", label: "1080 40m Sprint", unit: "s", decimals: 2, direction: "lower", defaultTarget: 5.6 },
   // Added Oct 2026 for the SS WA U13 squad, who ran a 30m sprint. PLACEHOLDER
   // target (the 40m default scaled by 30/40): set a real one per population in
@@ -85,6 +86,8 @@ export const METRIC_REGISTRY: {
   { id: "speed_30m", categoryId: "speed", categoryLabel: "Speed", label: "1080 30m Sprint", unit: "s", decimals: 2, direction: "lower", defaultTarget: 4.2 },
   { id: "accel_5m", categoryId: "accel", categoryLabel: "Accel", label: "1080 5m Sprint Time", unit: "s", decimals: 2, direction: "lower", defaultTarget: 1.05 },
   { id: "accel_10m", categoryId: "accel", categoryLabel: "Accel", label: "1080 10m Sprint Time", unit: "s", decimals: 2, direction: "lower", defaultTarget: 1.85 },
+  // Added Oct 2026. PLACEHOLDER target; set a real one per population in the Targets page.
+  { id: "accel_20m", categoryId: "accel", categoryLabel: "Accel", label: "1080 20m Sprint Time", unit: "s", decimals: 2, direction: "lower", defaultTarget: 3.1 },
   { id: "accel_505_max_accel", categoryId: "accel", categoryLabel: "Accel", label: "5-0-5 Max Accel", unit: "m/s²", decimals: 2, direction: "higher", defaultTarget: 5.0 },
   { id: "decel_cmj_rfd", categoryId: "decel", categoryLabel: "Decel", label: "CMJ Ecc. Decel RFD", unit: "N/s", decimals: 0, direction: "higher", defaultTarget: 4000 },
   { id: "decel_505_max_decel", categoryId: "decel", categoryLabel: "Decel", label: "1080 5-0-5 Max Decel", unit: "m/s²", decimals: 2, direction: "higher", defaultTarget: 5.0 },
@@ -448,11 +451,25 @@ export function computePerformanceSummary(
   const codUntagged = codRep("total_time", "min", "untagged");
   const codAccelMax = codRep("accel_max", "max");
   const codDecelMax = codRep("decel_max", "max");
-  const tenM = latestDayMetricAggregate(sessions, metricsBySession, isTenMAccelSession, "total_time", "min");
-  // 5m split: left on the original whole-session min. Split rows are numbered
-  // independently of the main per-rep metrics in mixed sessions (confirmed on
-  // real data), so a per-rep 5-0-5 filter would wrongly drop them.
-  const fiveM = latestDayMetricAggregate(sessions, metricsBySession, is1080Session, "split_5m_time", "min");
+  // Cumulative sprint split times (time to reach 5 / 10 / 20 m from the start of
+  // the rep), derived from the sprint time series by the refresh_sprint_splits()
+  // DB function and stored as split_0_5m_time / split_10m_time / split_20m_time.
+  // Best (fastest) rep on the latest day that has one.
+  const splitBest = (key: string) =>
+    latestDayRepAggregate(sessions, metricsBySession, is1080Session, key, "min", "not_cod");
+  const split5 = splitBest("split_0_5m_time");
+  const split10 = splitBest("split_10m_time");
+  const twentyM = splitBest("split_20m_time");
+  // Fallbacks for sessions with no time series: a dedicated 10m acceleration
+  // test's total time, and the device's older 5m INTERVAL rows (first interval =
+  // the standing-start 0-5 m time, which is how the dashboard view reads it).
+  const tenMLegacy = latestDayMetricAggregate(sessions, metricsBySession, isTenMAccelSession, "total_time", "min");
+  const fiveMLegacy = latestDayMetricAggregate(sessions, metricsBySession, is1080Session, "split_5m_time", "max");
+  const fiveM = split5.value != null ? split5 : fiveMLegacy;
+  const tenM = split10.value != null ? split10 : tenMLegacy;
+  // Top speed (m/s -> km/h) from sprint reps only.
+  const topSpeedMs = latestDayRepAggregate(sessions, metricsBySession, is1080Session, "top_speed", "max", "sprint");
+  const topSpeedKmh = topSpeedMs.value != null ? topSpeedMs.value * 3.6 : null;
   const peakPower1080 = latestDayMetricAggregate(sessions, metricsBySession, is1080Session, "peak_power", "max");
   const fortyM = findSprintBySide(sessions, metricsBySession, 40, FORTY_M_TOLERANCE, true);
   const thirtyM = findSprintBySide(sessions, metricsBySession, 30, THIRTY_M_TOLERANCE, false);
@@ -461,7 +478,7 @@ export function computePerformanceSummary(
   // 40m row so the card still reads as "not tested" rather than disappearing.
   const has40 = fortyM.left != null || fortyM.right != null;
   const has30 = thirtyM.left != null || thirtyM.right != null;
-  const speedMetrics: SummaryMetric[] = [];
+  const speedMetrics: SummaryMetric[] = [metric("speed_top_speed", topSpeedKmh, topSpeedMs.source)];
   if (has40 || !has30) speedMetrics.push(metricLR("speed_40m", fortyM.left, fortyM.right, fortyM.source));
   if (has30) speedMetrics.push(metricLR("speed_30m", thirtyM.left, thirtyM.right, thirtyM.source));
 
@@ -513,6 +530,7 @@ export function computePerformanceSummary(
     withCommonSource("accel", "Accel", [
       metric("accel_5m", fiveM.value, fiveM.source),
       metric("accel_10m", tenM.value, tenM.source),
+      metric("accel_20m", twentyM.value, twentyM.source),
       metric("accel_505_max_accel", codAccelMax.value, codAccelMax.source),
     ]),
     withCommonSource("decel", "Decel", [

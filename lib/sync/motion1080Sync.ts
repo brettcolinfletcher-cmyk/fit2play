@@ -531,6 +531,8 @@ export async function runMotion1080Sync(
 ): Promise<Motion1080SyncResult> {
   const errors: string[] = [];
   let sessionsProcessed = 0;
+  // Sessions whose metrics were rewritten this run (derived split rows must be rebuilt for them).
+  const processedSessionIds: string[] = [];
 
   const apiKey = process.env.MOTION_API_KEY ?? "";
   if (!apiKey) {
@@ -702,6 +704,7 @@ export async function runMotion1080Sync(
 
       const sessionId = sess.id as string;
       sessionsProcessed++;
+      processedSessionIds.push(sessionId);
 
       try {
         // ── 3b. Fetch TrainingData (actual metrics) ───────────────────────────
@@ -763,6 +766,17 @@ export async function runMotion1080Sync(
       headers,
       errors
     );
+
+    // Cumulative 5/10/20/30/40 m split times, derived from the time series. The
+    // loop above rewrote these sessions' metrics (which wipes the derived rows),
+    // so rebuild them now. A failure only warns: it must not fail the run, since
+    // a failed run doesn't advance the sync watermark.
+    if (processedSessionIds.length > 0) {
+      const { error: splitErr } = await supabase.rpc("refresh_sprint_splits", {
+        p_session_ids: processedSessionIds,
+      });
+      if (splitErr) console.warn(`1080 sync: split refresh failed: ${splitErr.message}`);
+    }
 
     const errStr = errors.length ? errors.join(" | ") : null;
     await insertSyncLog(supabase, "1080", sessionsProcessed, errStr);
