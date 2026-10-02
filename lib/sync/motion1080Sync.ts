@@ -38,6 +38,25 @@ function extractHeightCm(row: Record<string, unknown>): number | null {
   return null;
 }
 
+// Confirmed from the live Client payload (Vercel log, Oct 2026): keys are
+// id, created, displayName, height, weight, group, historicalMeasurements.
+// No sex/gender or date of birth is exposed. Hawkins is the PRIMARY source of
+// body weight (see refresh_athlete_weight_from_hawkins); 1080 weight is only
+// used to fill an athlete whose weight_kg is still empty. Unit of `weight` is
+// assumed kg (not confirmed). Values outside 15-250 are treated as junk.
+const WEIGHT_FIELD_CANDIDATES = ["weight", "weightKg", "weight_kg", "Weight", "WeightKg", "bodyWeight", "bodyMass"];
+
+function extractWeightKg(row: Record<string, unknown>): number | null {
+  for (const key of WEIGHT_FIELD_CANDIDATES) {
+    const raw = row[key];
+    if (raw == null) continue;
+    const n = typeof raw === "number" ? raw : typeof raw === "string" ? Number(raw) : NaN;
+    if (!Number.isFinite(n)) continue;
+    if (n >= 15 && n <= 250) return Math.round(n * 10) / 10;
+  }
+  return null;
+}
+
 function splitAthleteName(name: string): { first_name: string; last_name: string } {
   const n = name.trim();
   const comma = n.indexOf(",");
@@ -542,6 +561,11 @@ export async function runMotion1080Sync(
         // `ok` to false for a non-error). Check Vercel function logs for
         // this line if height still isn't coming across after a sync.
         console.log("[1080 sync] sample Client record keys:", Object.keys(row).join(", "));
+        // Keys only (no values): historicalMeasurements' shape isn't known yet.
+        const hm = row.historicalMeasurements;
+        if (Array.isArray(hm) && hm.length > 0 && hm[0] && typeof hm[0] === "object") {
+          console.log("[1080 sync] sample historicalMeasurements keys:", Object.keys(hm[0] as object).join(", "));
+        }
         loggedSampleClient = true;
       }
 
@@ -554,6 +578,17 @@ export async function runMotion1080Sync(
         : { first_name: "", last_name: "" };
 
       const heightCm = extractHeightCm(row);
+      const weightKg = extractWeightKg(row);
+      // Fill-if-empty only: never overwrites a Hawkins-derived (or hand-entered) weight.
+      const fillWeightIfEmpty = async () => {
+        if (weightKg == null) return;
+        const { error: wErr } = await supabase
+          .from("athletes")
+          .update({ weight_kg: weightKg })
+          .eq("motion1080_external_id", extId)
+          .is("weight_kg", null);
+        if (wErr) errors.push(`athlete ${extId} weight: ${wErr.message}`);
+      };
 
       // Link to an athlete another source (e.g. Hawkins) already created, instead
       // of making a duplicate: if nobody holds this 1080 id yet, and exactly one
@@ -580,6 +615,7 @@ export async function runMotion1080Sync(
             })
             .eq("id", (sameName[0] as { id: string }).id);
           if (linkErr) errors.push(`athlete ${extId} link: ${linkErr.message}`);
+          await fillWeightIfEmpty();
           continue;
         }
       }
@@ -597,6 +633,7 @@ export async function runMotion1080Sync(
         { onConflict: "motion1080_external_id" }
       );
       if (upErr) errors.push(`athlete ${extId}: ${upErr.message}`);
+      else await fillWeightIfEmpty();
     }
 
     // ── 2. List sessions ──────────────────────────────────────────────────────

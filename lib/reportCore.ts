@@ -58,7 +58,11 @@ export function is1080Session(s: ReportSessionRow): boolean {
 // linear sprint). Tolerance tightened to ±3m for the same reason — verified
 // this still safely excludes that session while catching the confirmed
 // real 40m case exactly.
-const COMMON_SPRINT_DISTANCES_M = [10, 20, 40];
+// 30m added Oct 2026 for the SS WA U13 squad, who ran a 30m sprint on the
+// 1080 (labelled "Running (LR)" / "5-0-5 Assisted start" on the device —
+// there is no 30m exercise to pick). Sits well clear of the 20m and 40m
+// windows, and of the 5m COD leg.
+const COMMON_SPRINT_DISTANCES_M = [10, 20, 30, 40];
 const SPRINT_DISTANCE_TOLERANCE_M = 3;
 
 /**

@@ -188,6 +188,39 @@ export async function runHawkinsSync(
       if (upErr) {
         errors.push(`athlete ${extId}: ${upErr.message}`);
       }
+
+      // Optional profile fields on the Hawkins athlete record (API v1.14+):
+      // `dob` (YYYY-MM-DD) and `height` (cm). Hawkins exposes no weight or sex
+      // here. Fill-if-empty only (.is(col, null)) so nothing entered by hand in
+      // Fit2Play, or written by the 1080 sync (source of truth for height and
+      // weight), is ever overwritten.
+      if (!upErr) {
+        const profile = raw as Record<string, unknown>;
+        const dob =
+          typeof profile.dob === "string" && /^\d{4}-\d{2}-\d{2}/.test(profile.dob)
+            ? profile.dob.slice(0, 10)
+            : null;
+        const hRaw = profile.height;
+        const hNum = typeof hRaw === "number" ? hRaw : typeof hRaw === "string" ? Number(hRaw) : NaN;
+        const heightCm = Number.isFinite(hNum) && hNum >= 50 && hNum <= 250 ? hNum : null;
+
+        if (dob) {
+          const { error: dobErr } = await supabase
+            .from("athletes")
+            .update({ date_of_birth: dob })
+            .eq("hawkins_external_id", extId)
+            .is("date_of_birth", null);
+          if (dobErr) errors.push(`athlete ${extId} dob: ${dobErr.message}`);
+        }
+        if (heightCm != null) {
+          const { error: hErr } = await supabase
+            .from("athletes")
+            .update({ height_cm: heightCm })
+            .eq("hawkins_external_id", extId)
+            .is("height_cm", null);
+          if (hErr) errors.push(`athlete ${extId} height: ${hErr.message}`);
+        }
+      }
     }
 
     // Reconcile roster: the Hawkins key is scoped to the Fit2Play teams, so any
@@ -282,6 +315,8 @@ export async function runHawkinsSync(
 
     const athleteIdCache = new Map<string, string>();
     const skippedNoAthlete = new Set<string>();
+    // Athletes who had a body-weight reading (CMJ system weight / Weigh In) in this run.
+    const weightAthleteIds = new Set<string>();
 
     for (const raw of tests) {
       if (!raw || typeof raw !== "object") continue;
@@ -381,6 +416,22 @@ export async function runHawkinsSync(
           errors.push(`test ${hawkinsTestId} metrics: ${mErr.message}`);
         }
       }
+
+      if (flat.some((f) => f.key === "fp_system_weight" || f.key === "fp_weight_in_newtons")) {
+        weightAthleteIds.add(internalAthleteId);
+      }
+    }
+
+    // Hawkins is the primary source of athlete body weight. The DB function picks
+    // the right reading (Weigh In first, else the latest CMJ system weight) from
+    // ALL stored sessions, so an old-window backfill can never overwrite a newer
+    // weight. A failure here only warns: it must not fail the run, because a failed
+    // run does not advance the sync watermark.
+    if (weightAthleteIds.size > 0) {
+      const { error: wErr } = await supabase.rpc("refresh_athlete_weight_from_hawkins", {
+        p_athlete_ids: [...weightAthleteIds],
+      });
+      if (wErr) console.warn(`Hawkins sync: weight refresh failed: ${wErr.message}`);
     }
 
     if (skippedNoAthlete.size > 0) {
