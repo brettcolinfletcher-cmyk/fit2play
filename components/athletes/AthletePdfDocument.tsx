@@ -837,7 +837,7 @@ export default function AthletePdfDocument({
           <>
             {ctx.findings.length > 0 ? (
               <View>
-                <Text style={styles.sectionBanner}>KEY FINDINGS</Text>
+                <Text style={styles.sectionBanner} minPresenceAhead={120}>KEY FINDINGS</Text>
                 <View style={styles.findingsGrid}>
                   {ctx.findings.map((f) => (
                     <FindingTile key={f.id} finding={f} />
@@ -896,7 +896,9 @@ export default function AthletePdfDocument({
             production); 340 gives real headroom above the tallest case. */}
         {isBest ? (
           <>
-            {showSection("linear") && pdfCharts?.sprint != null ? (
+            {showSection("linear") &&
+            pdfCharts?.sprint != null &&
+            pdfCharts.sprint.items.length >= 2 ? (
               <View style={styles.modalitySection}>
                 <Text style={styles.sectionBanner} minPresenceAhead={340}>LINEAR SPRINT</Text>
                 <PdfBarChart
@@ -939,7 +941,7 @@ export default function AthletePdfDocument({
             ) : null}
 
             {(showSection("cmj") || showSection("drop_jump")) &&
-            pdfCharts?.jump != null ? (
+            pdfCharts?.jump?.variant === "line" ? (
               <View style={styles.modalitySection}>
                 <Text style={styles.sectionBanner} minPresenceAhead={340}>FORCE PLATE</Text>
                 {pdfCharts?.jump?.variant === "line" ? (
