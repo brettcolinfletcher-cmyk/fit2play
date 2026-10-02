@@ -703,7 +703,6 @@ export type PdfProps = {
   snapshot?: AthleteSnapshot | null;
   /** Team-ranking speed dials (same as the dashboard); "best" mode only. */
   rankDials?: PdfRankDial[] | null;
-  rankCaption?: string | null;
   /** CMJ/Power/Speed/Accel/Decel/COD "at a glance" summary; "best" mode only. */
   performanceSummary?: SummaryCategory[] | null;
   /** Report visibility resolver — gates which modality sections render. */
@@ -761,7 +760,6 @@ export default function AthletePdfDocument({
   pdfCharts = null,
   snapshot = null,
   rankDials = null,
-  rankCaption = null,
   performanceSummary = null,
   visibility = null,
 }: PdfProps) {
@@ -884,7 +882,6 @@ export default function AthletePdfDocument({
         {isBest && rankDials && rankDials.length > 0 ? (
           <View>
             <Text style={styles.sectionBanner}>RANKING</Text>
-            {rankCaption ? <Text style={styles.rankCaption}>{rankCaption}</Text> : null}
             <PdfRankDials dials={rankDials} />
           </View>
         ) : null}
