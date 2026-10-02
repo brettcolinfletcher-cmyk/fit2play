@@ -4,6 +4,7 @@ import {
   is1080Session,
   isLinearSprintSession,
   latestDayMetricAggregate,
+  latestDayRepAggregate,
   metricAggregate,
   type ReportMetricRow,
   type ReportSessionRow,
@@ -78,6 +79,10 @@ export const METRIC_REGISTRY: {
   { id: "power_cmj_rsi_mod", categoryId: "power", categoryLabel: "Power", label: "CMJ RSI (mod)", unit: "", decimals: 2, direction: "higher", defaultTarget: 0.35 },
   { id: "power_1080_peak_power", categoryId: "power", categoryLabel: "Power", label: "1080 Peak Power", unit: "W", decimals: 0, direction: "higher", defaultTarget: 500 },
   { id: "speed_40m", categoryId: "speed", categoryLabel: "Speed", label: "1080 40m Sprint", unit: "s", decimals: 2, direction: "lower", defaultTarget: 5.6 },
+  // Added Oct 2026 for the SS WA U13 squad, who ran a 30m sprint. PLACEHOLDER
+  // target (the 40m default scaled by 30/40): set a real one per population in
+  // the Targets page. The Speed card only shows the distance(s) actually tested.
+  { id: "speed_30m", categoryId: "speed", categoryLabel: "Speed", label: "1080 30m Sprint", unit: "s", decimals: 2, direction: "lower", defaultTarget: 4.2 },
   { id: "accel_5m", categoryId: "accel", categoryLabel: "Accel", label: "1080 5m Sprint Time", unit: "s", decimals: 2, direction: "lower", defaultTarget: 1.05 },
   { id: "accel_10m", categoryId: "accel", categoryLabel: "Accel", label: "1080 10m Sprint Time", unit: "s", decimals: 2, direction: "lower", defaultTarget: 1.85 },
   { id: "accel_505_max_accel", categoryId: "accel", categoryLabel: "Accel", label: "5-0-5 Max Accel", unit: "m/s²", decimals: 2, direction: "higher", defaultTarget: 5.0 },
@@ -174,12 +179,6 @@ export function resolveMetricTarget(
   return { target: def?.defaultTarget ?? 0, direction: def?.direction ?? "higher" };
 }
 
-function is505Session(s: ReportSessionRow): boolean {
-  if (bucket(s.source) !== "1080") return false;
-  const sub = (s.test_sub_type ?? "").toLowerCase();
-  return sub.includes("5-0-5") || sub.includes("5-10-5");
-}
-
 function isTenMAccelSession(s: ReportSessionRow): boolean {
   if (bucket(s.source) !== "1080") return false;
   const sub = (s.test_sub_type ?? "").toLowerCase();
@@ -198,12 +197,16 @@ function isTenMAccelSession(s: ReportSessionRow): boolean {
 // session's rows by (rep_index, side) and only accept a total_time that's
 // paired with a total_distance within tolerance of 40 IN THAT SAME GROUP.
 const FORTY_M_TOLERANCE = 5;
+const THIRTY_M_TOLERANCE = 3;
 const FORTY_M_SUB_TYPE_FALLBACKS = ["linear bilateral", "running (lr)"];
 
-/** (rep_index, side) groups from one session's rows with a confirmed ~40m
- * total_distance/total_time pair — see findFortyMBySide's comment above. */
-function fortyMGroupsForSession(
-  rows: ReportMetricRow[]
+/** (rep_index, side) groups from one session's rows with a confirmed
+ * total_distance/total_time pair at the given test distance (± tolerance) —
+ * see findSprintBySide's comment above. */
+function sprintGroupsForSession(
+  rows: ReportMetricRow[],
+  distance: number,
+  tolerance: number
 ): { time: number; side: string | null }[] {
   const groups = new Map<string, { distance: number | null; time: number | null; side: string | null }>();
   for (const r of rows) {
@@ -218,15 +221,18 @@ function fortyMGroupsForSession(
   }
   const out: { time: number; side: string | null }[] = [];
   for (const g of groups.values()) {
-    if (g.distance == null || g.time == null || Math.abs(g.distance - 40) > FORTY_M_TOLERANCE) continue;
+    if (g.distance == null || g.time == null || Math.abs(g.distance - distance) > tolerance) continue;
     out.push({ time: g.time, side: g.side });
   }
   return out;
 }
 
-function findFortyMBySide(
+function findSprintBySide(
   sessions: ReportSessionRow[],
-  metricsBySession: Map<string, ReportMetricRow[]>
+  metricsBySession: Map<string, ReportMetricRow[]>,
+  distance: number,
+  tolerance: number,
+  allowNameFallback: boolean
 ): { left: number | null; right: number | null; source: ReportSessionRow | null } {
   const candidates = sessions
     .filter((s) => bucket(s.source) === "1080" && s.session_date)
@@ -240,7 +246,7 @@ function findFortyMBySide(
   // on a same-day tie instead of considering all of them).
   let matchDate: string | null = null;
   for (const s of candidates) {
-    if (fortyMGroupsForSession(metricsBySession.get(s.id) ?? []).length > 0) {
+    if (sprintGroupsForSession(metricsBySession.get(s.id) ?? [], distance, tolerance).length > 0) {
       matchDate = s.session_date!.slice(0, 10);
       break;
     }
@@ -253,7 +259,7 @@ function findFortyMBySide(
     let source: ReportSessionRow | null = null;
     for (const s of candidates) {
       if (s.session_date!.slice(0, 10) !== matchDate) continue;
-      for (const g of fortyMGroupsForSession(metricsBySession.get(s.id) ?? [])) {
+      for (const g of sprintGroupsForSession(metricsBySession.get(s.id) ?? [], distance, tolerance)) {
         source = source ?? s;
         const side = (g.side ?? "").toLowerCase();
         if (side === "left") left = left == null ? g.time : Math.min(left, g.time);
@@ -264,14 +270,21 @@ function findFortyMBySide(
     return { left: left ?? bilateral, right, source };
   }
 
-  // Fallback: no session had any rep/side group with a confirmed ~40m
-  // distance reading (sync gap) — take the latest by-name match instead.
-  for (const s of candidates) {
-    if (!isLinearSprintSession(s, metricsBySession)) continue;
-    const sub = (s.test_sub_type ?? "").toLowerCase();
-    if (!FORTY_M_SUB_TYPE_FALLBACKS.some((name) => sub.includes(name))) continue;
-    const t = metricAggregate(metricsBySession, s.id, "total_time", "min");
-    if (t != null) return { left: t, right: null, source: s };
+  // Fallback (40m only): no session had any rep/side group with a confirmed
+  // distance reading AT ALL (a true sync gap) — take the latest by-name match
+  // instead. A session that DID record distances but none near this test
+  // distance is skipped: its distances already say it isn't this test, and
+  // reading its fastest rep instead would show e.g. a 5-0-5 time as a sprint.
+  if (allowNameFallback) {
+    for (const s of candidates) {
+      if (!isLinearSprintSession(s, metricsBySession)) continue;
+      const rows = metricsBySession.get(s.id) ?? [];
+      if (rows.some((r) => r.key === "total_distance" && r.value != null && Number.isFinite(r.value))) continue;
+      const sub = (s.test_sub_type ?? "").toLowerCase();
+      if (!FORTY_M_SUB_TYPE_FALLBACKS.some((name) => sub.includes(name))) continue;
+      const t = metricAggregate(metricsBySession, s.id, "total_time", "min");
+      if (t != null) return { left: t, right: null, source: s };
+    }
   }
 
   return { left: null, right: null, source: null };
@@ -424,16 +437,47 @@ export function computePerformanceSummary(
     bucket(s.source) === "hawkins" && s.test_type === "force_plate_cmj";
 
   const cmj = (key: string) => latestDayMetricAggregate(sessions, metricsBySession, isCmjSession, key, "max");
-  const cod = (key: string, mode: "max" | "min") =>
-    latestDayMetricAggregate(sessions, metricsBySession, is505Session, key, mode);
-  const codLeft = latestDayMetricAggregate(sessions, metricsBySession, is505Session, "total_time", "min", "left");
-  const codRight = latestDayMetricAggregate(sessions, metricsBySession, is505Session, "total_time", "min", "right");
-  const codAccelMax = cod("accel_max", "max");
-  const codDecelMax = cod("decel_max", "max");
+  // 5-0-5 efforts are identified per REP (classify1080Reps in reportCore), not
+  // per session: one 1080 session can hold a 30m sprint set AND a 5-0-5 set
+  // under a single label, and reading the whole session as a 5-0-5 showed the
+  // 30m sprint time as the 5-0-5 time.
+  const codRep = (key: string, mode: "max" | "min", side?: "left" | "right" | "untagged") =>
+    latestDayRepAggregate(sessions, metricsBySession, is1080Session, key, mode, "cod", side);
+  const codLeft = codRep("total_time", "min", "left");
+  const codRight = codRep("total_time", "min", "right");
+  const codUntagged = codRep("total_time", "min", "untagged");
+  const codAccelMax = codRep("accel_max", "max");
+  const codDecelMax = codRep("decel_max", "max");
   const tenM = latestDayMetricAggregate(sessions, metricsBySession, isTenMAccelSession, "total_time", "min");
+  // 5m split: left on the original whole-session min. Split rows are numbered
+  // independently of the main per-rep metrics in mixed sessions (confirmed on
+  // real data), so a per-rep 5-0-5 filter would wrongly drop them.
   const fiveM = latestDayMetricAggregate(sessions, metricsBySession, is1080Session, "split_5m_time", "min");
   const peakPower1080 = latestDayMetricAggregate(sessions, metricsBySession, is1080Session, "peak_power", "max");
-  const fortyM = findFortyMBySide(sessions, metricsBySession);
+  const fortyM = findSprintBySide(sessions, metricsBySession, 40, FORTY_M_TOLERANCE, true);
+  const thirtyM = findSprintBySide(sessions, metricsBySession, 30, THIRTY_M_TOLERANCE, false);
+
+  // Speed card: only the distance(s) actually tested. If neither was, keep the
+  // 40m row so the card still reads as "not tested" rather than disappearing.
+  const has40 = fortyM.left != null || fortyM.right != null;
+  const has30 = thirtyM.left != null || thirtyM.right != null;
+  const speedMetrics: SummaryMetric[] = [];
+  if (has40 || !has30) speedMetrics.push(metricLR("speed_40m", fortyM.left, fortyM.right, fortyM.source));
+  if (has30) speedMetrics.push(metricLR("speed_30m", thirtyM.left, thirtyM.right, thirtyM.source));
+
+  // 5-0-5 total time: leg-tagged entry times (L/R) when the athlete has them;
+  // otherwise the untagged per-rep time (e.g. the SS WA squad, whose 5-0-5
+  // reps carry no leg tag). Whichever is from the later test day wins; a tie
+  // goes to the leg-tagged read.
+  const codTaggedSource = codLeft.source ?? codRight.source;
+  const codTaggedDate = codTaggedSource?.session_date?.slice(0, 10) ?? null;
+  const codUntaggedDate = codUntagged.source?.session_date?.slice(0, 10) ?? null;
+  const useUntaggedCod =
+    codUntagged.value != null &&
+    (codTaggedDate == null || (codUntaggedDate != null && codUntaggedDate > codTaggedDate));
+  const codMetric = useUntaggedCod
+    ? metric("cod_505_total_time", codUntagged.value, codUntagged.source)
+    : metricLR("cod_505_total_time", codLeft.value, codRight.value, codTaggedSource);
 
   // fp_jump_height is stored in metres (matches the CMJ chart / hero tile
   // elsewhere in the app) — convert to cm for display, same as
@@ -465,9 +509,7 @@ export function computePerformanceSummary(
       metric("power_cmj_rsi_mod", mrsi.value, mrsi.source),
       metric("power_1080_peak_power", peakPower1080.value, peakPower1080.source),
     ]),
-    withCommonSource("speed", "Speed", [
-      metricLR("speed_40m", fortyM.left, fortyM.right, fortyM.source),
-    ]),
+    withCommonSource("speed", "Speed", speedMetrics),
     withCommonSource("accel", "Accel", [
       metric("accel_5m", fiveM.value, fiveM.source),
       metric("accel_10m", tenM.value, tenM.source),
@@ -483,14 +525,11 @@ export function computePerformanceSummary(
       // total_time for now. Confirm what "corrected" should mean
       // (e.g. normalised against the session's recorded total_distance)
       // and adjust here.
-      //
-      // Weaker-side entry time, like the 40m sprint and strength rows below
-      // — total_time rows also include ambiguous untagged (side: null)
-      // sub-split readings from the 5-0-5's own turn, so this must filter to
-      // side "left"/"right" specifically rather than aggregating every
-      // total_time row in the session (that previously let a sub-split
-      // reading masquerade as the whole rep's total time).
-      metricLR("cod_505_total_time", codLeft.value, codRight.value, codLeft.source ?? codRight.source),
+      // Weaker-side entry time when leg-tagged, else the untagged per-rep
+      // time — see codMetric above. Leg-tagged total_time rows can sit beside
+      // ambiguous untagged sub-split readings from the same rep, which is why
+      // the tagged read is preferred whenever it's as recent.
+      codMetric,
     ]),
     withCommonSource(
       "strength",

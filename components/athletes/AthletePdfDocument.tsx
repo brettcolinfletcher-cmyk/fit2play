@@ -2,6 +2,7 @@ import { Document, Font, Image, Page, Text, View, StyleSheet } from "@react-pdf/
 import PdfBarChart from "@/components/athletes/pdf/charts/PdfBarChart";
 import PdfGroupedBarChart from "@/components/athletes/pdf/charts/PdfGroupedBarChart";
 import PdfLineChart from "@/components/athletes/pdf/charts/PdfLineChart";
+import PdfRankDials, { type PdfRankDial } from "@/components/athletes/pdf/charts/PdfRankDials";
 import type { DateComparisonData } from "@/lib/athleteReportData";
 import type {
   PdfBandTag,
@@ -452,6 +453,11 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     fontStyle: "italic",
   },
+  rankCaption: {
+    fontSize: 7,
+    color: "#6b7280",
+    marginBottom: 5,
+  },
   // ─── Footer ───
   footer: {
     position: "absolute",
@@ -708,6 +714,9 @@ export type PdfProps = {
   pdfContext?: PdfReportContext | null;
   /** Computed athlete snapshot (readiness + symmetry gauges); "best" mode only. */
   snapshot?: AthleteSnapshot | null;
+  /** Team-ranking speed dials (same as the dashboard); "best" mode only. */
+  rankDials?: PdfRankDial[] | null;
+  rankCaption?: string | null;
   /** CMJ/Power/Speed/Accel/Decel/COD "at a glance" summary; "best" mode only. */
   performanceSummary?: SummaryCategory[] | null;
   /** Report visibility resolver — gates which modality sections render. */
@@ -765,6 +774,8 @@ export default function AthletePdfDocument({
   pdfCharts = null,
   pdfContext = null,
   snapshot = null,
+  rankDials = null,
+  rankCaption = null,
   performanceSummary = null,
   visibility = null,
 }: PdfProps) {
@@ -881,6 +892,15 @@ export default function AthletePdfDocument({
                 })}
               </View>
             ) : null}
+          </View>
+        ) : null}
+
+        {/* RANKING — the dashboard's speed dials (where the athlete sits in the comparison group). */}
+        {isBest && rankDials && rankDials.length > 0 ? (
+          <View>
+            <Text style={styles.sectionBanner}>RANKING</Text>
+            {rankCaption ? <Text style={styles.rankCaption}>{rankCaption}</Text> : null}
+            <PdfRankDials dials={rankDials} />
           </View>
         ) : null}
 

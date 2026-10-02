@@ -204,6 +204,127 @@ function titleCase(value: string): string {
     .join(" ");
 }
 
+export type RepKind = "sprint" | "cod";
+
+function repKey(repIndex: number | null): string {
+  return String(repIndex ?? "x");
+}
+
+/**
+ * One 1080 session can hold several sets (e.g. a 30m sprint set plus a 5-0-5
+ * set), but the sync labels the WHOLE session with the first set's exercise
+ * name only. So classify each REP by its own distance / braking signature
+ * instead of trusting the session label for every rep in it.
+ *
+ * Mirrors `rep_kind` in the athlete_cohort_ranks() SQL function — keep the two
+ * in step. Differences: this also treats "5-10-5" labels as COD (the
+ * Performance Summary has always done so).
+ *
+ * Returns rep_index (as a string key, "x" for null) -> kind, or null when the
+ * rep is neither (e.g. a 10m acceleration rep, a hop test).
+ */
+export function classify1080Reps(
+  label: string | null | undefined,
+  rows: ReportMetricRow[]
+): Map<string, RepKind | null> {
+  const lbl = (label ?? "").toLowerCase();
+  const resisted = lbl.includes("resist");
+  const reps = new Map<string, { dist: number | null; decel: number | null; time: number | null }>();
+  for (const r of rows) {
+    if (r.value == null || !Number.isFinite(r.value)) continue;
+    const k = repKey(r.rep_index);
+    const g = reps.get(k) ?? { dist: null, decel: null, time: null };
+    if (r.key === "total_distance") g.dist = g.dist == null ? r.value : Math.max(g.dist, r.value);
+    else if (r.key === "decel_max") g.decel = g.decel == null ? r.value : Math.max(g.decel, r.value);
+    else if (r.key === "total_time") g.time = g.time == null ? r.value : Math.max(g.time, r.value);
+    reps.set(k, g);
+  }
+  const out = new Map<string, RepKind | null>();
+  for (const [k, g] of reps) {
+    let kind: RepKind | null = null;
+    if ((g.dist ?? 0) >= 25) {
+      // A rep that covers 25m+ is a linear sprint whatever the session is called.
+      kind = "sprint";
+    } else if (lbl.includes("5-0-5") || lbl.includes("5-10-5")) {
+      kind = "cod";
+    } else if (
+      /(linear|running)/.test(lbl) &&
+      !resisted &&
+      g.dist != null && g.dist >= 3 && g.dist <= 9 &&
+      (g.decel ?? 0) >= 4 &&
+      g.time != null && g.time >= 1.2 && g.time <= 4
+    ) {
+      // Short, hard-braking, ~2s rep inside a session labelled as a sprint:
+      // a 5-0-5 effort from a later set.
+      kind = "cod";
+    } else if (/(linear|running|40)/.test(lbl) && !resisted) {
+      kind = "sprint";
+    }
+    out.set(k, kind);
+  }
+  return out;
+}
+
+/** Rows belonging only to reps of the given kind (see classify1080Reps). */
+export function rowsOfRepKind<T extends ReportMetricRow>(
+  label: string | null | undefined,
+  rows: T[],
+  kind: RepKind
+): T[] {
+  const kinds = classify1080Reps(label, rows);
+  return rows.filter((r) => kinds.get(repKey(r.rep_index)) === kind);
+}
+
+/**
+ * Like latestDayMetricAggregate, but only counts rows from reps of a given
+ * kind (see classify1080Reps), and the "latest day" is the latest day that
+ * actually HAS such a rep — so a later sprint-only day can't hide an earlier
+ * 5-0-5 day. repKind "not_cod" = every rep except 5-0-5 efforts (used for
+ * metrics, like the 5m split, that 10m-acceleration sessions also feed).
+ * side "untagged" = rows with no left/right tag.
+ */
+export function latestDayRepAggregate(
+  sessions: ReportSessionRow[],
+  metricsBySession: Map<string, ReportMetricRow[]>,
+  predicate: (s: ReportSessionRow) => boolean,
+  key: string,
+  mode: "max" | "min",
+  repKind: RepKind | "not_cod",
+  side?: "left" | "right" | "untagged"
+): { value: number | null; source: ReportSessionRow | null } {
+  const hits: { date: string; s: ReportSessionRow; v: number }[] = [];
+  for (const s of sessions) {
+    if (!s.session_date || !predicate(s)) continue;
+    const rows = metricsBySession.get(s.id) ?? [];
+    const kinds = classify1080Reps(s.test_sub_type, rows);
+    for (const r of rows) {
+      if (r.key !== key || r.value == null || !Number.isFinite(r.value)) continue;
+      const kind = kinds.get(repKey(r.rep_index)) ?? null;
+      if (repKind === "not_cod" ? kind === "cod" : kind !== repKind) continue;
+      const rs = (r.side ?? "").toLowerCase();
+      if (side === "untagged") {
+        if (rs !== "") continue;
+      } else if (side && rs !== side) {
+        continue;
+      }
+      hits.push({ date: s.session_date.slice(0, 10), s, v: r.value });
+    }
+  }
+  if (hits.length === 0) return { value: null, source: null };
+  let latest = hits[0]!.date;
+  for (const h of hits) if (h.date > latest) latest = h.date;
+  let value: number | null = null;
+  let source: ReportSessionRow | null = null;
+  for (const h of hits) {
+    if (h.date !== latest) continue;
+    if (value == null || (mode === "max" ? h.v > value : h.v < value)) {
+      value = h.v;
+      source = h.s;
+    }
+  }
+  return { value, source };
+}
+
 export function normaliseSubType(raw: string | null | undefined): string {
   if (raw == null) return "";
   return raw.trim().replace(/\s+/g, " ");

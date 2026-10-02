@@ -31,6 +31,10 @@ import {
   type SummaryCategory,
 } from "@/lib/performanceSummary";
 import { fetchTargetOverridesForAthlete } from "@/lib/performanceTargets";
+import { protocolIncludes, resolveAthleteProtocol } from "@/lib/protocols";
+import { DIALS } from "@/lib/testCatalogue";
+import type { RankRow } from "@/components/athletes/TeamRankDials";
+import type { PdfRankDial } from "@/components/athletes/pdf/charts/PdfRankDials";
 import type { CriteriaResolver, ReportVisibility } from "@/lib/reportSections";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -261,6 +265,44 @@ export default function PdfExportModal({
               targetOverrides
             )
           : null;
+      // Speed dials: the same ranking the dashboard shows (athlete_cohort_ranks,
+      // comparison group = the athlete's saved setting, else their team). Optional —
+      // a failure here must never block the export.
+      let rankDials: PdfRankDial[] | null = null;
+      let rankCaption: string | null = null;
+      if (mode === "best") {
+        try {
+          const [protocol, rankRes] = await Promise.all([
+            resolveAthleteProtocol(supabase, athlete.id).catch(() => null),
+            supabase.rpc("athlete_cohort_ranks", { p_athlete_id: athlete.id, p_comparison: null }),
+          ]);
+          const rows = (rankRes.data ?? []) as RankRow[];
+          const byMetric = new Map(rows.map((r) => [r.metric, r] as const));
+          const meta = rows.find((r) => r.metric === "_meta");
+          const built: PdfRankDial[] = DIALS.filter((d) =>
+            protocol ? protocolIncludes(protocol, d.testKey) : byMetric.get(d.metric)?.val != null
+          ).map((d) => {
+            const r = byMetric.get(d.metric);
+            return {
+              key: d.metric,
+              label: d.label,
+              unit: d.unit,
+              decimals: d.decimals,
+              value: r?.val != null ? Number(r.val) : null,
+              rank: r?.rnk ?? null,
+              cohortSize: r?.cohort_size ?? null,
+            };
+          });
+          if (built.some((d) => d.value != null)) {
+            rankDials = built;
+            rankCaption = `Compared to ${meta?.cohort_label ?? "their group"}${
+              meta?.cohort_size != null ? ` (${meta.cohort_size} athletes)` : ""
+            }`;
+          }
+        } catch (e) {
+          console.warn("PDF ranking dials skipped:", e);
+        }
+      }
       const dateComparisonData =
         mode === "date_comparison"
           ? computeDateComparisonData(
@@ -308,6 +350,8 @@ export default function PdfExportModal({
           pdfCharts={pdfCharts}
           pdfContext={pdfContext}
           snapshot={snapshot}
+          rankDials={rankDials}
+          rankCaption={rankCaption}
           performanceSummary={performanceSummary}
           visibility={visibility}
         />

@@ -11,6 +11,7 @@ import {
   type ReportMetricRow,
   type ReportSessionRow,
 } from "@/lib/athleteReportData";
+import { classify1080Reps, rowsOfRepKind } from "@/lib/reportCore";
 import {
   buildIsoDisplayGroups,
   isoBestSessionForDate,
@@ -49,7 +50,44 @@ function codProtocolLabel(testSubType: string | null | undefined): string {
   const sub = (testSubType ?? "").toLowerCase();
   if (sub.includes("5-10-5")) return "5-10-5";
   if (sub.includes("5-0-5")) return "5-0-5";
-  return "COD";
+  // 5-0-5-style efforts also turn up inside sessions labelled "Running (LR)" /
+  // "Linear bilateral" (see classify1080Reps), so default to 5-0-5.
+  return "5-0-5";
+}
+
+/** True when the session holds at least one 5-0-5-style rep (see classify1080Reps). */
+function sessionHasCodReps(
+  s: ReportSessionRow,
+  metricsNorm: Map<string, MetricRowWithSide[]>
+): boolean {
+  if (!is1080(s)) return false;
+  const kinds = classify1080Reps(s.test_sub_type, metricsNorm.get(s.id) ?? []);
+  for (const k of kinds.values()) if (k === "cod") return true;
+  return false;
+}
+
+/**
+ * 5-0-5 total time for one session, read from its 5-0-5-style reps only — a
+ * session can also hold a 30m sprint set, and those times must never be read
+ * as 5-0-5 times. Leg-tagged entry times first (weaker side), otherwise the
+ * best untagged rep.
+ */
+function codTotalTimeForSession(
+  s: ReportSessionRow,
+  metricsNorm: Map<string, MetricRowWithSide[]>
+): number | null {
+  const rows = rowsOfRepKind(s.test_sub_type, metricsNorm.get(s.id) ?? [], "cod");
+  const left = minTotalTimeForSide(rows, "left");
+  const right = minTotalTimeForSide(rows, "right");
+  if (left != null || right != null) {
+    if (left == null) return right;
+    if (right == null) return left;
+    return Math.max(left, right); // weaker side = the time we want to track
+  }
+  const untagged = rows
+    .filter((r) => r.key === "total_time" && r.value != null && !(r.side ?? "").trim())
+    .map((r) => r.value as number);
+  return untagged.length > 0 ? Math.min(...untagged) : null;
 }
 
 /**
@@ -275,9 +313,10 @@ export function buildPdfReportCharts(
   }
 
   let cod: PdfCodChart | null = null;
-  const codLatest = latestSessionByDate(sessions, is505Session, metricsNorm);
+  const codLatest = latestSessionByDate(sessions, (s) => sessionHasCodReps(s, metricsNorm), metricsNorm);
   if (codLatest) {
-    const rows = metricsNorm.get(codLatest.id) ?? [];
+    // 5-0-5-style reps only: the same session can also hold a 30m sprint set.
+    const rows = rowsOfRepKind(codLatest.test_sub_type, metricsNorm.get(codLatest.id) ?? [], "cod");
     const left = minTotalTimeForSide(rows, "left");
     const right = minTotalTimeForSide(rows, "right");
     if (left != null && right != null) {
@@ -793,7 +832,8 @@ export function buildPdfReportContext(
   // a hardcoded "5-10-5" testType meant this finding could never match a
   // "5-0-5"-specific band row in performance_bands, silently falling through
   // to a generic (testType-less) row or no band at all.
-  const codLatestForFinding = latestSessionByDate(sessions, is505Session, metricsNorm);
+  const isCodSession = (s: ReportSessionRow) => sessionHasCodReps(s, metricsNorm);
+  const codLatestForFinding = latestSessionByDate(sessions, isCodSession, metricsNorm);
   const codF = findingFromSeries(
     "cod_total_time",
     "cod",
@@ -803,16 +843,8 @@ export function buildPdfReportContext(
     codProtocolLabel(codLatestForFinding?.test_sub_type),
     true,
     sessions,
-    is505Session,
-    (s) => {
-      const rows = metricsNorm.get(s.id) ?? [];
-      const left = minTotalTimeForSide(rows, "left");
-      const right = minTotalTimeForSide(rows, "right");
-      if (left == null && right == null) return null;
-      if (left == null) return right;
-      if (right == null) return left;
-      return Math.max(left, right); // weaker side = the time we want to track
-    },
+    isCodSession,
+    (s) => codTotalTimeForSession(s, metricsNorm),
     bands,
     metricsNorm,
     "cod_505_total_time",
