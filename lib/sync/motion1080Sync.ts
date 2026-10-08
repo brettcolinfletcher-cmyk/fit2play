@@ -551,12 +551,23 @@ export async function runMotion1080Sync(
     }
     const motionAthletes = asArray(await athletesRes.json());
 
+    // Extra 1080 clients merged into an existing athlete (see the merge_athletes()
+    // SQL function). They resolve to the kept athlete and never create a new row.
+    const { data: aliasRows } = await supabase
+      .from("athlete_external_aliases")
+      .select("external_id, athlete_id")
+      .eq("source", "1080");
+    const motionAliases = new Map<string, string>(
+      (aliasRows ?? []).map((a) => [String(a.external_id), String(a.athlete_id)])
+    );
+
     let loggedSampleClient = false;
     for (const raw of motionAthletes) {
       if (!raw || typeof raw !== "object") continue;
       const row = raw as Record<string, unknown>;
       const extId = row.id != null ? String(row.id) : null;
       if (!extId) continue;
+      if (motionAliases.has(extId)) continue;
 
       if (!loggedSampleClient) {
         // One-time diagnostic — not pushed into `errors` (would flip sync
@@ -659,7 +670,8 @@ export async function runMotion1080Sync(
       if (!wid || !clientId) continue;
 
       // Resolve internal athlete ID
-      let internalAthleteId = athleteIdCache.get(clientId);
+      let internalAthleteId =
+        athleteIdCache.get(clientId) ?? motionAliases.get(clientId);
       if (!internalAthleteId) {
         const { data: ath } = await supabase
           .from("athletes")

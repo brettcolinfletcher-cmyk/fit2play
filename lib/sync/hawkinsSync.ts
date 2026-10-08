@@ -169,12 +169,24 @@ export async function runHawkinsSync(
     const hawkinsAthletes = (await athletesRes.json()) as unknown;
     const athleteList = normalizeHawkinsAthleteList(hawkinsAthletes);
 
+    // Extra Hawkins profiles that were merged into an existing athlete (see the
+    // merge_athletes() SQL function). They resolve to the kept athlete and must
+    // never create a new athlete row or overwrite the kept athlete's name.
+    const { data: aliasRows } = await supabase
+      .from("athlete_external_aliases")
+      .select("external_id, athlete_id")
+      .eq("source", "hawkins");
+    const hawkinsAliases = new Map<string, string>(
+      (aliasRows ?? []).map((a) => [String(a.external_id), String(a.athlete_id)])
+    );
+
     for (const raw of athleteList) {
       if (!raw || typeof raw !== "object") continue;
       const row = raw as { id?: unknown; name?: unknown };
       const extId = row.id != null ? String(row.id) : null;
       const nameStr = typeof row.name === "string" ? row.name : "";
       if (!extId || !nameStr) continue;
+      if (hawkinsAliases.has(extId)) continue;
 
       const { first_name, last_name } = splitAthleteName(nameStr);
       const { error: upErr } = await supabase.from("athletes").upsert(
@@ -329,7 +341,8 @@ export async function runHawkinsSync(
         continue;
       }
 
-      let internalAthleteId = athleteIdCache.get(extAthleteId);
+      let internalAthleteId =
+        athleteIdCache.get(extAthleteId) ?? hawkinsAliases.get(extAthleteId);
       if (!internalAthleteId) {
         const { data: ath, error: aErr } = await supabase
           .from("athletes")
