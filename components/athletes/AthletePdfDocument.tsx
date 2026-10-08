@@ -707,6 +707,8 @@ export type PdfProps = {
   includeNotes: boolean;
   /** Show the "Target ..." line under each Performance Summary value (default off). */
   showTargets?: boolean;
+  /** Show height and weight (anthropometry) in the header pills (default on). */
+  showAnthropometry?: boolean;
   summaryComment: string | null;
   sectionComments: Record<string, string | null>;
   dateComparisonData?: DateComparisonData;
@@ -768,6 +770,7 @@ export default function AthletePdfDocument({
   compareDateBLabel = "Date B",
   includeNotes,
   showTargets = false,
+  showAnthropometry = true,
   summaryComment,
   sectionComments,
   dateComparisonData,
@@ -790,8 +793,8 @@ export default function AthletePdfDocument({
 
   // Athlete meta strip (same fields as the dashboard identity card): only
   // renders when at least one value exists.
-  const heightLabel = formatHeight(athleteHeightCm);
-  const weightLabel = formatWeight(athleteWeightKg);
+  const heightLabel = showAnthropometry ? formatHeight(athleteHeightCm) : null;
+  const weightLabel = showAnthropometry ? formatWeight(athleteWeightKg) : null;
   const hasMeta = Boolean(athleteSport || athleteTeam || heightLabel || weightLabel);
 
   return (

@@ -12,6 +12,7 @@
     "@react-pdf/renderer": "^4.3.1",
     "@supabase/ssr": "^0.10.2",
     "@supabase/supabase-js": "^2.81.1",
+    "jszip": "^3.10.2",
     "next": "^16.2.2",
     "papaparse": "^5.5.3",
     "pdf-lib": "^1.17.1",

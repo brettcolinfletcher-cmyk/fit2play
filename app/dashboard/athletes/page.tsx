@@ -7,6 +7,7 @@ import DashboardNav from "@/components/DashboardNav";
 import { formatDisplayDateTime } from "@/lib/dateDisplay";
 import { useRequireDashboardStaff } from "@/lib/useRequireDashboardStaff";
 import { supabase } from "@/lib/supabaseClient";
+import BulkPdfExportModal from "@/components/athletes/BulkPdfExportModal";
 
 // ────────────────────────────────────────────────────────────────────────────
 // Types
@@ -148,6 +149,10 @@ export default function AthletesListPage() {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [statusUpdatingId, setStatusUpdatingId] = useState<string | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
+
+  // Bulk report export: selection persists across filters but only visible athletes are exported.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [bulkOpen, setBulkOpen] = useState(false);
 
   // ──────────────────────────────────────────────────────────────────────────
   // Data fetch
@@ -403,6 +408,34 @@ export default function AthletesListPage() {
     return { all: nonArchived.length, byTeam, unassigned, archived: summary.archived };
   }, [athletes, teamIdsByAthlete, summary.archived]);
 
+  const selectedVisible = useMemo(
+    () => sorted.filter((a) => selectedIds.has(a.id)),
+    [sorted, selectedIds]
+  );
+  const allVisibleSelected = sorted.length > 0 && selectedVisible.length === sorted.length;
+
+  const toggleSelected = useCallback((athleteId: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(athleteId)) next.delete(athleteId);
+      else next.add(athleteId);
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAllVisible = useCallback(() => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      const everyVisibleSelected =
+        sorted.length > 0 && sorted.every((a) => next.has(a.id));
+      for (const a of sorted) {
+        if (everyVisibleSelected) next.delete(a.id);
+        else next.add(a.id);
+      }
+      return next;
+    });
+  }, [sorted]);
+
   // ──────────────────────────────────────────────────────────────────────────
   // Render guards
   // ──────────────────────────────────────────────────────────────────────────
@@ -571,8 +604,37 @@ export default function AthletesListPage() {
             </div>
 
             {/* Scope title (small) */}
-            <div className="mt-4 flex items-center justify-between">
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-sm font-medium text-slate-300">{scopeLabel}</h2>
+              <div className="flex flex-wrap items-center gap-3 text-xs">
+                <label className="flex cursor-pointer items-center gap-1.5 text-slate-400">
+                  <input
+                    type="checkbox"
+                    checked={allVisibleSelected}
+                    onChange={toggleSelectAllVisible}
+                    disabled={sorted.length === 0}
+                    className="rounded border-slate-600 bg-slate-950 text-lime-500 focus:ring-lime-500/40"
+                  />
+                  Select all ({sorted.length})
+                </label>
+                {selectedVisible.length > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedIds(new Set())}
+                    className="text-slate-400 hover:text-slate-200 hover:underline"
+                  >
+                    Clear
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => setBulkOpen(true)}
+                  disabled={selectedVisible.length === 0}
+                  className="rounded-lg border border-lime-500/50 bg-lime-500/15 px-3 py-1.5 font-medium text-lime-200 hover:bg-lime-500/25 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Export reports{selectedVisible.length > 0 ? ` (${selectedVisible.length})` : ""}
+                </button>
+              </div>
             </div>
 
             {/* Results */}
@@ -603,6 +665,8 @@ export default function AthletesListPage() {
                         setOpenMenuId((cur) => (cur === a.id ? null : a.id))
                       }
                       onStatusChange={handleStatusChange}
+                      selected={selectedIds.has(a.id)}
+                      onToggleSelect={() => toggleSelected(a.id)}
                     />
                   );
                 })}
@@ -612,6 +676,15 @@ export default function AthletesListPage() {
                 <table className="w-full min-w-[720px] text-left text-sm">
                   <thead>
                     <tr className="border-b border-slate-800 text-xs uppercase tracking-wide text-slate-500">
+                      <th className="w-10 px-4 py-3">
+                        <input
+                          type="checkbox"
+                          checked={allVisibleSelected}
+                          onChange={toggleSelectAllVisible}
+                          aria-label="Select all visible athletes"
+                          className="rounded border-slate-600 bg-slate-950 text-lime-500 focus:ring-lime-500/40"
+                        />
+                      </th>
                       <th className="px-4 py-3 font-medium">Name</th>
                       <th className="px-4 py-3 font-medium">Team(s)</th>
                       <th className="px-4 py-3 font-medium">Sport</th>
@@ -633,6 +706,15 @@ export default function AthletesListPage() {
                           key={a.id}
                           className="border-b border-slate-800/80 hover:bg-slate-900/80"
                         >
+                          <td className="w-10 px-4 py-3">
+                            <input
+                              type="checkbox"
+                              checked={selectedIds.has(a.id)}
+                              onChange={() => toggleSelected(a.id)}
+                              aria-label={`Select ${displayName(a)} for report export`}
+                              className="rounded border-slate-600 bg-slate-950 text-lime-500 focus:ring-lime-500/40"
+                            />
+                          </td>
                           <td className="px-4 py-3 text-slate-100">
                             <Link
                               href={`/dashboard/athletes/${a.id}`}
@@ -680,6 +762,13 @@ export default function AthletesListPage() {
           </div>
         </div>
       </section>
+
+      <BulkPdfExportModal
+        open={bulkOpen}
+        onClose={() => setBulkOpen(false)}
+        athletes={selectedVisible}
+        scopeLabel={scopeLabel}
+      />
     </main>
   );
 }
@@ -813,6 +902,8 @@ function AthleteCard({
   updating,
   onMenuToggle,
   onStatusChange,
+  selected,
+  onToggleSelect,
 }: {
   athlete: AthleteRow;
   teamNames: string[];
@@ -822,6 +913,8 @@ function AthleteCard({
   updating: boolean;
   onMenuToggle: () => void;
   onStatusChange: (athleteId: string, next: AthleteStatus) => void | Promise<void>;
+  selected: boolean;
+  onToggleSelect: () => void;
 }) {
   const d = daysSince(lastSession);
   const stale = athlete.status !== "archived" && (d === null || d > 30);
@@ -837,6 +930,20 @@ function AthleteCard({
       href={`/dashboard/athletes/${athlete.id}`}
       className="group relative block rounded-xl border border-slate-800 bg-slate-900/40 p-4 transition hover:border-lime-400/40 hover:bg-slate-900/70 hover:shadow-lg hover:shadow-lime-400/10"
     >
+      {/* Bulk-export selection. stopPropagation only: preventDefault would cancel the checkbox toggle. */}
+      <span
+        className="absolute right-10 top-[14px]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={onToggleSelect}
+          aria-label={`Select ${displayName(athlete)} for report export`}
+          className="h-4 w-4 cursor-pointer rounded border-slate-600 bg-slate-950 text-lime-500 focus:ring-lime-500/40"
+        />
+      </span>
+
       {/* Kebab + dropdown — wrapped in a span so the outside-click detector can see it. */}
       <span
         data-athlete-menu="true"
@@ -906,7 +1013,7 @@ function AthleteCard({
         ) : null}
       </span>
 
-      <div className="flex items-start gap-3 pr-8">
+      <div className="flex items-start gap-3 pr-14">
         {athlete.profile_image_url ? (
           <Image
             src={athlete.profile_image_url}

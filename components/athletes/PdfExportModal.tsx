@@ -1,11 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { pdf } from "@react-pdf/renderer";
-import AthletePdfDocument from "@/components/athletes/AthletePdfDocument";
 import {
-  computeDateComparisonData,
-  formatChartAxisDate,
   sessionOptionLabel,
   sortedSessionOptions,
   type ReportHopTestRow,
@@ -13,39 +9,16 @@ import {
   type ReportSessionRow,
 } from "@/lib/athleteReportData";
 import {
-  buildPdfReportCharts,
-  type MetricRowWithSide,
-} from "@/lib/pdfReportChartData";
-import {
-  computeAthleteSnapshot,
-  type AthleteSnapshot,
-} from "@/lib/athleteSnapshot";
-import {
-  computePerformanceSummary,
-  type SummaryCategory,
-} from "@/lib/performanceSummary";
-import { fetchTargetOverridesForAthlete } from "@/lib/performanceTargets";
-import { protocolIncludes, resolveAthleteProtocol } from "@/lib/protocols";
-import { DIALS } from "@/lib/testCatalogue";
-import type { RankRow } from "@/components/athletes/TeamRankDials";
-import type { PdfRankDial } from "@/components/athletes/pdf/charts/PdfRankDials";
+  athleteDisplayName,
+  downloadBlob,
+  generateAthletePdfBlob,
+  inDateRange,
+  logPdfReport,
+  pdfFileName,
+  type AthleteForPdf,
+} from "@/lib/generateAthletePdf";
 import type { CriteriaResolver, ReportVisibility } from "@/lib/reportSections";
 import { supabase } from "@/lib/supabaseClient";
-
-type AthleteForPdf = {
-  id: string;
-  first_name: string | null;
-  last_name: string | null;
-  /** Optional extended fields used by the new snapshot page. */
-  primary_sport?: string | null;
-  team?: string | null;
-  /** Numeric columns can arrive as strings from PostgREST; the PDF coerces. */
-  height_cm?: number | string | null;
-  weight_kg?: number | string | null;
-  target_profile_id?: string | null;
-  /** "rtp" (exit-criteria/READINESS gauges) vs "performance" (composite monitoring, no READINESS). */
-  dashboard_mode?: string | null;
-};
 
 type Props = {
   open: boolean;
@@ -60,22 +33,6 @@ type Props = {
   visibility: ReportVisibility;
   criteria: CriteriaResolver;
 };
-
-function inDateRange(dateIso: string | null, start: string | null, end: string | null): boolean {
-  if (!dateIso) return true;
-  const d = dateIso.slice(0, 10);
-  if (start && d < start) return false;
-  if (end && d > end) return false;
-  return true;
-}
-
-function todayPdfSuffix(): string {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
 
 const inputClass =
   "mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-200";
@@ -100,6 +57,7 @@ export default function PdfExportModal({
   const [dateBId, setDateBId] = useState<string | null>(null);
   const [includeNotes, setIncludeNotes] = useState(false);
   const [includeTargets, setIncludeTargets] = useState(false);
+  const [includeAnthropometry, setIncludeAnthropometry] = useState(true);
   const [summaryComment, setSummaryComment] = useState("");
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -112,6 +70,7 @@ export default function PdfExportModal({
     setMode("best");
     setIncludeNotes(false);
     setIncludeTargets(false);
+    setIncludeAnthropometry(true);
     setSummaryComment("");
   }, [open, rangeStart, rangeEnd]);
 
@@ -138,29 +97,7 @@ export default function PdfExportModal({
     }
   }, [open, sessionOptions]);
 
-  const athleteName = `${athlete.first_name ?? ""} ${athlete.last_name ?? ""}`.trim() || "Athlete";
-  // Matches app/dashboard/athletes/[id]/page.tsx's derivation — READINESS
-  // (exit-criteria gauges) only makes sense for "rtp"-tagged athletes.
-  // "performance"-tagged athletes (composite monitoring, no rehab exit
-  // criteria) should never get a READINESS section in their PDF.
-  const dashboardMode: "rtp" | "performance" =
-    String(athlete.dashboard_mode ?? "rtp") === "performance" ? "performance" : "rtp";
-
-  const sessA = useMemo(
-    () => (dateAId ? scopeSessions.find((s) => s.id === dateAId) ?? null : null),
-    [dateAId, scopeSessions]
-  );
-  const sessB = useMemo(
-    () => (dateBId ? scopeSessions.find((s) => s.id === dateBId) ?? null : null),
-    [dateBId, scopeSessions]
-  );
-
-  const compareDateALabel = sessA?.session_date
-    ? formatChartAxisDate(sessA.session_date)
-    : "Date A";
-  const compareDateBLabel = sessB?.session_date
-    ? formatChartAxisDate(sessB.session_date)
-    : "Date B";
+  const athleteName = athleteDisplayName(athlete);
 
   const onGenerate = useCallback(async () => {
     setFormError(null);
@@ -186,133 +123,40 @@ export default function PdfExportModal({
         return;
       }
 
-      const pdfCharts =
-        mode === "best"
-          ? buildPdfReportCharts(
-              scopeSessions,
-              metricsBySession as Map<string, MetricRowWithSide[]>,
-              scopeHopTests,
-              exportFrom,
-              exportTo
-            )
-          : null;
-      // Resolved once: the same target profile drives every Performance Summary row.
-      const targetOverrides =
-        mode === "best"
-          ? (await fetchTargetOverridesForAthlete(supabase, athlete.target_profile_id ?? null)).targets
-          : {};
-      const snapshot: AthleteSnapshot | null =
-        mode === "best" && dashboardMode === "rtp"
-          ? computeAthleteSnapshot(
-              scopeSessions,
-              metricsBySession,
-              scopeHopTests,
-              visibility,
-              criteria
-            )
-          : null;
-      const performanceSummary: SummaryCategory[] | null =
-        mode === "best"
-          ? computePerformanceSummary(
-              scopeSessions,
-              metricsBySession,
-              targetOverrides
-            )
-          : null;
-      // Speed dials: the same ranking the dashboard shows (athlete_cohort_ranks,
-      // comparison group = the athlete's saved setting, else their team). Optional —
-      // a failure here must never block the export.
-      let rankDials: PdfRankDial[] | null = null;
-      if (mode === "best") {
-        try {
-          const [protocol, rankRes] = await Promise.all([
-            resolveAthleteProtocol(supabase, athlete.id).catch(() => null),
-            supabase.rpc("athlete_cohort_ranks", { p_athlete_id: athlete.id, p_comparison: null }),
-          ]);
-          const rows = (rankRes.data ?? []) as RankRow[];
-          const byMetric = new Map(rows.map((r) => [r.metric, r] as const));
-          const built: PdfRankDial[] = DIALS.filter((d) =>
-            protocol ? protocolIncludes(protocol, d.testKey) : byMetric.get(d.metric)?.val != null
-          ).map((d) => {
-            const r = byMetric.get(d.metric);
-            return {
-              key: d.metric,
-              label: d.label,
-              unit: d.unit,
-              decimals: d.decimals,
-              value: r?.val != null ? Number(r.val) : null,
-              rank: r?.rnk ?? null,
-              cohortSize: r?.cohort_size ?? null,
-            };
-          });
-          if (built.some((d) => d.value != null)) {
-            rankDials = built;
-          }
-        } catch (e) {
-          console.warn("PDF ranking dials skipped:", e);
-        }
-      }
-      const dateComparisonData =
-        mode === "date_comparison"
-          ? computeDateComparisonData(
-              scopeSessions,
-              metricsBySession,
-              scopeHopTests,
-              dateAId,
-              dateBId
-            )
-          : undefined;
-
-      const insertPayload = {
-        athlete_id: athlete.id,
-        created_by: user.id,
-        date_range_start: exportFrom || null,
-        date_range_end: exportTo || null,
+      const trimmedComment = summaryComment.trim();
+      const blob = await generateAthletePdfBlob({
+        athlete,
+        sessions: scopeSessions,
+        metricsBySession,
+        hopTests: scopeHopTests,
+        sectionComments,
+        rangeStart: exportFrom,
+        rangeEnd: exportTo,
+        visibility,
+        criteria,
         mode,
-        specific_dates:
-          mode === "date_comparison" && dateAId && dateBId ? [dateAId, dateBId] : [],
-        include_notes: includeNotes,
-        summary_comment: summaryComment.trim() || null,
-      };
+        dateAId,
+        dateBId,
+        includeNotes,
+        includeTargets,
+        includeAnthropometry,
+        summaryComment: trimmedComment,
+      });
 
-      const { error: insErr } = await supabase.from("pdf_reports").insert(insertPayload);
-      if (insErr) {
-        console.warn("pdf_reports insert skipped:", insErr.message);
-      }
+      // Logged after a successful render so failed exports leave no record.
+      await logPdfReport({
+        athleteId: athlete.id,
+        userId: user.id,
+        rangeStart: exportFrom,
+        rangeEnd: exportTo,
+        mode,
+        dateAId,
+        dateBId,
+        includeNotes,
+        summaryComment: trimmedComment,
+      });
 
-      const blob = await pdf(
-        <AthletePdfDocument
-          athleteName={athleteName}
-          athleteSport={athlete.primary_sport ?? null}
-          athleteTeam={athlete.team ?? null}
-          athleteHeightCm={athlete.height_cm ?? null}
-          athleteWeightKg={athlete.weight_kg ?? null}
-          rangeStart={exportFrom}
-          rangeEnd={exportTo}
-          mode={mode}
-          compareDateALabel={compareDateALabel}
-          compareDateBLabel={compareDateBLabel}
-          includeNotes={includeNotes}
-          showTargets={includeTargets}
-          summaryComment={summaryComment.trim() || null}
-          sectionComments={sectionComments}
-          dateComparisonData={dateComparisonData}
-          pdfCharts={pdfCharts}
-          snapshot={snapshot}
-          rankDials={rankDials}
-          performanceSummary={performanceSummary}
-          visibility={visibility}
-        />
-      ).toBlob();
-
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      const safeName = athleteName.replace(/\s+/g, "_");
-      a.download = `${safeName}_report_${todayPdfSuffix()}.pdf`;
-      a.click();
-      URL.revokeObjectURL(url);
-
+      downloadBlob(blob, pdfFileName(athleteName));
       onClose();
     } catch (e) {
       setFormError(e instanceof Error ? e.message : "Could not generate PDF.");
@@ -320,20 +164,14 @@ export default function PdfExportModal({
       setBusy(false);
     }
   }, [
-    athlete.id,
-    athlete.primary_sport,
-    athlete.team,
-    athlete.height_cm,
-    athlete.weight_kg,
-    athlete.target_profile_id,
-    dashboardMode,
+    athlete,
     athleteName,
-    compareDateALabel,
-    compareDateBLabel,
+    criteria,
     dateAId,
     dateBId,
     exportFrom,
     exportTo,
+    includeAnthropometry,
     includeNotes,
     includeTargets,
     metricsBySession,
@@ -344,7 +182,6 @@ export default function PdfExportModal({
     sectionComments,
     summaryComment,
     visibility,
-    criteria,
   ]);
 
   if (!open) return null;
@@ -465,6 +302,16 @@ export default function PdfExportModal({
               className="rounded border-slate-600 bg-slate-950 text-lime-500 focus:ring-lime-500/40"
             />
             Show targets in the performance summary
+          </label>
+
+          <label className="flex cursor-pointer items-center gap-2 text-xs text-slate-300">
+            <input
+              type="checkbox"
+              checked={includeAnthropometry}
+              onChange={(e) => setIncludeAnthropometry(e.target.checked)}
+              className="rounded border-slate-600 bg-slate-950 text-lime-500 focus:ring-lime-500/40"
+            />
+            Show height and weight (anthropometry)
           </label>
 
           <div>
