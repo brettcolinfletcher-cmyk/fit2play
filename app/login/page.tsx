@@ -10,7 +10,6 @@ export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [mode, setMode] = useState<"login" | "signup">("login");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -20,17 +19,12 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      if (mode === "signup") {
-        const { error } = await supabase.auth.signUp({ email, password });
-        if (error) throw error;
-        // depending on settings, user may need to confirm email
-      } else {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-        if (error) throw error;
-      }
+      // Accounts are created by staff only; there is no public sign-up.
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (error) throw error;
 
       router.push("/dashboard");
     } catch (err: any) {
@@ -58,7 +52,7 @@ export default function LoginPage() {
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <h1 className="text-2xl font-semibold mb-4 text-slate-900">
-            {mode === "login" ? "Log in" : "Create account"}
+            Log in
           </h1>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -91,24 +85,13 @@ export default function LoginPage() {
               disabled={loading}
               className="w-full rounded-full bg-lime-400 text-slate-950 font-semibold py-2 text-sm hover:brightness-110 disabled:opacity-60"
             >
-              {loading
-                ? "Please wait..."
-                : mode === "login"
-                ? "Log in"
-                : "Sign up"}
+              {loading ? "Please wait..." : "Log in"}
             </button>
           </form>
 
-          <button
-            className="mt-4 text-xs text-slate-500 hover:text-lime-700"
-            onClick={() =>
-              setMode((m) => (m === "login" ? "signup" : "login"))
-            }
-          >
-            {mode === "login"
-              ? "Need an account? Sign up"
-              : "Already have an account? Log in"}
-          </button>
+          <p className="mt-4 text-xs text-slate-500">
+            Need access? Ask your Fit2Perform practitioner for an account.
+          </p>
         </div>
       </div>
     </div>
