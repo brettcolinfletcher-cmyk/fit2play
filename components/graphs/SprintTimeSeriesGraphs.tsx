@@ -180,8 +180,9 @@ function splitByLegContinuous(
 }
 
 export default function SprintTimeSeriesGraphs({ series }: Props) {
-  if (!series.length) return null;
-
+  // Hooks must run on every render, so the empty-series early return sits
+  // below them (an early return here crashed when data arrived after an
+  // empty first render).
   const [selectedRepIdx, setSelectedRepIdx] = useState(
     series[0]?.rep_index ?? 1
   );
@@ -196,6 +197,7 @@ export default function SprintTimeSeriesGraphs({ series }: Props) {
   );
 
   const data = useMemo(() => {
+    if (!selectedRep) return [];
     const baseRows = buildBaseRows(selectedRep);
     return splitByLegContinuous(baseRows, leadLeg);
   }, [selectedRep, leadLeg]);
@@ -256,6 +258,8 @@ export default function SprintTimeSeriesGraphs({ series }: Props) {
       asymPct,
     };
   }, [data, leftKey, rightKey]);
+
+  if (!series.length) return null;
 
   return (
     <section className="mt-8">

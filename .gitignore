@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Local-only files kept out of the site and repo (research PDFs, old brand files)
+/_private/
