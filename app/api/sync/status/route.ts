@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { staffOrServerAuthorized } from "@/lib/routeAuth";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +11,10 @@ type SyncLogRow = {
   errors: string | null;
 };
 
-export async function GET() {
+export async function GET(request: Request) {
+  if (!(await staffOrServerAuthorized(request))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!

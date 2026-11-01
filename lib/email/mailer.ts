@@ -271,3 +271,83 @@ export async function sendInvoiceEmail(data: InvoiceEmailData) {
     html,
   });
 }
+
+// ---- booking cancellation ----------------------------------------------------
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+export type BookingCancellationData = {
+  clientName: string;
+  clientEmail: string | null;
+  clientPhone: string | null;
+  serviceName: string;
+  startAt: string;
+  practitionerName: string;
+};
+
+/** Confirms the cancellation to the client and notifies the clinic inbox. */
+export async function sendBookingCancellation(data: BookingCancellationData) {
+  const resend = getResend();
+  const date = perthDate(data.startAt);
+  const time = perthTime(data.startAt);
+  const name = escapeHtml(data.clientName);
+  const service = escapeHtml(data.serviceName);
+  const practitioner = escapeHtml(data.practitionerName);
+
+  const sends: Promise<unknown>[] = [];
+
+  if (data.clientEmail) {
+    sends.push(
+      resend.emails.send({
+        from: FROM,
+        replyTo: REPLY_TO,
+        to: data.clientEmail,
+        subject: `Cancelled: ${data.serviceName} on ${date}`,
+        html: shell(`
+    <p style="font-size:18px;font-weight:700;margin:0 0 4px;">Appointment cancelled</p>
+    <p style="color:#64748b;margin:0 0 24px;">Hi ${name}, your appointment has been cancelled.</p>
+
+    <p class="label">Service</p>
+    <p class="value">${service}</p>
+
+    <p class="label">Date &amp; time</p>
+    <p class="value">${date}<br/><strong>${time}</strong></p>
+
+    <p style="color:#64748b;font-size:13px;">
+      Want a new time? <a href="${SITE_URL}/book" style="color:#0f172a;">Book again online</a> or reply to this email.
+    </p>
+  `),
+      })
+    );
+  }
+
+  sends.push(
+    resend.emails.send({
+      from: FROM,
+      to: REPLY_TO,
+      subject: `Client cancelled: ${data.clientName}, ${date} ${time}`,
+      html: shell(`
+    <p style="font-size:18px;font-weight:700;margin:0 0 4px;">Online cancellation</p>
+    <p style="color:#64748b;margin:0 0 24px;">A client cancelled through the link in their booking email. The slot is free again in the diary.</p>
+
+    <p class="label">Client</p>
+    <p class="value">${name}${data.clientPhone ? `<br/>${escapeHtml(data.clientPhone)}` : ""}${data.clientEmail ? `<br/>${escapeHtml(data.clientEmail)}` : ""}</p>
+
+    <p class="label">Service</p>
+    <p class="value">${service} with ${practitioner}</p>
+
+    <p class="label">Was booked for</p>
+    <p class="value">${date}<br/><strong>${time}</strong></p>
+  `),
+    })
+  );
+
+  await Promise.allSettled(sends);
+}

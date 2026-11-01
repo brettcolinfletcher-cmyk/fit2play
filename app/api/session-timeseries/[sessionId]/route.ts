@@ -1,6 +1,7 @@
 import { Buffer } from "node:buffer";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { staffOrServerAuthorized } from "@/lib/routeAuth";
 
 
 export const dynamic = "force-dynamic";
@@ -106,8 +107,8 @@ function seriesToSamples(series: unknown): MotionSample[] {
   return out;
 }
 
-async function authorized(_request: Request): Promise<boolean> {
-  return true;
+async function authorized(request: Request): Promise<boolean> {
+  return staffOrServerAuthorized(request);
 }
 
 export async function GET(

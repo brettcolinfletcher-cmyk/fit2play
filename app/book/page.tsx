@@ -454,8 +454,11 @@ export default function BookPage() {
                 />
                 <span>
                   I consent to {clinic?.name ?? "the clinic"} collecting and storing the details
-                  I've provided for the purpose of managing my appointment, in line with their
-                  privacy practices.
+                  I've provided for the purpose of managing my appointment, as set out in the{" "}
+                  <a href="/privacy" target="_blank" rel="noopener noreferrer" className="underline hover:text-slate-800">
+                    privacy policy
+                  </a>
+                  .
                 </span>
               </label>
 

@@ -17,7 +17,12 @@ export default function SiteFooter() {
             className="max-h-8 w-auto"
           />
         </Link>
-        <p>© {new Date().getFullYear()} Fit2Perform</p>
+        <p>
+          © {new Date().getFullYear()} Fit2Perform ·{" "}
+          <Link href="/privacy" className="hover:text-lime-600">
+            Privacy
+          </Link>
+        </p>
         <a href={`mailto:${CONTACT_EMAIL}`} className="hover:text-lime-600">
           {CONTACT_EMAIL}
         </a>

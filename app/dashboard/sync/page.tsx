@@ -34,7 +34,10 @@ export default function SyncDashboardPage() {
   const loadStatus = useCallback(async () => {
     setStatusLoading(true);
     try {
-      const res = await fetch("/api/sync/status", { credentials: "include" });
+      const res = await fetch("/api/sync/status", {
+        credentials: "include",
+        headers: await staffAuthHeaders(),
+      });
       const json = (await res.json()) as StatusPayload & { error?: string };
       if (res.ok) {
         setStatus({
