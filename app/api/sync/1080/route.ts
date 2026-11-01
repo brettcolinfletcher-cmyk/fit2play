@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { runMotion1080Sync } from "@/lib/sync/motion1080Sync";
+import { staffOrServerAuthorized } from "@/lib/routeAuth";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -12,16 +13,9 @@ function serviceClient() {
   );
 }
 
-function syncAuthorized(request: Request): boolean {
-  const secret = process.env.SYNC_SECRET;
-  if (!secret) return false;
-  const header = request.headers.get("x-sync-secret");
-  const q = new URL(request.url).searchParams.get("secret");
-  return header === secret || q === secret;
-}
 
 export async function GET(request: Request) {
-  if (!syncAuthorized(request)) {
+  if (!(await staffOrServerAuthorized(request))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const supabase = serviceClient();
@@ -30,7 +24,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  if (!syncAuthorized(request)) {
+  if (!(await staffOrServerAuthorized(request))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const supabase = serviceClient();

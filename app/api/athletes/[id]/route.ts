@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { requireAuth } from "@/lib/supabase-server";
+import { staffOrServerAuthorized } from "@/lib/routeAuth";
 
 export const dynamic = "force-dynamic";
 
@@ -57,13 +58,6 @@ function pickAllowedPatch(body: Record<string, unknown>) {
   return out;
 }
 
-function syncAuthorized(request: Request): boolean {
-  const secret = process.env.SYNC_SECRET;
-  if (!secret) return false;
-  const header = request.headers.get("x-sync-secret");
-  const q = new URL(request.url).searchParams.get("secret");
-  return header === secret || q === secret;
-}
 
 export async function GET(
   _req: NextRequest,
@@ -111,7 +105,7 @@ export async function PATCH(
     return NextResponse.json({ error: "Missing id" }, { status: 400 });
   }
 
-  if (!syncAuthorized(req)) {
+  if (!(await staffOrServerAuthorized(req))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -154,7 +148,7 @@ export async function DELETE(
     return NextResponse.json({ error: "Missing id" }, { status: 400 });
   }
 
-  if (!syncAuthorized(req)) {
+  if (!(await staffOrServerAuthorized(req))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

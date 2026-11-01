@@ -8,6 +8,7 @@ import { formatDisplayDateTime } from "@/lib/dateDisplay";
 import { useRequireDashboardStaff } from "@/lib/useRequireDashboardStaff";
 import { supabase } from "@/lib/supabaseClient";
 import BulkPdfExportModal from "@/components/athletes/BulkPdfExportModal";
+import { staffAuthHeaders } from "@/lib/staffAuthHeaders";
 
 // ────────────────────────────────────────────────────────────────────────────
 // Types
@@ -247,10 +248,7 @@ export default function AthletesListPage() {
         const res = await fetch(`/api/athletes/${athleteId}`, {
           method: "PATCH",
           credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-            "x-sync-secret": process.env.NEXT_PUBLIC_SYNC_SECRET ?? "",
-          },
+          headers: await staffAuthHeaders({ "Content-Type": "application/json" }),
           body: JSON.stringify({ status: nextStatus }),
         });
         if (!res.ok) {

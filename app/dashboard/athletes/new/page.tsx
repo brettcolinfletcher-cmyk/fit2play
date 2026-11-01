@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import DashboardNav from "@/components/DashboardNav";
 import { useRequireDashboardStaff } from "@/lib/useRequireDashboardStaff";
+import { staffAuthHeaders } from "@/lib/staffAuthHeaders";
 
 const LR_OPTIONS = ["Left", "Right", "Both"] as const;
 
@@ -56,10 +57,7 @@ export default function NewAthletePage() {
     const res = await fetch("/api/athletes", {
       method: "POST",
       credentials: "include",
-      headers: {
-        "Content-Type": "application/json",
-        "x-sync-secret": process.env.NEXT_PUBLIC_SYNC_SECRET ?? "",
-      },
+      headers: await staffAuthHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify(body),
     });
 

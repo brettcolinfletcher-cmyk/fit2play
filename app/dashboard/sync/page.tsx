@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import DashboardNav from "@/components/DashboardNav";
 import { formatDisplayDateTime } from "@/lib/dateDisplay";
 import { useRequireDashboardStaff } from "@/lib/useRequireDashboardStaff";
+import { staffAuthHeaders } from "@/lib/staffAuthHeaders";
 
 type SourceStatus = {
   synced_at: string;
@@ -57,9 +58,7 @@ export default function SyncDashboardPage() {
       const res = await fetch("/api/sync/hawkins", {
         method: "POST",
         credentials: "include",
-        headers: {
-          "x-sync-secret": process.env.NEXT_PUBLIC_SYNC_SECRET ?? "",
-        },
+        headers: await staffAuthHeaders(),
       });
       const json = (await res.json()) as {
         ok?: boolean;
@@ -88,9 +87,7 @@ export default function SyncDashboardPage() {
       const res = await fetch("/api/sync/1080", {
         method: "POST",
         credentials: "include",
-        headers: {
-          "x-sync-secret": process.env.NEXT_PUBLIC_SYNC_SECRET ?? "",
-        },
+        headers: await staffAuthHeaders(),
       });
       const json = (await res.json()) as {
         ok?: boolean;

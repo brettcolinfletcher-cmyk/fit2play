@@ -7,6 +7,7 @@ import DashboardNav from "@/components/DashboardNav";
 import { formatDisplayDateTime } from "@/lib/dateDisplay";
 import { useRequireDashboardStaff } from "@/lib/useRequireDashboardStaff";
 import { normalizeForceplateMetrics } from "@/lib/uploadForceplateNormalize";
+import { staffAuthHeaders } from "@/lib/staffAuthHeaders";
 
 const META_SKIP = new Set(
   [
@@ -115,10 +116,7 @@ export default function UploadPage() {
     payload: Record<string, unknown>;
   } | null>(null);
 
-  const syncHeaders = {
-    "Content-Type": "application/json",
-    "x-sync-secret": process.env.NEXT_PUBLIC_SYNC_SECRET ?? "",
-  };
+  const syncHeaders = () => staffAuthHeaders({ "Content-Type": "application/json" });
 
   const parseHawkinsFile = useCallback((file: File) => {
     setHawkinsWarn(null);
@@ -254,7 +252,7 @@ export default function UploadPage() {
     const res = await fetch("/api/upload/hawkins", {
       method: "POST",
       credentials: "include",
-      headers: syncHeaders,
+      headers: await syncHeaders(),
       body: JSON.stringify(force ? { ...payload, force: true } : payload),
     });
     return res.json() as Promise<Record<string, unknown>>;
@@ -264,7 +262,7 @@ export default function UploadPage() {
     const res = await fetch("/api/upload/1080", {
       method: "POST",
       credentials: "include",
-      headers: syncHeaders,
+      headers: await syncHeaders(),
       body: JSON.stringify(force ? { ...payload, force: true } : payload),
     });
     return res.json() as Promise<Record<string, unknown>>;

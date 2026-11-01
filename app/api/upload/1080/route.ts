@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { staffOrServerAuthorized } from "@/lib/routeAuth";
 
 export const dynamic = "force-dynamic";
 
@@ -10,13 +11,6 @@ function serviceClient() {
   );
 }
 
-function syncAuthorized(request: Request): boolean {
-  const secret = process.env.SYNC_SECRET;
-  if (!secret) return false;
-  const header = request.headers.get("x-sync-secret");
-  const q = new URL(request.url).searchParams.get("secret");
-  return header === secret || q === secret;
-}
 
 function normalizeFullName(s: string): string {
   return s.trim().toLowerCase().replace(/\s+/g, " ");
@@ -53,7 +47,7 @@ type Upload1080Body = {
 };
 
 export async function POST(request: Request) {
-  if (!syncAuthorized(request)) {
+  if (!(await staffOrServerAuthorized(request))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

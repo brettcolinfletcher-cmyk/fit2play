@@ -9,6 +9,7 @@ import { useRequireDashboardStaff } from "@/lib/useRequireDashboardStaff";
 import { supabase } from "@/lib/supabaseClient";
 import AthleteProtocolEditor from "@/components/athletes/AthleteProtocolEditor";
 import { LEVELS } from "@/lib/athleteLevels";
+import { staffAuthHeaders } from "@/lib/staffAuthHeaders";
 
 const LR_OPTIONS = ["Left", "Right", "Both"] as const;
 
@@ -209,10 +210,7 @@ export default function EditAthletePage() {
     const res = await fetch(`/api/athletes/${id}`, {
       method: "PATCH",
       credentials: "include",
-      headers: {
-        "Content-Type": "application/json",
-        "x-sync-secret": process.env.NEXT_PUBLIC_SYNC_SECRET ?? "",
-      },
+      headers: await staffAuthHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify(body),
     });
 
@@ -232,9 +230,7 @@ export default function EditAthletePage() {
     const res = await fetch(`/api/athletes/${id}`, {
       method: "DELETE",
       credentials: "include",
-      headers: {
-        "x-sync-secret": process.env.NEXT_PUBLIC_SYNC_SECRET ?? "",
-      },
+      headers: await staffAuthHeaders(),
     });
     if (!res.ok) {
       const json = (await res.json()) as { error?: string };
