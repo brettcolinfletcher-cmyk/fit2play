@@ -722,6 +722,8 @@ export type PdfProps = {
   performanceSummary?: SummaryCategory[] | null;
   /** Report visibility resolver — gates which modality sections render. */
   visibility?: ReportVisibility | null;
+  /** Fit2Play = return-to-sport athletes, Fit2Perform = performance and squad testing. */
+  brand?: "fit2play" | "fit2perform";
 };
 
 function CompareTable({
@@ -779,7 +781,16 @@ export default function AthletePdfDocument({
   rankDials = null,
   performanceSummary = null,
   visibility = null,
+  brand = "fit2play",
 }: PdfProps) {
+  const brandLogo =
+    brand === "fit2perform"
+      ? "https://www.fit2perform.com.au/fit2perform_logo_white.png"
+      : "https://www.fit2perform.com.au/fit2play_logo_transparent.png";
+  const brandFooter =
+    brand === "fit2perform"
+      ? "Fit2Perform Performance Testing \u00b7 fit2perform.com.au"
+      : "Fit2Play Return-to-Sport Testing \u00b7 fit2perform.com.au";
   const rangeLine =
     rangeStart || rangeEnd
       ? `${formatPdfDay(rangeStart)} – ${formatPdfDay(rangeEnd)}`
@@ -807,7 +818,7 @@ export default function AthletePdfDocument({
         <View style={styles.headerBand}>
           <View style={styles.headerLogoCol}>
             <Image
-              src="https://www.fit2perform.com.au/fit2play_logo_transparent.png"
+              src={brandLogo}
               style={{ width: 96 }}
             />
           </View>
@@ -1066,7 +1077,7 @@ export default function AthletePdfDocument({
 
         {/* Footer — fixed at the bottom of every page with page numbers. */}
         <View style={styles.footer} fixed>
-          <Text>{"Fit2Play Performance Testing \u00b7 fit2perform.com.au"}</Text>
+          <Text>{brandFooter}</Text>
           <Text
             render={({ pageNumber, totalPages }) =>
               `Generated ${gen} \u00b7 Page ${pageNumber} of ${totalPages}`

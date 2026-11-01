@@ -275,6 +275,7 @@ export async function generateAthletePdfBlob(
       rankDials={rankDials}
       performanceSummary={performanceSummary}
       visibility={visibility}
+      brand={dashboardMode === "performance" ? "fit2perform" : "fit2play"}
     />
   ).toBlob();
 }

@@ -169,7 +169,7 @@ export default function BulkPdfExportModal({ open, onClose, athletes, scopeLabel
       setProgress({ done: out.length, total: athletes.length, name: "Zipping" });
       if (added > 0) {
         const zipBlob = await zip.generateAsync({ type: "blob" });
-        downloadBlob(zipBlob, `Fit2Play_reports_${todayPdfSuffix()}.zip`);
+        downloadBlob(zipBlob, `Fit2Perform_reports_${todayPdfSuffix()}.zip`);
       }
       setResults(out);
       setFinished(true);
