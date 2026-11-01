@@ -3,9 +3,9 @@ import SiteNav from "@/components/SiteNav";
 import SiteFooter from "@/components/SiteFooter";
 
 export const metadata: Metadata = {
-  title: "Media — Fit2Play",
+  title: "Media — Fit2Perform",
   description:
-    "Insights, case studies and updates from Fit2Play.",
+    "Insights, case studies and updates from Fit2Perform.",
 };
 
 export default function MediaPage() {

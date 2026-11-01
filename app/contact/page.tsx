@@ -3,12 +3,12 @@ import SiteNav from "@/components/SiteNav";
 import SiteFooter from "@/components/SiteFooter";
 
 export const metadata: Metadata = {
-  title: "Contact — Fit2Play",
+  title: "Contact — Fit2Perform",
   description:
-    "Get in touch with Fit2Play to book a testing session or make an enquiry.",
+    "Get in touch with Fit2Perform to book a testing session or make an enquiry.",
 };
 
-const CONTACT_EMAIL = "info@fit2play.com.au";
+const CONTACT_EMAIL = "info@f2p.au";
 const MAIL_BOOK = `mailto:${CONTACT_EMAIL}?subject=Testing%20session%20booking`;
 const MAIL_ENQUIRY = `mailto:${CONTACT_EMAIL}?subject=Enquiry`;
 
@@ -32,7 +32,7 @@ export default function ContactPage() {
           </h1>
           <p className="max-w-3xl text-sm text-slate-600 md:text-base">
             Whether you&apos;re a clinician, S&amp;C coach or athlete, get in touch to book a
-            testing session or ask about how Fit2Play can support your decisions.
+            testing session or ask about how Fit2Perform can support your decisions.
           </p>
         </section>
 

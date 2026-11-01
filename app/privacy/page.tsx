@@ -9,8 +9,8 @@ export const metadata: Metadata = {
     "How Fit2Perform collects, uses, stores and protects your personal and health information.",
 };
 
-// Keep in sync with SiteFooter.tsx / SiteNav.tsx (contact email decision pending).
-const CONTACT_EMAIL = "info@fit2play.com.au";
+// Keep in sync with SiteFooter.tsx.
+const CONTACT_EMAIL = "info@f2p.au";
 const LAST_UPDATED = "1 November 2026";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -35,7 +35,8 @@ export default function PrivacyPage() {
           Privacy Policy
         </h1>
         <p className="mb-2 text-sm text-slate-600 md:text-base">
-          Fit2Perform provides physiotherapy, return-to-sport and performance testing. We handle
+          Fit2Perform provides performance and squad testing, and return-to-sport testing under
+          the Fit2Play name. This policy covers both. We handle
           your personal and health information under the <em>Privacy Act 1988</em> (Cth) and the
           Australian Privacy Principles. This page explains what we collect, why, who sees it, and
           how to access or correct it.

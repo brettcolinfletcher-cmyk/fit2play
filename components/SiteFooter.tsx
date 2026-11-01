@@ -1,8 +1,8 @@
 import Link from "next/link";
 import Image from "next/image";
 
-// See SiteNav.tsx — domain decision pending; keep in sync with that constant.
-const CONTACT_EMAIL = "info@fit2play.com.au";
+// Public contact email (decided 1 Nov 2026). Keep in sync with app/contact, app/privacy, app/page, app/services.
+const CONTACT_EMAIL = "info@f2p.au";
 
 export default function SiteFooter() {
   return (
@@ -10,7 +10,7 @@ export default function SiteFooter() {
       <div className="mx-auto flex max-w-5xl flex-col items-center justify-between gap-4 px-4 py-8 text-xs text-slate-500 md:flex-row">
         <Link href="/" className="opacity-90 hover:opacity-100">
           <Image
-            src="/fit2play_logo_canva.png"
+            src="/fit2perform_logo_canva.png"
             alt="Fit2Perform"
             width={260}
             height={100}

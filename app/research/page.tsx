@@ -3,9 +3,9 @@ import SiteNav from "@/components/SiteNav";
 import SiteFooter from "@/components/SiteFooter";
 
 export const metadata: Metadata = {
-  title: "Research — Fit2Play",
+  title: "Research — Fit2Perform",
   description:
-    "The evidence behind Fit2Play — validated testing methods and return-to-play literature.",
+    "The evidence behind Fit2Perform — validated testing methods and return-to-play literature.",
 };
 
 type Article = {
@@ -154,7 +154,7 @@ export default function ResearchPage() {
             Grounded in the evidence.
           </h1>
           <p className="max-w-3xl text-sm text-slate-600 md:text-base">
-            Every protocol in Fit2Play is built on established return-to-play and
+            Every protocol in Fit2Perform is built on established return-to-play and
             performance literature and validated testing methods — the same equipment and
             benchmarks used by leading high-performance programs.
           </p>

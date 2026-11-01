@@ -3,9 +3,9 @@ import SiteNav from "@/components/SiteNav";
 import SiteFooter from "@/components/SiteFooter";
 
 export const metadata: Metadata = {
-  title: "About — Fit2Play",
+  title: "About — Fit2Perform",
   description:
-    "The team behind Fit2Play — decades of experience across elite and professional sport.",
+    "The team behind Fit2Perform — decades of experience across elite and professional sport.",
 };
 
 const TEAM = [
@@ -40,7 +40,7 @@ export default function AboutPage() {
             Built by people who&apos;ve worked inside elite sport.
           </h1>
           <p className="max-w-3xl text-sm text-slate-600 md:text-base">
-            Fit2Play turns objective testing — force plates, sprint testing and
+            Fit2Perform turns objective testing — force plates, sprint testing and
             dynamometry — into clear, decision-ready insight. It&apos;s built on decades of
             hands-on experience across professional and Olympic sport, from return-to-play
             to peak performance.

@@ -13,8 +13,8 @@ import {
 } from "@/components/ProductProofVisuals";
 
 const MAIL_BOOK =
-  "mailto:info@fit2play.com.au?subject=Testing%20session%20booking";
-const MAIL_ENQUIRY = "mailto:info@fit2play.com.au?subject=Enquiry";
+  "mailto:info@f2p.au?subject=Testing%20session%20booking";
+const MAIL_ENQUIRY = "mailto:info@f2p.au?subject=Enquiry";
 
 const ASSESSMENT_COVERAGE = [
   "Lower-limb strength and capacity",
@@ -115,14 +115,17 @@ export default function HomePage() {
           </p>
           <div className="grid gap-4 md:grid-cols-2">
             <BenefitCard
+              brand="Fit2Play"
               title="Return-to-Play Testing"
               body="Objective benchmarks to guide rehab and confirm an athlete is truly ready to return, not just healed."
             />
             <BenefitCard
+              brand="Fit2Perform"
               title="Performance Testing"
               body="Track strength, power and speed in fit athletes, and benchmark against their own best and their sport."
             />
             <BenefitCard
+              brand="Fit2Perform"
               title="Pre-Injury Screening"
               body="Identify asymmetry and capacity gaps before they become an injury, at the individual or squad level."
             />
@@ -305,10 +308,10 @@ export default function HomePage() {
             <p className="text-xs text-slate-600">
               Questions?{" "}
               <a
-                href="mailto:info@fit2play.com.au"
+                href="mailto:info@f2p.au"
                 className="font-semibold text-lime-700 hover:text-lime-800"
               >
-                info@fit2play.com.au
+                info@f2p.au
               </a>
             </p>
           </div>
@@ -344,9 +347,12 @@ function ClubLogo({ name, file }: { name: string; file: string }) {
   );
 }
 
-function BenefitCard({ title, body }: { title: string; body: string }) {
+function BenefitCard({ title, body, brand }: { title: string; body: string; brand?: string }) {
   return (
     <div className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      {brand ? (
+        <p className="mb-1 text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-lime-700">{brand}</p>
+      ) : null}
       <h3 className="mb-2 text-base font-semibold text-slate-900 md:text-lg">{title}</h3>
       <p className="text-xs text-slate-600 md:text-sm">{body}</p>
     </div>
