@@ -28,7 +28,8 @@ export default function TeamBioCard({ name, role, bio }: Props) {
       <h3 className="text-base font-semibold text-slate-900 md:text-lg">{name}</h3>
       <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-lime-600">{role}</p>
       <div id={bioId} className="space-y-3 text-xs leading-relaxed text-slate-600 md:text-sm">
-        <p>{first}</p>
+        {/* Collapsed: first paragraph clamped to 6 lines so all cards sit level. */}
+        <p className={open ? undefined : "line-clamp-6"}>{first}</p>
         {open ? rest.map((para) => <p key={para.slice(0, 40)}>{para}</p>) : null}
       </div>
       {rest.length > 0 ? (

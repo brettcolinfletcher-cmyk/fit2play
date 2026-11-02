@@ -23,7 +23,7 @@ const TEAM = [
   },
   {
     name: "Emidio Pacecca",
-    role: "High Performance Practitioner",
+    role: "Sports & Exercise Physiotherapist",
     bio: [
       "Emidio Pacecca is an internationally experienced high-performance practitioner who has worked across Olympic sport, AFL, NFL, rugby and European soccer, supporting athletes, teams and performance programmes in demanding competitive environments.",
       "His expertise spans performance testing, athlete monitoring, injury rehabilitation, strength and conditioning, movement analysis, load management and the use of objective data to guide training, recovery and development. Emidio has worked with athletes across different sporting demands, physical profiles and levels of competition.",
@@ -34,7 +34,7 @@ const TEAM = [
   },
   {
     name: "Simon Trinca",
-    role: "Physiotherapist",
+    role: "Physiotherapist & Sports Scientist",
     bio: [
       "Simon Trinca is an experienced Physiotherapist with a Bachelor of Sports Science and a Bachelor of Physiotherapy. Having competed in professional football himself, Simon brings a unique understanding of the physical and mental demands placed on athletes at all levels.",
       "Over the course of his career, Simon has worked within professional sporting environments as a physiotherapist, while also spending many years in private practice helping clients achieve their health, rehabilitation, and performance goals. He has worked across a broad range of sports, including AFL, rugby, soccer, netball, Brazilian Jiu-Jitsu (BJJ), and CrossFit, giving him valuable insight into the unique physical demands and injury profiles of different athletes and sporting codes.",
