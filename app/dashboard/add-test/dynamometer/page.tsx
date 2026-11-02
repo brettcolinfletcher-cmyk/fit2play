@@ -7,6 +7,7 @@ import { createClient } from "@supabase/supabase-js";
 import DashboardNav from "@/components/DashboardNav";
 import { parseDynamometerCsvToMetrics } from "@/lib/dynamometerCsv";
 import { useRequireDashboardStaff } from "@/lib/useRequireDashboardStaff";
+import { staffAuthHeaders } from "@/lib/staffAuthHeaders";
 
 type Athlete = {
   id: string;
@@ -102,7 +103,7 @@ export default function AddTestDynamometerPage() {
     try {
       const res = await fetch("/api/upload-dynamometer", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: await staffAuthHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
           athleteId,
           testSubType: subForSession,

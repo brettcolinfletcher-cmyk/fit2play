@@ -7,6 +7,7 @@ import { createClient } from "@supabase/supabase-js";
 import DashboardNav from "@/components/DashboardNav";
 import { parse1080SamplesCsv, type Parsed1080 } from "@/lib/parse1080Csv";
 import { useRequireDashboardStaff } from "@/lib/useRequireDashboardStaff";
+import { staffAuthHeaders } from "@/lib/staffAuthHeaders";
 
 type Athlete = {
   id: string;
@@ -91,7 +92,7 @@ export default function AddTest1080Page() {
 
       const res = await fetch("/api/upload-1080", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: await staffAuthHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
           athleteId: selectedAthleteId,
           fileName: file.name,

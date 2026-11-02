@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { requireAuth } from "@/lib/supabase-server";
+import { staffUserFromRequest } from "@/lib/routeAuth";
 import {
   buildAsymmetryResultRows,
   normalizeForceplateMetrics,
@@ -18,12 +18,10 @@ type UploadForceplateBody = {
 };
 
 export async function POST(req: Request) {
-  const { user, profile } = await requireAuth();
-  if (!user) {
+  // Staff login via Bearer token (the browser session lives in localStorage,
+  // so the old cookie-based requireAuth() never saw it and always returned 401).
+  if (!(await staffUserFromRequest(req))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  if (profile?.role !== "staff") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const supabaseAdmin = createClient(

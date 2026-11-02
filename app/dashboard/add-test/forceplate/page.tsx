@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import DashboardNav from "@/components/DashboardNav";
 import { useRequireDashboardStaff } from "@/lib/useRequireDashboardStaff";
+import { staffAuthHeaders } from "@/lib/staffAuthHeaders";
 
 type Athlete = {
   id: string;
@@ -664,7 +665,7 @@ export default function ForcePlateUploadPage() {
 
       const res = await fetch("/api/upload-forceplate", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: await staffAuthHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
           athleteId,
           fileName: file.name,
