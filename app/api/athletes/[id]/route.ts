@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { requireAuth } from "@/lib/supabase-server";
-import { staffOrServerAuthorized } from "@/lib/routeAuth";
+import { isServerSecretRequest, staffUserFromRequest } from "@/lib/routeAuth";
+import { logAudit } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -107,7 +108,8 @@ export async function PATCH(
     return NextResponse.json({ error: "Missing id" }, { status: 400 });
   }
 
-  if (!(await staffOrServerAuthorized(req))) {
+  const actor = await staffUserFromRequest(req);
+  if (!actor && !isServerSecretRequest(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -138,6 +140,10 @@ export async function PATCH(
   if (!data) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
+  await logAudit(
+    { actor, action: "update", table: "athletes", recordId: id, athleteId: id, detail: { fields: Object.keys(row).sort() } },
+    supabase
+  );
   return NextResponse.json(data);
 }
 
@@ -150,7 +156,8 @@ export async function DELETE(
     return NextResponse.json({ error: "Missing id" }, { status: 400 });
   }
 
-  if (!(await staffOrServerAuthorized(req))) {
+  const actor = await staffUserFromRequest(req);
+  if (!actor && !isServerSecretRequest(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -158,6 +165,12 @@ export async function DELETE(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
+
+  const { data: before } = await supabase
+    .from("athletes")
+    .select("first_name, last_name")
+    .eq("id", id)
+    .maybeSingle();
 
   const { data: sessions, error: sErr } = await supabase
     .from("sessions")
@@ -185,5 +198,19 @@ export async function DELETE(
     return NextResponse.json({ error: delErr.message }, { status: 500 });
   }
 
+  await logAudit(
+    {
+      actor,
+      action: "delete",
+      table: "athletes",
+      recordId: id,
+      athleteId: id,
+      detail: {
+        name: [before?.first_name, before?.last_name].filter(Boolean).join(" ") || null,
+        sessions_deleted: sessionIds.length,
+      },
+    },
+    supabase
+  );
   return NextResponse.json({ ok: true });
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { staffOrServerAuthorized } from "@/lib/routeAuth";
+import { auditedUpload } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -70,7 +71,7 @@ type HawkinsBody = {
   force?: boolean;
 };
 
-export async function POST(request: Request) {
+async function handlePost(request: Request) {
   if (!(await staffOrServerAuthorized(request))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -240,3 +241,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
+
+export const POST = auditedUpload(handlePost);

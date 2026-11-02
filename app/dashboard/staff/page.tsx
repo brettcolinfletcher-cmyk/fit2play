@@ -272,8 +272,13 @@ export default function StaffDashboardPage() {
               What needs your attention.
             </p>
           </div>
-          <div className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-300">
-            Live · Fit2Play
+          <div className="flex items-center gap-3">
+            <Link href="/dashboard/activity" className="text-xs font-medium text-slate-400 hover:text-lime-500 hover:underline">
+              Activity log
+            </Link>
+            <div className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-300">
+              Live · Fit2Play
+            </div>
           </div>
         </header>
 

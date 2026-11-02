@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { requireAuth } from "@/lib/supabase-server";
-import { staffOrServerAuthorized } from "@/lib/routeAuth";
+import { isServerSecretRequest, staffUserFromRequest } from "@/lib/routeAuth";
+import { logAudit } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -55,7 +56,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  if (!(await staffOrServerAuthorized(req))) {
+  const actor = await staffUserFromRequest(req);
+  if (!actor && !isServerSecretRequest(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -87,5 +89,6 @@ export async function POST(req: NextRequest) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+  await logAudit({ actor, action: "insert", table: "athletes", recordId: data.id, athleteId: data.id }, supabase);
   return NextResponse.json(data);
 }

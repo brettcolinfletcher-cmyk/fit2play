@@ -5,6 +5,7 @@ import {
   buildAsymmetryResultRows,
   normalizeForceplateMetrics,
 } from "@/lib/uploadForceplateNormalize";
+import { auditedUpload } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +18,7 @@ type UploadForceplateBody = {
   test_sub_type?: string | null;
 };
 
-export async function POST(req: Request) {
+async function handlePost(req: Request) {
   // Staff login via Bearer token (the browser session lives in localStorage,
   // so the old cookie-based requireAuth() never saw it and always returned 401).
   if (!(await staffUserFromRequest(req))) {
@@ -143,3 +144,5 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
+
+export const POST = auditedUpload(handlePost);

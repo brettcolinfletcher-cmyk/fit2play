@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { staffUserFromRequest } from "@/lib/routeAuth";
+import { auditedUpload } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -86,7 +87,7 @@ function collectMetricRows(
   return rows;
 }
 
-export async function POST(req: Request) {
+async function handlePost(req: Request) {
   // Staff login via Bearer token (the browser session lives in localStorage,
   // so the old cookie-based requireAuth() never saw it and always returned 401).
   if (!(await staffUserFromRequest(req))) {
@@ -278,3 +279,5 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
+
+export const POST = auditedUpload(handlePost);

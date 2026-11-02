@@ -6,6 +6,7 @@ import { computePerformanceSummary } from "@/lib/performanceSummary";
 import { fetchTargetOverridesForAthlete } from "@/lib/performanceTargets";
 import { resolveAthleteProtocol } from "@/lib/protocols";
 import type { ReportMetricRow, ReportSessionRow } from "@/lib/athleteReportData";
+import { logAthleteView } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -57,7 +58,8 @@ export async function GET(
     .maybeSingle();
 
   if (profile?.role === "staff") {
-    // allowed — any athlete id
+    // allowed — any athlete id. Recorded in the access log (deduped per 30 min).
+    await logAthleteView(user.id, id, supabase);
   } else if (profile?.role === "athlete") {
     const { data: ownAthlete } = await supabase
       .from("athletes")
