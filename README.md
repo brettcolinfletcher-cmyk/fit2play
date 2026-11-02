@@ -17,7 +17,7 @@ cp .env.example .env.local   # then fill in values from Vercel
 npm run dev
 ```
 
-Before every push: `npx next build 2>&1 | tail -20`
+Before every push: `npm test` (calculation tests in `tests/`) and `npx next build 2>&1 | tail -20`
 
 ## Environment variables
 
