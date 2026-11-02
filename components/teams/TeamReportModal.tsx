@@ -33,8 +33,9 @@ export default function TeamReportModal({
         const today = perthToday();
         setFrom(d.round?.from ?? today);
         setTo(d.round?.to ?? today);
-        // Adult performance bands make most junior results look poor.
-        setColourMode(d.level === "junior" ? "squad" : "bands");
+        // Bands are adult norms, so only default to them for adult teams.
+        // Juniors and teams with no level set get squad thirds.
+        setColourMode(d.level && d.level !== "junior" ? "bands" : "squad");
       })
       .catch((e: unknown) => {
         if (!cancelled) setLoadError(e instanceof Error ? e.message : "Could not load team data");
