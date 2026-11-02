@@ -11,15 +11,15 @@ const rows = [
   ["fp_jump_height_cm_best", null, "Poor", 0, 20],
   ["fp_jump_height_cm_best", null, "Fair", 20, 28],
   ["fp_jump_height_cm_best", null, "Good", 28, 35],
-  ["fp_jump_height_cm_best", null, "Elite", 35, 999],
+  ["fp_jump_height_cm_best", null, "Elite", 35, null],
   ["fp_jump_height_cm_best", "force_plate_cmj", "Poor", 0, 24],
   ["fp_jump_height_cm_best", "force_plate_cmj", "Fair", 24, 32],
   ["fp_jump_height_cm_best", "force_plate_cmj", "Good", 32, 40],
-  ["fp_jump_height_cm_best", "force_plate_cmj", "Elite", 40, 999],
+  ["fp_jump_height_cm_best", "force_plate_cmj", "Elite", 40, null],
   ["isometric_peak_force", "force_plate_imtp", "Poor", 0, 2000],
   ["isometric_peak_force", "force_plate_imtp", "Fair", 2000, 2800],
   ["isometric_peak_force", "force_plate_imtp", "Good", 2800, 3500],
-  ["isometric_peak_force", "force_plate_imtp", "Elite", 3500, 999],
+  ["isometric_peak_force", "force_plate_imtp", "Elite", 3500, null],
 ] as const;
 
 const bands: NormalizedPerformanceBand[] = rows
@@ -56,7 +56,7 @@ describe("matchPerformanceBand", () => {
     expect(label("fp_jump_height_cm_best", 36, "force_plate_cmj")).toBe("Good");
     expect(label("fp_jump_height_cm_best", 45, "force_plate_cmj")).toBe("Elite");
   });
-  it("IMTP above 3500 N is Elite (top band stored as 3500..999, so this relies on the fallback)", () => {
+  it("IMTP above 3500 N is Elite (top band has no upper limit)", () => {
     expect(label("isometric_peak_force", 3800, "force_plate_imtp")).toBe("Elite");
   });
   it("returns null for an unknown metric", () => {

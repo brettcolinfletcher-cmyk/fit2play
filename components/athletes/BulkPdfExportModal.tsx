@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   athleteDisplayName,
   downloadBlob,
@@ -12,6 +12,29 @@ import {
 } from "@/lib/generateAthletePdf";
 import { loadAthleteReportData } from "@/lib/loadAthleteReportData";
 import { supabase } from "@/lib/supabaseClient";
+import { staffAuthHeaders } from "@/lib/staffAuthHeaders";
+import {
+  DEFAULT_REPORT_BODY,
+  DEFAULT_REPORT_SUBJECT,
+  REPORT_TEMPLATES,
+  REPORT_TESTS,
+  fillSendPlaceholders,
+  testsToLines,
+  unresolvedPlaceholders,
+} from "@/lib/email/reportEmail";
+
+type Mode = "zip" | "email";
+
+async function blobToBase64(blob: Blob): Promise<string> {
+  const buf = new Uint8Array(await blob.arrayBuffer());
+  let bin = "";
+  for (let i = 0; i < buf.length; i += 0x8000) {
+    bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
+  }
+  return btoa(bin);
+}
+
+type EmailAttachment = { fileName: string; base64: string };
 
 type BulkAthlete = {
   id: string;
@@ -47,6 +70,16 @@ export default function BulkPdfExportModal({ open, onClose, athletes, scopeLabel
   const [includeTargets, setIncludeTargets] = useState(false);
   // Off by default for batch exports (team reports usually leave height/weight out).
   const [includeAnthropometry, setIncludeAnthropometry] = useState(false);
+  const [mode, setMode] = useState<Mode>("zip");
+  // Kept between openings so edits are not lost if the window is closed.
+  const [templateKey, setTemplateKey] = useState(REPORT_TEMPLATES[0]!.key);
+  const [subject, setSubject] = useState(DEFAULT_REPORT_SUBJECT);
+  const [body, setBody] = useState(DEFAULT_REPORT_BODY);
+  const [squad, setSquad] = useState("");
+  const [sessionDate, setSessionDate] = useState("");
+  const [testKeys, setTestKeys] = useState<string[]>([]);
+  const [extra, setExtra] = useState<EmailAttachment | null>(null);
+  const [testMsg, setTestMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number; name: string } | null>(
     null
@@ -68,8 +101,52 @@ export default function BulkPdfExportModal({ open, onClose, athletes, scopeLabel
     setResults([]);
     setFinished(false);
     setFormError(null);
+    setTestMsg(null);
     stopRef.current = false;
   }, [open]);
+
+  // {squad}, {date} and {tests} are the same for every email in a send, so fill them here.
+  const prepared = useMemo(() => {
+    const values = { squad, date: sessionDate, tests: testsToLines(testKeys) };
+    return { subject: fillSendPlaceholders(subject, values), body: fillSendPlaceholders(body, values) };
+  }, [subject, body, squad, sessionDate, testKeys]);
+
+  const emailProblem = useMemo((): string | null => {
+    const unresolved = unresolvedPlaceholders(`${subject}\n${body}`).filter((p) => {
+      if (p === "{squad}") return !squad.trim();
+      if (p === "{date}") return !sessionDate.trim();
+      if (p === "{tests}") return testKeys.length === 0;
+      return true;
+    });
+    if (unresolved.includes("{squad}")) return "Enter the squad or event name.";
+    if (unresolved.includes("{date}")) return "Enter the session date.";
+    if (unresolved.includes("{tests}")) return "Tick at least one test under What we tested.";
+    if (unresolved.length) return `Unknown placeholder in the message: ${unresolved.join(", ")}`;
+    if (/\[[^\]]*\]/.test(prepared.body)) return "The message still has [square bracket] text to fill in.";
+    if (/attached document/i.test(prepared.body) && !extra)
+      return "The message mentions an attached document. Add the PDF below or remove that sentence.";
+    return null;
+  }, [subject, body, squad, sessionDate, testKeys, prepared, extra]);
+
+  const sendEmail = useCallback(
+    async (athleteId: string, report: EmailAttachment, test: boolean) => {
+      const res = await fetch("/api/reports/email", {
+        method: "POST",
+        headers: await staffAuthHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ athleteId, subject: prepared.subject, body: prepared.body, report, extra, test }),
+      });
+      const json = (await res.json().catch(() => ({}))) as {
+        sent?: boolean;
+        skipped?: boolean;
+        reason?: string;
+        recipient?: string;
+        error?: string;
+      };
+      if (!res.ok) throw new Error(json.error ?? `Send failed (${res.status})`);
+      return json;
+    },
+    [prepared, extra]
+  );
 
   const onGenerate = useCallback(async () => {
     setFormError(null);
@@ -78,6 +155,19 @@ export default function BulkPdfExportModal({ open, onClose, athletes, scopeLabel
     stopRef.current = false;
     if (athletes.length === 0) {
       setFormError("Select at least one athlete.");
+      return;
+    }
+
+    if (mode === "email" && emailProblem) {
+      setFormError(emailProblem);
+      return;
+    }
+    if (
+      mode === "email" &&
+      !window.confirm(
+        `Email ${athletes.length} report${athletes.length === 1 ? "" : "s"} to parents/athletes now? This cannot be undone.`
+      )
+    ) {
       return;
     }
 
@@ -135,6 +225,22 @@ export default function BulkPdfExportModal({ open, onClose, athletes, scopeLabel
             summaryComment: "",
           });
 
+          if (mode === "email") {
+            const sent = await sendEmail(
+              a.id,
+              { fileName: pdfFileName(name), base64: await blobToBase64(blob) },
+              false
+            );
+            if (sent.skipped) {
+              out.push({ id: a.id, name, status: "skipped", detail: sent.reason });
+            } else {
+              added += 1;
+              out.push({ id: a.id, name, status: "ok", detail: sent.recipient });
+            }
+            setResults([...out]);
+            continue;
+          }
+
           // Two athletes can share a name: keep both files.
           const base = pdfFileName(name);
           let fileName = base;
@@ -166,21 +272,83 @@ export default function BulkPdfExportModal({ open, onClose, athletes, scopeLabel
         setResults([...out]);
       }
 
-      setProgress({ done: out.length, total: athletes.length, name: "Zipping" });
-      if (added > 0) {
+      if (mode === "zip") setProgress({ done: out.length, total: athletes.length, name: "Zipping" });
+      if (mode === "zip" && added > 0) {
         const zipBlob = await zip.generateAsync({ type: "blob" });
         downloadBlob(zipBlob, `Fit2Perform_reports_${todayPdfSuffix()}.zip`);
       }
       setResults(out);
       setFinished(true);
-      if (added === 0) setFormError("No reports were generated.");
+      if (added === 0) setFormError(mode === "email" ? "No emails were sent." : "No reports were generated.");
     } catch (e) {
       setFormError(e instanceof Error ? e.message : "Bulk export failed.");
     } finally {
       setBusy(false);
       setProgress(null);
     }
-  }, [athletes, exportFrom, exportTo, includeNotes, includeTargets, includeAnthropometry]);
+  }, [athletes, exportFrom, exportTo, includeNotes, includeTargets, includeAnthropometry, mode, sendEmail, emailProblem]);
+
+  /** Builds the first athlete's report that has data and sends it to the clinic inbox. */
+  const onSendTest = useCallback(async () => {
+    setFormError(null);
+    setTestMsg(null);
+    if (emailProblem) {
+      setFormError(emailProblem);
+      return;
+    }
+    setBusy(true);
+    try {
+      for (const a of athletes) {
+        const name = athleteDisplayName(a);
+        setProgress({ done: 0, total: 1, name: `Test: ${name}` });
+        const bundle = await loadAthleteReportData(a.id);
+        const sessions = bundle.sessions.filter((s) => inDateRange(s.session_date, exportFrom, exportTo));
+        if (sessions.length === 0) continue;
+        const blob = await generateAthletePdfBlob({
+          athlete: bundle.athlete,
+          sessions,
+          metricsBySession: bundle.metricsBySession,
+          hopTests: bundle.hopTests.filter((h) => inDateRange(h.session_date, exportFrom, exportTo)),
+          sectionComments: bundle.sectionComments,
+          rangeStart: exportFrom,
+          rangeEnd: exportTo,
+          visibility: bundle.visibility,
+          criteria: bundle.criteria,
+          mode: "best",
+          includeNotes,
+          includeTargets,
+          includeAnthropometry,
+          summaryComment: "",
+        });
+        const r = await sendEmail(a.id, { fileName: pdfFileName(name), base64: await blobToBase64(blob) }, true);
+        setTestMsg(`Test sent to ${r.recipient ?? "info@f2p.au"} using ${name}'s report.`);
+        return;
+      }
+      setFormError("None of the selected athletes have sessions in this date range.");
+    } catch (e) {
+      setFormError(e instanceof Error ? e.message : "Test send failed.");
+    } finally {
+      setBusy(false);
+      setProgress(null);
+    }
+  }, [athletes, exportFrom, exportTo, includeNotes, includeTargets, includeAnthropometry, sendEmail, emailProblem]);
+
+  const onPickExtra = useCallback(async (file: File | null) => {
+    setFormError(null);
+    if (!file) {
+      setExtra(null);
+      return;
+    }
+    if (!/\.pdf$/i.test(file.name)) {
+      setFormError("The extra attachment must be a PDF.");
+      return;
+    }
+    if (file.size > 2_000_000) {
+      setFormError("The extra attachment must be under 2 MB.");
+      return;
+    }
+    setExtra({ fileName: file.name, base64: await blobToBase64(file) });
+  }, []);
 
   if (!open) return null;
 
@@ -201,8 +369,26 @@ export default function BulkPdfExportModal({ open, onClose, athletes, scopeLabel
         </h2>
         <p className="mt-1 text-xs text-slate-400">
           {athletes.length} {athletes.length === 1 ? "athlete" : "athletes"} selected · {scopeLabel}.
-          One PDF each (best in range), downloaded as a single zip.
+          {mode === "zip"
+            ? "One PDF each (best in range), downloaded as a single zip."
+            : "One PDF each (best in range), emailed from info@f2p.au. Under 18s go to their parent/guardian email only."}
         </p>
+
+        <div className="mt-4 inline-flex rounded-lg border border-slate-700 p-0.5 text-xs">
+          {(["zip", "email"] as Mode[]).map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => setMode(m)}
+              disabled={busy}
+              className={`rounded-md px-3 py-1.5 font-medium ${
+                mode === m ? "bg-lime-500/20 text-lime-200" : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              {m === "zip" ? "Download zip" : "Email"}
+            </button>
+          ))}
+        </div>
 
         <div className="mt-5 space-y-4">
           <div>
@@ -265,6 +451,131 @@ export default function BulkPdfExportModal({ open, onClose, athletes, scopeLabel
             Show height and weight (anthropometry)
           </label>
 
+          {mode === "email" ? (
+            <div className="space-y-3 border-t border-slate-800 pt-4">
+              <div>
+                <label className="block text-xs text-slate-500">Template</label>
+                <select
+                  value={templateKey}
+                  onChange={(e) => {
+                    const t = REPORT_TEMPLATES.find((x) => x.key === e.target.value);
+                    if (!t) return;
+                    setTemplateKey(t.key);
+                    setSubject(t.subject);
+                    setBody(t.body);
+                  }}
+                  disabled={busy}
+                  className={inputClass}
+                >
+                  {REPORT_TEMPLATES.map((t) => (
+                    <option key={t.key} value={t.key}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="block text-xs text-slate-500">Squad or event {"{squad}"}</label>
+                  <input
+                    value={squad}
+                    onChange={(e) => setSquad(e.target.value)}
+                    placeholder="e.g. Perth Glory U15 Girls"
+                    disabled={busy}
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-500">Session date {"{date}"}</label>
+                  <input
+                    value={sessionDate}
+                    onChange={(e) => setSessionDate(e.target.value)}
+                    placeholder="e.g. 14 November"
+                    disabled={busy}
+                    className={inputClass}
+                  />
+                </div>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500">What we tested {"{tests}"}</p>
+                <div className="mt-1 grid gap-1 sm:grid-cols-2">
+                  {REPORT_TESTS.map((t) => (
+                    <label key={t.key} className="flex cursor-pointer items-center gap-2 text-xs text-slate-300">
+                      <input
+                        type="checkbox"
+                        checked={testKeys.includes(t.key)}
+                        onChange={(e) =>
+                          setTestKeys((k) => (e.target.checked ? [...k, t.key] : k.filter((x) => x !== t.key)))
+                        }
+                        disabled={busy}
+                        className={checkboxClass}
+                      />
+                      {t.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs text-slate-500">Subject</label>
+                <input
+                  value={subject}
+                  onChange={(e) => setSubject(e.target.value)}
+                  disabled={busy}
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-slate-500">Message</label>
+                <textarea
+                  value={body}
+                  onChange={(e) => setBody(e.target.value)}
+                  disabled={busy}
+                  rows={12}
+                  className={`${inputClass} font-mono text-[11px] leading-relaxed`}
+                />
+                <p className="mt-1 text-[11px] text-slate-500">
+                  {"{athlete}"} = first name. {"{greeting}"} = &quot;Hi [parent]&quot; or &quot;Dear parent/guardian of [athlete]&quot;.
+                  {" {squad}, {date} and {tests}"} come from the fields above. Lines starting &quot;- &quot; become bullets.{" "}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const t = REPORT_TEMPLATES.find((x) => x.key === templateKey) ?? REPORT_TEMPLATES[0]!;
+                      setSubject(t.subject);
+                      setBody(t.body);
+                    }}
+                    disabled={busy}
+                    className="underline hover:text-slate-300"
+                  >
+                    Reset to template
+                  </button>
+                </p>
+              </div>
+              <div>
+                <label className="block text-xs text-slate-500">Extra attachment for every email (PDF, optional)</label>
+                <input
+                  type="file"
+                  accept="application/pdf"
+                  onChange={(e) => void onPickExtra(e.target.files?.[0] ?? null)}
+                  disabled={busy}
+                  className="mt-1 block w-full text-xs text-slate-400 file:mr-3 file:rounded-md file:border-0 file:bg-slate-800 file:px-3 file:py-1.5 file:text-slate-200"
+                />
+                {extra ? <p className="mt-1 text-[11px] text-lime-300">Attaching {extra.fileName}</p> : null}
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => void onSendTest()}
+                  disabled={busy || athletes.length === 0}
+                  className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-slate-800 disabled:opacity-50"
+                >
+                  Send me a test first
+                </button>
+                {testMsg ? <span className="text-[11px] text-lime-300">{testMsg}</span> : null}
+              </div>
+              {emailProblem ? <p className="text-[11px] text-amber-300">{emailProblem}</p> : null}
+            </div>
+          ) : null}
+
           {busy && progress ? (
             <div>
               <div className="flex items-center justify-between text-xs text-slate-300">
@@ -284,7 +595,7 @@ export default function BulkPdfExportModal({ open, onClose, athletes, scopeLabel
           {finished ? (
             <div className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-300">
               <p>
-                {okCount} of {athletes.length} reports added to the zip.
+                {okCount} of {athletes.length} {mode === "email" ? "reports emailed." : "reports added to the zip."}
               </p>
               {problems.length > 0 ? (
                 <ul className="mt-2 space-y-1 text-[11px]">
@@ -311,7 +622,7 @@ export default function BulkPdfExportModal({ open, onClose, athletes, scopeLabel
               }}
               className="rounded-lg border border-slate-700 px-4 py-2 text-xs font-medium text-slate-300 hover:bg-slate-800"
             >
-              Stop and download what&apos;s done
+              {mode === "email" ? "Stop sending" : "Stop and download what\u2019s done"}
             </button>
           ) : (
             <button
@@ -328,7 +639,13 @@ export default function BulkPdfExportModal({ open, onClose, athletes, scopeLabel
             disabled={busy || athletes.length === 0}
             className="rounded-lg border border-lime-500/50 bg-lime-500/15 px-4 py-2 text-xs font-medium text-lime-200 hover:bg-lime-500/25 disabled:opacity-50"
           >
-            {busy ? "Working…" : finished ? "Run again" : "Generate & Download zip"}
+            {busy
+              ? "Working…"
+              : mode === "email"
+              ? `Send ${athletes.length} email${athletes.length === 1 ? "" : "s"}`
+              : finished
+              ? "Run again"
+              : "Generate & Download zip"}
           </button>
         </div>
       </div>

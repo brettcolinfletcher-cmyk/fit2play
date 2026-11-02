@@ -22,6 +22,8 @@ const ALLOWED_PATCH = [
   "sex",
   "date_of_birth",
   "level",
+  "guardian_name",
+  "guardian_email",
 ] as const;
 
 const VALID_STATUSES = new Set(["active", "monitoring", "archived"]);

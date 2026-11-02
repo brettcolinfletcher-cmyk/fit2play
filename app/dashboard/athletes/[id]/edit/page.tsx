@@ -31,6 +31,8 @@ type FormState = {
   first_name: string;
   last_name: string;
   email: string;
+  guardian_name: string;
+  guardian_email: string;
   team: string;
   primary_sport: string;
   status: AthleteStatus;
@@ -49,6 +51,8 @@ const emptyForm: FormState = {
   first_name: "",
   last_name: "",
   email: "",
+  guardian_name: "",
+  guardian_email: "",
   team: "",
   primary_sport: "",
   status: "active",
@@ -107,6 +111,8 @@ export default function EditAthletePage() {
         first_name: String(a.first_name ?? ""),
         last_name: String(a.last_name ?? ""),
         email: String(a.email ?? ""),
+        guardian_name: String(a.guardian_name ?? ""),
+        guardian_email: String(a.guardian_email ?? ""),
         team: String(a.team ?? ""),
         primary_sport: String(a.primary_sport ?? ""),
         status: safeStatus,
@@ -188,6 +194,8 @@ export default function EditAthletePage() {
       first_name: form.first_name.trim(),
       last_name: form.last_name.trim(),
       email: form.email.trim() || null,
+      guardian_name: form.guardian_name.trim() || null,
+      guardian_email: form.guardian_email.trim() || null,
       team: form.team.trim() || null,
       primary_sport: form.primary_sport.trim() || null,
       status: form.status,
@@ -338,6 +346,27 @@ export default function EditAthletePage() {
                   setForm((f) => ({ ...f, email: e.target.value }))
                 }
               />
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-xs text-slate-400">Parent/guardian name</label>
+                <input
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-slate-100"
+                  value={form.guardian_name}
+                  onChange={(e) => setForm((f) => ({ ...f, guardian_name: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-slate-400">Parent/guardian email</label>
+                <input
+                  type="email"
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-slate-100"
+                  value={form.guardian_email}
+                  onChange={(e) => setForm((f) => ({ ...f, guardian_email: e.target.value }))}
+                />
+                <p className="mt-1 text-[11px] text-slate-500">Reports for under 18s are emailed here.</p>
+              </div>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
