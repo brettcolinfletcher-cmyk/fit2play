@@ -27,6 +27,10 @@
     {
       "path": "/api/cron/sync-health",
       "schedule": "0 23 * * *"
+    },
+    {
+      "path": "/api/cron/retest-digest",
+      "schedule": "0 23 * * 0"
     }
   ]
 }

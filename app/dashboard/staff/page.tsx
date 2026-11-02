@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import DashboardNav from "@/components/DashboardNav";
 import SyncHealthBanner from "@/components/SyncHealthBanner";
+import { DEFAULT_RETEST_WEEKS, computeRetestDue, latestTestByAthlete, perthToday } from "@/lib/retestDue";
 import { formatDisplayDate } from "@/lib/dateDisplay";
 
 const supabase = createClient(
@@ -13,8 +14,6 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-// 12 weeks
-const OVERDUE_DAYS = 84;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -110,6 +109,7 @@ export default function StaffDashboardPage() {
   const [authChecked, setAuthChecked] = useState(false);
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [sessions, setSessions] = useState<SessionRow[]>([]);
+  const [teamByAthlete, setTeamByAthlete] = useState<Map<string, { name: string; weeks: number | null }>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -138,7 +138,7 @@ export default function StaffDashboardPage() {
       setAuthChecked(true);
 
       // Data
-      const [aRes, sRes] = await Promise.all([
+      const [aRes, sRes, atRes, tRes] = await Promise.all([
         supabase
           .from("athletes")
           .select("id, first_name, last_name, status"),
@@ -148,6 +148,8 @@ export default function StaffDashboardPage() {
             "id, athlete_id, session_date, source, test_type, test_sub_type, created_at"
           )
           .order("session_date", { ascending: false, nullsFirst: false }),
+        supabase.from("athlete_teams").select("athlete_id, team_id"),
+        supabase.from("teams").select("id, name, retest_interval_weeks"),
       ]);
 
       if (cancelled) return;
@@ -160,6 +162,15 @@ export default function StaffDashboardPage() {
 
       setAthletes((aRes.data ?? []) as Athlete[]);
       setSessions((sRes.data ?? []) as SessionRow[]);
+      const teamsById = new Map(
+        ((tRes.data ?? []) as { id: string; name: string; retest_interval_weeks: number | null }[]).map((t) => [t.id, t])
+      );
+      const byAthlete = new Map<string, { name: string; weeks: number | null }>();
+      for (const r of (atRes.data ?? []) as { athlete_id: string; team_id: string }[]) {
+        const t = teamsById.get(r.team_id);
+        if (t) byAthlete.set(r.athlete_id, { name: t.name, weeks: t.retest_interval_weeks });
+      }
+      setTeamByAthlete(byAthlete);
       setLoading(false);
     })();
     return () => {
@@ -199,7 +210,8 @@ export default function StaffDashboardPage() {
     return { active, monitoring, archived };
   }, [athletes]);
 
-  const nowMs = Date.now();
+  // Captured once per page load (keeps render pure).
+  const [nowMs] = useState(() => Date.now());
 
   const testsThisWeek = useMemo(() => {
     const cutoff = nowMs - 7 * DAY_MS;
@@ -218,21 +230,29 @@ export default function StaffDashboardPage() {
     return best;
   }, [sessions]);
 
+  // Overdue = past their team's retest interval (lib/retestDue, same rule as the Monday email).
   const overdue = useMemo(() => {
-    const cutoffMs = nowMs - OVERDUE_DAYS * DAY_MS;
-    const rows: { athlete: Athlete; lastSession: string; days: number }[] = [];
-    for (const a of athletes) {
-      if (a.status === "archived") continue;
-      const last = lastSessionByAthlete.get(a.id);
-      if (!last) continue;
-      const t = new Date(last).getTime();
-      if (t < cutoffMs) {
-        rows.push({ athlete: a, lastSession: last, days: daysBetween(last, nowMs) });
-      }
-    }
-    rows.sort((x, y) => y.days - x.days);
-    return rows;
-  }, [athletes, lastSessionByAthlete, nowMs]);
+    const byId = new Map(athletes.map((a) => [a.id, a]));
+    const due = computeRetestDue(
+      athletes.map((a) => ({
+        id: a.id,
+        name: [a.first_name, a.last_name].filter(Boolean).join(" "),
+        status: a.status,
+        teamName: teamByAthlete.get(a.id)?.name ?? null,
+        intervalWeeks: teamByAthlete.get(a.id)?.weeks ?? null,
+      })),
+      latestTestByAthlete(sessions),
+      perthToday(new Date(nowMs))
+    );
+    return due
+      .filter((r) => r.status === "overdue" && r.lastTest)
+      .map((r) => ({
+        athlete: byId.get(r.athleteId)!,
+        lastSession: r.lastTest!,
+        days: daysBetween(r.lastTest!, nowMs),
+        weeks: r.intervalWeeks,
+      }));
+  }, [athletes, sessions, teamByAthlete, nowMs]);
 
   const neverTested = useMemo(() => {
     const rows: Athlete[] = [];
@@ -312,7 +332,7 @@ export default function StaffDashboardPage() {
               title="Needs attention"
               accent="amber"
               glow
-              subtitle={`Threshold: ${Math.floor(OVERDUE_DAYS / 7)} weeks without a test`}
+              subtitle={`Past their team's retest interval (default ${DEFAULT_RETEST_WEEKS} weeks)`}
             >
               {loading ? (
                 <p className="px-4 py-6 text-center text-xs text-slate-500">

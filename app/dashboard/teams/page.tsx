@@ -13,7 +13,10 @@ type Team = {
   created_at: string;
   protocol_id: string | null;
   level: string | null;
+  retest_interval_weeks: number | null;
 };
+
+const RETEST_WEEK_OPTIONS = [4, 6, 8, 10, 12, 13, 16, 26];
 
 type ProtocolLite = { id: string; name: string };
 
@@ -55,6 +58,7 @@ export default function TeamsPage() {
   const [teamSport, setTeamSport] = useState("");
   const [teamProtocolId, setTeamProtocolId] = useState<string>("");
   const [teamLevel, setTeamLevel] = useState<string>("");
+  const [teamRetestWeeks, setTeamRetestWeeks] = useState<string>("");
   const [protocols, setProtocols] = useState<ProtocolLite[]>([]);
   const [selectedAthleteIds, setSelectedAthleteIds] = useState<string[]>([]);
   const [search, setSearch] = useState("");
@@ -65,7 +69,7 @@ export default function TeamsPage() {
     setLoading(true);
     setError(null);
     const [tRes, atRes, aRes, pRes] = await Promise.all([
-      supabase.from("teams").select("id, name, sport, created_at, protocol_id, level").order("name"),
+      supabase.from("teams").select("id, name, sport, created_at, protocol_id, level, retest_interval_weeks").order("name"),
       supabase
         .from("athlete_teams")
         .select("team_id, athlete_id, athletes(id, first_name, last_name)"),
@@ -125,6 +129,7 @@ export default function TeamsPage() {
     setTeamSport("");
     setTeamProtocolId("");
     setTeamLevel("");
+    setTeamRetestWeeks("");
     setSelectedAthleteIds([]);
     setSearch("");
     setSaveError(null);
@@ -137,6 +142,7 @@ export default function TeamsPage() {
     setTeamSport(team.sport ?? "");
     setTeamProtocolId(team.protocol_id ?? "");
     setTeamLevel(team.level ?? "");
+    setTeamRetestWeeks(team.retest_interval_weeks ? String(team.retest_interval_weeks) : "");
     const members = membersByTeamId.get(team.id) ?? [];
     setSelectedAthleteIds(members.map((x) => x.id));
     setSearch("");
@@ -180,6 +186,7 @@ export default function TeamsPage() {
             sport: teamSport.trim() || null,
             protocol_id: teamProtocolId || null,
             level: teamLevel || null,
+            retest_interval_weeks: teamRetestWeeks ? Number(teamRetestWeeks) : null,
           })
           .eq("id", teamId);
         if (uErr) throw new Error(uErr.message);
@@ -191,6 +198,7 @@ export default function TeamsPage() {
             sport: teamSport.trim() || null,
             protocol_id: teamProtocolId || null,
             level: teamLevel || null,
+            retest_interval_weeks: teamRetestWeeks ? Number(teamRetestWeeks) : null,
           })
           .select("id")
           .single();
@@ -296,6 +304,9 @@ export default function TeamsPage() {
                           {protocols.find((p) => p.id === team.protocol_id)?.name ?? "Protocol"}
                         </span>
                       ) : null}
+                      <span className="rounded-full border border-slate-700 bg-slate-950 px-2.5 py-1 text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                        Retest {team.retest_interval_weeks ?? 12} wk
+                      </span>
                       {team.level ? (
                         <span className="rounded-full border border-slate-700 bg-slate-950 px-2.5 py-1 text-[10px] font-medium uppercase tracking-wide text-slate-400">
                           {levelLabel(team.level)}
@@ -408,6 +419,24 @@ export default function TeamsPage() {
                 </select>
                 <p className="mt-1 text-[11px] text-slate-500">
                   Every athlete in this team inherits it. Individual tests can be changed on the athlete&apos;s edit page.
+                </p>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-400">Retest every</label>
+                <select
+                  value={teamRetestWeeks}
+                  onChange={(e) => setTeamRetestWeeks(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-200"
+                >
+                  <option value="">12 weeks (default)</option>
+                  {RETEST_WEEK_OPTIONS.filter((w) => w !== 12).map((w) => (
+                    <option key={w} value={w}>
+                      {w} weeks{w === 13 ? " (school term)" : ""}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-[11px] text-slate-500">
+                  Used for Needs Attention on the dashboard and the Monday retest email.
                 </p>
               </div>
               <div>
