@@ -5,6 +5,7 @@ import DashboardNav from "@/components/DashboardNav";
 import { useRequireDashboardStaff } from "@/lib/useRequireDashboardStaff";
 import { supabase } from "@/lib/supabaseClient";
 import { LEVELS, levelLabel } from "@/lib/athleteLevels";
+import TeamReportModal from "@/components/teams/TeamReportModal";
 
 type Team = {
   id: string;
@@ -64,6 +65,7 @@ export default function TeamsPage() {
   const [search, setSearch] = useState("");
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [reportTeam, setReportTeam] = useState<Team | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -315,6 +317,15 @@ export default function TeamsPage() {
                       <span className="rounded-full border border-slate-700 bg-slate-950 px-2.5 py-1 text-[10px] font-medium uppercase tracking-wide text-slate-400">
                         {team.sport?.trim() || "Sport —"}
                       </span>
+                      {members.length > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => setReportTeam(team)}
+                          className="rounded-lg border border-lime-400/50 px-2.5 py-1 text-xs font-medium text-lime-300 hover:bg-lime-400/10"
+                        >
+                          Team report
+                        </button>
+                      ) : null}
                       <button
                         type="button"
                         onClick={() => openEdit(team)}
@@ -515,6 +526,13 @@ export default function TeamsPage() {
             </div>
           </div>
         </div>
+      ) : null}
+      {reportTeam ? (
+        <TeamReportModal
+          teamId={reportTeam.id}
+          teamName={reportTeam.name}
+          onClose={() => setReportTeam(null)}
+        />
       ) : null}
     </main>
   );

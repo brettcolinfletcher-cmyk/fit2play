@@ -34,6 +34,7 @@ function fields(detail: AuditRow["detail"]): string {
 export function describeAudit(row: AuditRow): string {
   const { action, table_name: t, detail } = row;
   if (action === "view") return "Viewed athlete dashboard";
+  if (action === "export") return "Downloaded all athlete data (CSV)";
   switch (t) {
     case "athletes":
       if (action === "insert") return "Created athlete";

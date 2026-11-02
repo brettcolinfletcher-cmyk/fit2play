@@ -1012,3 +1012,40 @@ export function buildPdfReportContext(
 
   return { tests, findings };
 }
+
+/**
+ * Latest LSI per paired test (isometric strength pairs and hop tests), with
+ * ISO dates. Same calculation as the athlete report; used by the team report.
+ */
+export function latestLsiReadings(
+  sessions: ReportSessionRow[],
+  metricsBySession: Map<string, MetricRowWithSide[]>,
+  hopTests: ReportHopTestRow[]
+): { label: string; lsi: number; date: string }[] {
+  const out: { label: string; lsi: number; date: string }[] = [];
+  for (const p of buildIsoStrengthPairs(sessions, metricsBySession)) {
+    if (p.lsiPct != null) out.push({ label: p.label, lsi: p.lsiPct, date: p.date.slice(0, 10) });
+  }
+  const byType = new Map<string, ReportHopTestRow[]>();
+  for (const h of hopTests) {
+    const list = byType.get(h.test_type) ?? [];
+    list.push(h);
+    byType.set(h.test_type, list);
+  }
+  for (const [tt, rows] of byType) {
+    const latestD = rows.map((r) => r.session_date.slice(0, 10)).sort().pop();
+    if (!latestD) continue;
+    let left: number | null = null;
+    let right: number | null = null;
+    for (const r of rows) {
+      if (r.session_date.slice(0, 10) !== latestD) continue;
+      const sd = (r.side ?? "").toLowerCase();
+      if (sd === "left") left = r.best_cm;
+      if (sd === "right") right = r.best_cm;
+    }
+    if (left == null || right == null) continue;
+    const lsi = lsiPct(left, right);
+    if (lsi != null) out.push({ label: hopTestDisplayName(tt), lsi, date: latestD });
+  }
+  return out;
+}

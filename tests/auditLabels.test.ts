@@ -8,6 +8,9 @@ describe("describeAudit", () => {
   it("describes views", () => {
     expect(d("view", "athletes")).toBe("Viewed athlete dashboard");
   });
+  it("describes data exports", () => {
+    expect(d("export", "athletes")).toBe("Downloaded all athlete data (CSV)");
+  });
   it("lists edited athlete fields in plain words", () => {
     expect(d("update", "athletes", { fields: ["date_of_birth", "guardian_email"] })).toBe(
       "Edited athlete: date of birth, parent email"

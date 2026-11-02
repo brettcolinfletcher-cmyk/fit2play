@@ -78,6 +78,33 @@ export default function EditAthletePage() {
   const [error, setError] = useState<string | null>(null);
   const [showDelete, setShowDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+
+  async function handleExport() {
+    if (!id) return;
+    setExporting(true);
+    setExportError(null);
+    try {
+      const res = await fetch(`/api/athletes/${id}/export`, { headers: await staffAuthHeaders() });
+      if (!res.ok) {
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(j.error ?? `Export failed (${res.status})`);
+      }
+      const blob = await res.blob();
+      const name = /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") ?? "")?.[1] ?? "athlete_data.zip";
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = name;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setExportError(e instanceof Error ? e.message : "Export failed");
+    } finally {
+      setExporting(false);
+    }
+  }
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [photoUploading, setPhotoUploading] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
@@ -580,7 +607,16 @@ export default function EditAthletePage() {
         {!loading && id ? <AthleteProtocolEditor athleteId={id} /> : null}
 
         {!loading ? (
-          <div className="mt-12 border-t border-slate-800 pt-8">
+          <div className="mt-12 flex flex-wrap items-center gap-6 border-t border-slate-800 pt-8">
+            <button
+              type="button"
+              disabled={exporting}
+              className="text-xs text-slate-300 hover:text-lime-300 disabled:opacity-50"
+              onClick={() => void handleExport()}
+              title="Zip of CSV files with everything held about this athlete"
+            >
+              {exporting ? "Preparing download…" : "Download all data (CSV)"}
+            </button>
             <button
               type="button"
               className="text-xs text-rose-400 hover:text-rose-300"
@@ -588,6 +624,7 @@ export default function EditAthletePage() {
             >
               Delete athlete
             </button>
+            {exportError ? <span className="text-xs text-rose-400">{exportError}</span> : null}
           </div>
         ) : null}
 

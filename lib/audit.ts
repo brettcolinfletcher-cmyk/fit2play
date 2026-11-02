@@ -9,7 +9,7 @@ import { staffUserFromRequest } from "@/lib/routeAuth";
 
 export type AuditEntry = {
   actor: string | null;
-  action: "insert" | "update" | "delete" | "view";
+  action: "insert" | "update" | "delete" | "view" | "export";
   table: string;
   recordId?: string | null;
   athleteId?: string | null;
