@@ -1,10 +1,14 @@
 {
   "functions": {
     "app/api/sync/hawkins/route.ts": {
-      "regions": ["syd1"]
+      "regions": [
+        "syd1"
+      ]
     },
     "app/api/sync/1080/route.ts": {
-      "regions": ["syd1"]
+      "regions": [
+        "syd1"
+      ]
     }
   },
   "crons": [
@@ -19,6 +23,10 @@
     {
       "path": "/api/cron/reminders",
       "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/sync-health",
+      "schedule": "0 23 * * *"
     }
   ]
 }

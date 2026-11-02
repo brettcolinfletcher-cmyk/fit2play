@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { staffOrServerAuthorized } from "@/lib/routeAuth";
+import { evaluateSyncHealth } from "@/lib/sync/syncHealth";
 
 export const dynamic = "force-dynamic";
 
@@ -49,5 +50,6 @@ export async function GET(request: Request) {
   return NextResponse.json({
     hawkins: latest["hawkins"] ?? null,
     "1080": latest["1080"] ?? null,
+    health: evaluateSyncHealth(list),
   });
 }

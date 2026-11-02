@@ -5,6 +5,7 @@ import DashboardNav from "@/components/DashboardNav";
 import { formatDisplayDateTime } from "@/lib/dateDisplay";
 import { useRequireDashboardStaff } from "@/lib/useRequireDashboardStaff";
 import { staffAuthHeaders } from "@/lib/staffAuthHeaders";
+import SyncHealthBanner from "@/components/SyncHealthBanner";
 
 type SourceStatus = {
   synced_at: string;
@@ -129,8 +130,12 @@ export default function SyncDashboardPage() {
         </h1>
         <p className="mt-1 text-sm text-slate-500">
           Pull sessions from Hawkins Dynamics and 1080 Motion into Supabase.
-          Nightly cron runs at midnight AEST.
+          Runs automatically every night at 10pm Perth. If a run fails or is missed, an alert is emailed to info@f2p.au at 7am.
         </p>
+
+        <div className="mt-6">
+          <SyncHealthBanner showLink={false} refreshKey={statusLoading ? 0 : 1 + (status ? 1 : 0)} />
+        </div>
 
         <div className="mt-8 grid gap-6 lg:grid-cols-2">
           <SyncCard

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import DashboardNav from "@/components/DashboardNav";
+import SyncHealthBanner from "@/components/SyncHealthBanner";
 import { formatDisplayDate } from "@/lib/dateDisplay";
 
 const supabase = createClient(
@@ -261,6 +262,7 @@ export default function StaffDashboardPage() {
       <DashboardNav lightTheme />
 
       <section className="mx-auto max-w-7xl px-4 pt-8 pb-20">
+        <SyncHealthBanner />
         <header className="mb-6 flex flex-wrap items-center justify-between gap-4">
           <div>
             <h1 className="text-xl font-semibold tracking-tight text-slate-50">
