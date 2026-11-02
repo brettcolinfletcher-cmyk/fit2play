@@ -12,13 +12,13 @@ export const metadata: Metadata = {
 const TEAM = [
   {
     name: "Brett Fletcher",
-    role: "Founder · Sports & Exercise Physiotherapist",
+    role: "Sports & Exercise Physiotherapist",
     bio: [
-      "Brett Fletcher is an APA Titled Sports and Exercise Physiotherapist based in Perth, with more than ten years of experience in elite sport. He is the founder of Fit2Perform and built the testing and reporting platform that sits behind every Fit2Play and Fit2Perform assessment.",
-      "Brett is the Lead Physiotherapist for WA Cricket's female programs, and has worked with the Fremantle AFLW and Perth Football Club. Across these roles he has managed injuries, guided rehabilitation and worked alongside coaches, strength and conditioning staff and medical teams to make return-to-play and availability decisions through the pressure of a competitive season.",
-      "Alongside elite sport, Brett is Principal at East Vic Park Physiotherapy and In Clinic Physiotherapy, where he treats athletes and everyday clients across a wide range of sports and injuries. He is also a Sessional Academic Clinical Supervisor at Curtin University, supervising physiotherapy students in clinical practice.",
-      "Brett created Fit2Perform to bring the testing used in elite programs to athletes at every level. His focus is on objective testing that answers practical questions: is the athlete ready to return, where are the deficits, and what should change in their program. By combining force plate, sprint and strength testing with clinical reasoning, he gives athletes, parents, coaches and clinicians clear information to guide rehabilitation and performance decisions.",
-      "Above all, Brett wants every athlete he works with, from junior to professional, to return to sport with confidence and keep performing at their best.",
+      "Brett Fletcher is an APA Titled Sports and Exercise Physiotherapist with more than ten years of experience in elite sport across Australian football and cricket. He is the Lead Physiotherapist for WA Cricket\u2019s female programs and has worked with the Fremantle AFLW and Perth Football Club.",
+      "Brett has worked with athletes from junior to elite level, across different sports, injury profiles and stages of recovery, helping them return from injury and improve their athletic performance.",
+      "Within elite environments, he works closely with coaches, strength and conditioning staff, medical teams and athletes to make return-to-play and availability decisions under the pressure of a competitive season. His approach is centred on understanding each athlete\u2019s injury and individual profile, setting clear and measurable criteria for return, and tracking meaningful change over time.",
+      "Brett also supervises registered physiotherapists completing postgraduate sports physiotherapy training at Curtin University, helping develop the next generation of sports physiotherapists.",
+      "By combining force plate, sprint and strength testing with clinical reasoning, he provides athletes, parents, coaches and medical professionals with clear information to guide rehabilitation and training, identify deficits early, support a confident return from injury and improve athletic performance.",
     ],
   },
   {
