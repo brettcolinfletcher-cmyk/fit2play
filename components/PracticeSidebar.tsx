@@ -15,6 +15,7 @@ const TABS = [
   { href: "/dashboard/practitioners", label: "Practitioners" },
   { href: "/dashboard/appointment-types", label: "Services" },
   { href: "/dashboard/invoices", label: "Invoices" },
+  { href: "/dashboard/gps", label: "GPS hire" },
 ];
 
 export default function PracticeSidebar() {

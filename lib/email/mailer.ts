@@ -18,7 +18,7 @@ export function getResend(): Resend {
 }
 
 function money(cents: number): string {
-  return `$${(cents / 100).toFixed(2)}`;
+  return `${cents < 0 ? "-" : ""}$${(Math.abs(cents) / 100).toFixed(2)}`;
 }
 
 function perthDate(iso: string): string {

@@ -89,7 +89,8 @@ export default function DashboardNav({ lightTheme = false }: { lightTheme?: bool
           pathname.startsWith("/dashboard/availability") ||
           pathname.startsWith("/dashboard/practitioners") ||
           pathname.startsWith("/dashboard/appointment-types") ||
-          pathname.startsWith("/dashboard/invoices"),
+          pathname.startsWith("/dashboard/invoices") ||
+          pathname.startsWith("/dashboard/gps"),
       },
       {
         href: "/dashboard/sprint-report",
