@@ -1003,7 +1003,6 @@ function EntryModal({
   const [hydrated, setHydrated] = useState(false);
 
   const prac = pracs.find((p) => p.id === pracSel);
-  const teamName = (id: string | null) => teams.find((t) => t.id === id)?.name ?? "Team";
 
   // hydrate on edit
   useEffect(() => {

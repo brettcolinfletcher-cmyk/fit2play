@@ -10,6 +10,9 @@ import {
   money, parseMoney, perthToday, renewalPeriod, type FollowUp, type GpsHire,
 } from "@/lib/practice/billing";
 import { createInvoice, type InvoiceLineInput } from "@/lib/practice/invoicing";
+import { downloadRoster } from "@/lib/practice/gpsUnits";
+import RosterImport from "@/components/gps/RosterImport";
+import UnitRegister from "@/components/gps/UnitRegister";
 
 /**
  * GPS unit hire register.
@@ -22,7 +25,7 @@ import { createInvoice, type InvoiceLineInput } from "@/lib/practice/invoicing";
 const HIRE_COLS =
   "id, client_name, team_id, athlete_id, contact_name, contact_email, contact_phone, units_count, unit_refs, start_date, end_date, units_returned_date, status, one_off_fee_cents, subscription_cents, price_per_unit, interval_months, next_renewal_date, notes";
 
-type AthleteLite = { id: string; first_name: string | null; last_name: string | null };
+type AthleteLite = { id: string; first_name: string | null; last_name: string | null; date_of_birth: string | null };
 type TeamLite = { id: string; name: string };
 type HireInvoice = { id: string; invoice_number: string; gps_hire_id: string; status: string; total_cents: number; due_date: string | null; issued_date: string; period_start: string | null; period_end: string | null };
 type FollowLog = { id: string; gps_hire_id: string; note: string; created_at: string };
@@ -56,7 +59,15 @@ export default function GpsHirePage() {
   const [tab, setTab] = useState<Tab>("active");
   const [form, setForm] = useState<null | { editId?: string }>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [unitsKey, setUnitsKey] = useState(0);
+  const [exportErr, setExportErr] = useState<string | null>(null);
   const today = perthToday();
+
+  async function exportAll() {
+    if (!orgId) return;
+    setExportErr(null);
+    try { await downloadRoster(orgId, null, "all_hires"); } catch (e) { setExportErr((e as { message?: string })?.message ?? "Export failed."); }
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -71,7 +82,7 @@ export default function GpsHirePage() {
       supabase.from("gps_hires").select(HIRE_COLS).eq("organisation_id", org).order("client_name"),
       supabase.from("invoices").select("id, invoice_number, gps_hire_id, status, total_cents, due_date, issued_date, period_start, period_end").eq("organisation_id", org).not("gps_hire_id", "is", null).order("issued_date", { ascending: false }),
       supabase.from("gps_hire_followups").select("id, gps_hire_id, note, created_at").eq("organisation_id", org).order("created_at", { ascending: false }),
-      supabase.from("athletes").select("id, first_name, last_name").order("last_name"),
+      supabase.from("athletes").select("id, first_name, last_name, date_of_birth").order("last_name"),
       supabase.from("teams").select("id, name").order("name"),
     ]);
     setLoadErr(he ? he.message : null);
@@ -156,8 +167,12 @@ export default function GpsHirePage() {
                 <h1 className="text-xl font-semibold tracking-tight text-slate-50">GPS HIRE</h1>
                 <p className="mt-1 text-sm text-slate-400">Units hired to teams and individuals, billing and renewals</p>
               </div>
-              <button type="button" onClick={() => setForm({})} className="rounded-full bg-lime-400 px-4 py-2 text-xs font-semibold text-slate-950 hover:brightness-110">+ New hire</button>
+              <div className="flex gap-2">
+                <button type="button" onClick={() => void exportAll()} className="rounded-full border border-slate-700 px-4 py-2 text-xs text-slate-200 hover:bg-slate-800">Export roster</button>
+                <button type="button" onClick={() => setForm({})} className="rounded-full bg-lime-400 px-4 py-2 text-xs font-semibold text-slate-950 hover:brightness-110">+ New hire</button>
+              </div>
             </div>
+            {exportErr ? <p className="mt-2 text-xs text-rose-300">{exportErr}</p> : null}
 
             {loadErr ? <p className="mt-4 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">Couldn&apos;t load GPS hire ({loadErr}). The database update for this page may not be applied yet.</p> : null}
 
@@ -167,6 +182,15 @@ export default function GpsHirePage() {
               <Stat label="Recurring / month" value={money(stats.monthly)} />
               <Stat label="Owing" value={money(stats.owing)} tone={stats.owing > 0 ? "warn" : undefined} />
             </div>
+
+            <RosterImport
+              orgId={orgId}
+              profileId={profileId}
+              hires={hires.map((h) => ({ id: h.id, client_name: h.client_name, team_id: h.team_id, status: h.status }))}
+              teams={teams}
+              athletes={athletes}
+              onDone={() => { setUnitsKey((k) => k + 1); void load(); }}
+            />
 
             <div className="mt-6 rounded-xl border border-slate-800 bg-slate-900/50">
               <div className="flex items-center justify-between border-b border-slate-800 px-4 py-2.5">
@@ -241,6 +265,14 @@ export default function GpsHirePage() {
                 </tbody>
               </table>
             </div>
+
+            <UnitRegister
+              orgId={orgId}
+              hires={hires.map((h) => ({ id: h.id, client_name: h.client_name, status: h.status }))}
+              athletes={athletes}
+              refreshKey={unitsKey}
+              onChanged={() => void load()}
+            />
           </div>
         </div>
       </section>
@@ -262,6 +294,8 @@ export default function GpsHirePage() {
           hire={detail}
           orgId={orgId}
           profileId={profileId}
+          athletes={athletes}
+          unitsKey={unitsKey}
           invoices={invoices.filter((i) => i.gps_hire_id === detail.id)}
           paidById={paidById}
           logs={logs.filter((l) => l.gps_hire_id === detail.id)}
@@ -562,8 +596,8 @@ function HireForm({ editId, hire, orgId, profileId, athletes, teams, onClose, on
 
 // ---- Detail ------------------------------------------------------------------
 
-function HireDetail({ hire: h, orgId, profileId, invoices, paidById, logs, followUps, onEdit, onClose, onChanged }: {
-  hire: GpsHire; orgId: string | null; profileId: string | null; invoices: HireInvoice[]; paidById: Record<string, number>;
+function HireDetail({ hire: h, orgId, profileId, athletes, unitsKey, invoices, paidById, logs, followUps, onEdit, onClose, onChanged }: {
+  hire: GpsHire; orgId: string | null; profileId: string | null; athletes: AthleteLite[]; unitsKey: number; invoices: HireInvoice[]; paidById: Record<string, number>;
   logs: FollowLog[]; followUps: FollowUp[]; onEdit: () => void; onClose: () => void; onChanged: () => void;
 }) {
   const [note, setNote] = useState("");
@@ -575,6 +609,19 @@ function HireDetail({ hire: h, orgId, profileId, invoices, paidById, logs, follo
   const hasSub = (h.subscription_cents ?? 0) > 0;
   const next = renewalPeriod(h);
   const inp = "rounded-lg border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-200";
+  const [units, setUnits] = useState<{ unit_code: string; size: string | null; current_athlete_id: string | null; current_holder_name: string | null }[]>([]);
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase.from("gps_units").select("unit_code, size, current_athlete_id, current_holder_name").eq("current_hire_id", h.id).order("unit_code");
+      setUnits((data ?? []) as typeof units);
+    })();
+  }, [h.id, unitsKey]);
+
+  async function exportHire() {
+    if (!orgId) return;
+    try { await downloadRoster(orgId, h.id, h.client_name); } catch (e) { setMsg((e as { message?: string })?.message ?? "Export failed."); }
+  }
 
   async function addNote(text: string) {
     if (!orgId || !text.trim()) return;
@@ -675,6 +722,26 @@ function HireDetail({ hire: h, orgId, profileId, invoices, paidById, logs, follo
           </div>
         ) : null}
         {msg ? <p className="text-xs text-slate-300">{msg}</p> : null}
+
+        <div>
+          <div className="mb-1 flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-300">Units on this hire ({units.length})</span>
+            {units.length ? <button type="button" onClick={() => void exportHire()} className="text-xs text-lime-300 hover:underline">Export PlayerData roster</button> : null}
+          </div>
+          {units.length === 0 ? <p className="text-xs text-slate-500">No units allocated yet. Drop a roster on the main page.</p> : (
+            <div className="grid max-h-40 grid-cols-2 gap-1 overflow-y-auto sm:grid-cols-3">
+              {units.map((u) => {
+                const a = u.current_athlete_id ? athletes.find((x) => x.id === u.current_athlete_id) : null;
+                const who = a ? `${a.first_name ?? ""} ${a.last_name ?? ""}`.trim() : u.current_holder_name;
+                return (
+                  <div key={u.unit_code} className="truncate rounded border border-slate-800 px-2 py-1 text-[11px] text-slate-300">
+                    <span className="font-mono text-slate-200">{u.unit_code}</span> · {who || <span className="text-slate-500">{u.size ? `spare ${u.size}` : "spare"}</span>}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
 
         <div>
           <div className="mb-1 text-xs font-semibold text-slate-300">Invoices</div>
