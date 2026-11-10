@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { fmtDate } from "@/lib/practice/billing";
-import { recountHires, returnUnit, UNIT_COLS, type UnitRow } from "@/lib/practice/gpsUnits";
+import { deleteAssignment, deleteUnit, reassignUnit, recountHires, returnUnit, UNIT_COLS, type UnitRow } from "@/lib/practice/gpsUnits";
 
 /** Unit register: every GPS unit, who has it, and its assignment history. */
 
@@ -20,8 +20,9 @@ const STATUS_STYLE: Record<string, string> = {
   retired: "bg-slate-600/40 text-slate-300",
 };
 
-export default function UnitRegister({ orgId, hires, athletes, refreshKey, onChanged }: {
+export default function UnitRegister({ orgId, profileId, hires, athletes, refreshKey, onChanged }: {
   orgId: string | null;
+  profileId: string | null;
   hires: HireLite[];
   athletes: AthleteLite[];
   refreshKey: number;
@@ -140,6 +141,9 @@ export default function UnitRegister({ orgId, hires, athletes, refreshKey, onCha
         <UnitDetail
           unit={open}
           orgId={orgId}
+          profileId={profileId}
+          hires={hires}
+          athletes={athletes}
           hireName={hireName}
           athName={athName}
           holder={holder(open)}
@@ -151,27 +155,58 @@ export default function UnitRegister({ orgId, hires, athletes, refreshKey, onCha
   );
 }
 
-function UnitDetail({ unit, orgId, hireName, athName, holder, onClose, onChanged }: {
-  unit: UnitRow; orgId: string | null; hireName: (id: string | null) => string | null; athName: (id: string | null) => string | null;
+function UnitDetail({ unit, orgId, profileId, hires, athletes, hireName, athName, holder, onClose, onChanged }: {
+  unit: UnitRow; orgId: string | null; profileId: string | null; hires: HireLite[]; athletes: AthleteLite[];
+  hireName: (id: string | null) => string | null; athName: (id: string | null) => string | null;
   holder: string; onClose: () => void; onChanged: () => void;
 }) {
   const [history, setHistory] = useState<Assignment[]>([]);
   const [size, setSize] = useState(unit.size ?? "");
   const [notes, setNotes] = useState(unit.notes ?? "");
   const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  // allocation editor
+  const [hireSel, setHireSel] = useState(unit.current_hire_id ?? "");
+  const [athleteId, setAthleteId] = useState<string | null>(unit.current_athlete_id);
+  const [holderName, setHolderName] = useState(unit.current_athlete_id ? "" : unit.current_holder_name ?? "");
+  const [search, setSearch] = useState("");
+  // confirmations
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmLine, setConfirmLine] = useState<string | null>(null);
 
-  useEffect(() => {
-    (async () => {
-      const { data } = await supabase
-        .from("gps_unit_assignments")
-        .select("id, gps_hire_id, athlete_id, holder_name, started_on, ended_on, note")
-        .eq("unit_id", unit.id)
-        .order("started_on", { ascending: false })
-        .order("created_at", { ascending: false });
-      setHistory((data ?? []) as Assignment[]);
-    })();
+  const loadHistory = useCallback(async () => {
+    const { data } = await supabase
+      .from("gps_unit_assignments")
+      .select("id, gps_hire_id, athlete_id, holder_name, started_on, ended_on, note")
+      .eq("unit_id", unit.id)
+      .order("started_on", { ascending: false })
+      .order("created_at", { ascending: false });
+    setHistory((data ?? []) as Assignment[]);
   }, [unit.id]);
+  useEffect(() => { void loadHistory(); }, [loadHistory]);
 
+  const matches = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return [];
+    return athletes.filter((a) => `${a.first_name ?? ""} ${a.last_name ?? ""}`.toLowerCase().includes(q)).slice(0, 6);
+  }, [search, athletes]);
+
+  const allocChanged =
+    (hireSel || null) !== (unit.current_hire_id ?? null) ||
+    (athleteId ?? null) !== (unit.current_athlete_id ?? null) ||
+    (!athleteId && holderName.trim() !== (unit.current_holder_name ?? ""));
+
+  async function saveAllocation() {
+    if (!orgId) return;
+    setBusy(true); setErr(null); setMsg(null);
+    const r = await reassignUnit(orgId, profileId, unit, { hireId: hireSel || null, athleteId, holderName: athleteId ? null : holderName });
+    setBusy(false);
+    if (r.error) { setErr(r.error); return; }
+    setMsg("Allocation updated.");
+    await loadHistory();
+    onChanged();
+  }
   async function setStatus(status: string) {
     if (!orgId) return;
     setBusy(true);
@@ -187,17 +222,40 @@ function UnitDetail({ unit, orgId, hireName, athName, holder, onClose, onChanged
     setBusy(true);
     await returnUnit(orgId, unit.id, unit.current_hire_id);
     setBusy(false);
+    await loadHistory();
     onChanged();
   }
   async function saveDetails() {
-    setBusy(true);
-    await supabase.from("gps_units").update({ size: size.trim() || null, notes: notes.trim() || null, updated_at: new Date().toISOString() }).eq("id", unit.id);
+    setBusy(true); setErr(null);
+    const code = unit.unit_code;
+    const { error } = await supabase.from("gps_units").update({ size: size.trim() || null, notes: notes.trim() || null, updated_at: new Date().toISOString() }).eq("id", unit.id);
     if (unit.current_hire_id) await recountHires([unit.current_hire_id]);
     setBusy(false);
+    if (error) { setErr(error.message); return; }
+    setMsg(`${code} saved.`);
+    onChanged();
+  }
+  async function removeUnit() {
+    setBusy(true); setErr(null);
+    const r = await deleteUnit(unit);
+    setBusy(false);
+    if (r.error) { setErr(r.error); return; }
+    onChanged();
+    onClose();
+  }
+  async function removeLine(a: Assignment) {
+    setBusy(true); setErr(null);
+    const r = await deleteAssignment(unit, a);
+    setBusy(false);
+    setConfirmLine(null);
+    if (r.error) { setErr(r.error); return; }
+    await loadHistory();
     onChanged();
   }
 
   const inp = "mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-sm text-slate-200";
+  const openHires = hires.filter((h) => h.status !== "ended" || h.id === unit.current_hire_id);
+  const linkedName = athName(athleteId);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={onClose}>
@@ -210,38 +268,104 @@ function UnitDetail({ unit, orgId, hireName, athName, holder, onClose, onChanged
           {unit.current_hire_id ? <>On hire to <span className="text-slate-200">{hireName(unit.current_hire_id)}</span>{holder ? <> · with <span className="text-slate-200">{holder}</span></> : " · spare"}</> : "In stock"}
         </p>
 
+        {/* Allocation */}
+        <div className="mt-4 rounded-xl border border-slate-800 bg-slate-950/40 p-3">
+          <div className="text-xs font-semibold text-slate-300">Allocation</div>
+          <div className="mt-2 grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-slate-400">Hire</label>
+              <select value={hireSel} onChange={(e) => setHireSel(e.target.value)} className={inp}>
+                <option value="">Stock (no hire)</option>
+                {openHires.map((h) => <option key={h.id} value={h.id}>{h.client_name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-slate-400">Player</label>
+              {athleteId ? (
+                <div className="mt-1.5">
+                  <span className="inline-flex items-center gap-1 rounded-full border border-lime-500/40 bg-lime-500/10 px-2.5 py-1 text-xs text-lime-200">
+                    {linkedName ?? "Athlete"}
+                    <button type="button" onClick={() => { setAthleteId(null); setSearch(""); }} className="text-lime-400 hover:text-rose-300">×</button>
+                  </span>
+                </div>
+              ) : (
+                <>
+                  <input value={search || holderName} onChange={(e) => { setSearch(e.target.value); setHolderName(e.target.value); }} placeholder="Search athlete or type a name" className={inp} />
+                  {matches.length ? (
+                    <div className="mt-1 rounded-lg border border-slate-800 bg-slate-950/90 p-1">
+                      {matches.map((a) => (
+                        <button key={a.id} type="button" onClick={() => { setAthleteId(a.id); setSearch(""); setHolderName(""); }} className="flex w-full rounded px-2 py-1 text-left text-xs text-slate-200 hover:bg-slate-800">
+                          {`${a.first_name ?? ""} ${a.last_name ?? ""}`.trim()}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </>
+              )}
+            </div>
+          </div>
+          <p className="mt-1 text-[10px] text-slate-500">Leave Player blank for a spare unit. Saving adds a line to the history below.</p>
+          <div className="mt-2 flex gap-2">
+            <button type="button" onClick={() => void saveAllocation()} disabled={busy || !allocChanged} className="rounded-lg border border-lime-500/50 bg-lime-500/15 px-3 py-1.5 text-xs text-lime-200 hover:bg-lime-500/25 disabled:opacity-40">Save allocation</button>
+            {unit.current_hire_id ? (
+              <button type="button" onClick={() => void returnToStock()} disabled={busy} className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-200 hover:bg-slate-800">Returned to stock</button>
+            ) : null}
+          </div>
+        </div>
+
+        {/* Details + status */}
         <div className="mt-4 grid grid-cols-3 gap-3">
           <div><label className="block text-xs text-slate-400">Size</label><input value={size} onChange={(e) => setSize(e.target.value)} className={inp} /></div>
           <div className="col-span-2"><label className="block text-xs text-slate-400">Notes</label><input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. strap replaced" className={inp} /></div>
         </div>
-
         <div className="mt-3 flex flex-wrap gap-2">
-          <button type="button" onClick={() => void saveDetails()} disabled={busy} className="rounded-lg border border-lime-500/50 bg-lime-500/15 px-3 py-1.5 text-xs text-lime-200 hover:bg-lime-500/25 disabled:opacity-50">Save</button>
-          {unit.current_hire_id ? (
-            <button type="button" onClick={() => void returnToStock()} disabled={busy} className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-200 hover:bg-slate-800">Returned to stock</button>
-          ) : null}
+          <button type="button" onClick={() => void saveDetails()} disabled={busy} className="rounded-lg border border-lime-500/50 bg-lime-500/15 px-3 py-1.5 text-xs text-lime-200 hover:bg-lime-500/25 disabled:opacity-50">Save details</button>
           {unit.status !== "maintenance" ? <button type="button" onClick={() => void setStatus("maintenance")} disabled={busy} className="rounded-lg border border-amber-500/40 px-3 py-1.5 text-xs text-amber-200 hover:bg-amber-500/10">Maintenance</button> : null}
           {unit.status !== "lost" ? <button type="button" onClick={() => void setStatus("lost")} disabled={busy} className="rounded-lg border border-rose-500/40 px-3 py-1.5 text-xs text-rose-200 hover:bg-rose-500/10">Lost</button> : null}
           {unit.status !== "retired" ? <button type="button" onClick={() => void setStatus("retired")} disabled={busy} className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800">Retire</button> : null}
           {["maintenance", "lost", "retired"].includes(unit.status) ? <button type="button" onClick={() => void setStatus("available")} disabled={busy} className="rounded-lg border border-sky-500/40 px-3 py-1.5 text-xs text-sky-200 hover:bg-sky-500/10">Back in service</button> : null}
         </div>
 
+        {/* History */}
         <div className="mt-5">
           <div className="mb-1 text-xs font-semibold text-slate-300">History</div>
           {history.length === 0 ? <p className="text-xs text-slate-500">No allocations yet.</p> : (
             <ul className="space-y-1">
               {history.map((h) => (
-                <li key={h.id} className="rounded border border-slate-800 px-2 py-1 text-xs text-slate-300">
-                  <span className="text-slate-500">{fmtDate(h.started_on)} – {h.ended_on ? fmtDate(h.ended_on) : "now"}</span>
-                  {" · "}{athName(h.athlete_id) ?? h.holder_name ?? "spare"}
-                  {h.gps_hire_id ? <span className="text-slate-500"> · {hireName(h.gps_hire_id)}</span> : null}
+                <li key={h.id} className="flex items-center justify-between gap-2 rounded border border-slate-800 px-2 py-1 text-xs text-slate-300">
+                  <span className="min-w-0">
+                    <span className="text-slate-500">{fmtDate(h.started_on)} – {h.ended_on ? fmtDate(h.ended_on) : "now"}</span>
+                    {" · "}{athName(h.athlete_id) ?? h.holder_name ?? "spare"}
+                    {h.gps_hire_id ? <span className="text-slate-500"> · {hireName(h.gps_hire_id)}</span> : null}
+                  </span>
+                  {confirmLine === h.id ? (
+                    <span className="flex shrink-0 items-center gap-1.5">
+                      <span className="text-[10px] text-rose-300">{h.ended_on ? "Delete line?" : "Delete and return to stock?"}</span>
+                      <button type="button" onClick={() => void removeLine(h)} disabled={busy} className="rounded border border-rose-500/50 px-1.5 text-[10px] text-rose-200 hover:bg-rose-500/10">Yes</button>
+                      <button type="button" onClick={() => setConfirmLine(null)} className="text-[10px] text-slate-400 hover:text-slate-200">No</button>
+                    </span>
+                  ) : (
+                    <button type="button" onClick={() => setConfirmLine(h.id)} title="Delete this line" className="shrink-0 text-slate-500 hover:text-rose-300">×</button>
+                  )}
                 </li>
               ))}
             </ul>
           )}
         </div>
 
-        <div className="mt-6 flex justify-end">
+        {msg ? <p className="mt-3 text-xs text-slate-300">{msg}</p> : null}
+        {err ? <p className="mt-3 text-xs text-rose-300">{err}</p> : null}
+
+        <div className="mt-6 flex items-center justify-between gap-2">
+          {confirmDelete ? (
+            <span className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-rose-300">Delete {unit.unit_code}{history.length ? ` and its ${history.length} history line${history.length === 1 ? "" : "s"}` : ""}?</span>
+              <button type="button" onClick={() => void removeUnit()} disabled={busy} className="rounded-lg border border-rose-500/50 bg-rose-500/15 px-3 py-1.5 text-xs text-rose-200 hover:bg-rose-500/25">Delete</button>
+              <button type="button" onClick={() => setConfirmDelete(false)} className="text-xs text-slate-400 hover:text-slate-200">Keep</button>
+            </span>
+          ) : (
+            <button type="button" onClick={() => setConfirmDelete(true)} className="rounded-lg border border-rose-500/40 px-3 py-1.5 text-xs text-rose-300 hover:bg-rose-500/10">Delete unit</button>
+          )}
           <button type="button" onClick={onClose} className="rounded-lg border border-slate-700 px-4 py-2 text-xs text-slate-300 hover:bg-slate-800">Close</button>
         </div>
       </div>

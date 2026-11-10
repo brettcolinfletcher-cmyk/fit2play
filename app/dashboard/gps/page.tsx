@@ -268,6 +268,7 @@ export default function GpsHirePage() {
 
             <UnitRegister
               orgId={orgId}
+              profileId={profileId}
               hires={hires.map((h) => ({ id: h.id, client_name: h.client_name, status: h.status }))}
               athletes={athletes}
               refreshKey={unitsKey}

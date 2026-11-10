@@ -187,3 +187,68 @@ export async function downloadRoster(orgId: string, hireId: string | null, fileL
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
+
+/** Manually move a unit to a hire and/or player. Closes the open assignment and opens a new one. */
+export async function reassignUnit(
+  orgId: string,
+  profileId: string | null,
+  unit: UnitRow,
+  target: { hireId: string | null; athleteId: string | null; holderName: string | null }
+): Promise<{ error?: string }> {
+  const today = perthToday();
+  const holderName = target.athleteId ? null : target.holderName?.trim() || null;
+  const has = !!(target.hireId || target.athleteId || holderName);
+  const { error: ce } = await supabase.from("gps_unit_assignments").update({ ended_on: today }).eq("unit_id", unit.id).is("ended_on", null);
+  if (ce) return { error: ce.message };
+  if (has) {
+    const { error } = await supabase.from("gps_unit_assignments").insert({
+      organisation_id: orgId,
+      unit_id: unit.id,
+      gps_hire_id: target.hireId,
+      athlete_id: target.athleteId,
+      holder_name: holderName,
+      started_on: today,
+      note: "Changed manually",
+      created_by: profileId,
+    });
+    if (error) return { error: error.message };
+  }
+  const { error: ue } = await supabase
+    .from("gps_units")
+    .update({
+      current_hire_id: target.hireId,
+      current_athlete_id: target.athleteId,
+      current_holder_name: holderName,
+      status: has ? "hired" : unit.status === "hired" ? "available" : unit.status,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", unit.id);
+  if (ue) return { error: ue.message };
+  await recountHires([...new Set([unit.current_hire_id, target.hireId].filter((x): x is string => !!x))]);
+  return {};
+}
+
+/** Delete a unit and its history (assignments cascade). */
+export async function deleteUnit(unit: UnitRow): Promise<{ error?: string }> {
+  const { error } = await supabase.from("gps_units").delete().eq("id", unit.id);
+  if (error) return { error: error.message };
+  if (unit.current_hire_id) await recountHires([unit.current_hire_id]);
+  return {};
+}
+
+/**
+ * Delete one history line. Deleting the open (current) line also clears the unit's
+ * current allocation, putting it back in stock.
+ */
+export async function deleteAssignment(unit: UnitRow, assignment: { id: string; ended_on: string | null }): Promise<{ error?: string }> {
+  const { error } = await supabase.from("gps_unit_assignments").delete().eq("id", assignment.id);
+  if (error) return { error: error.message };
+  if (!assignment.ended_on) {
+    await supabase
+      .from("gps_units")
+      .update({ current_hire_id: null, current_athlete_id: null, current_holder_name: null, status: unit.status === "hired" ? "available" : unit.status, updated_at: new Date().toISOString() })
+      .eq("id", unit.id);
+    if (unit.current_hire_id) await recountHires([unit.current_hire_id]);
+  }
+  return {};
+}
