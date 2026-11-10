@@ -25,6 +25,8 @@ export type ImportItem = {
   athleteId: string | null; // resolved (matched or chosen)
   createAthlete: boolean; // create a new athlete from the row
   hireId: string | null;
+  startedOn: string | null; // Date hired from the file, else the hire's start date; null = today
+  dateOnly?: boolean; // allocation unchanged, only correct the start date of the open line
 };
 
 export type ImportResult = { created: number; moved: number; unchanged: number; athletesCreated: number; errors: string[] };
@@ -84,6 +86,13 @@ export async function applyRosterImport(orgId: string, profileId: string | null,
         await supabase.from("gps_units").update({ size: r.size, updated_at: new Date().toISOString() }).eq("id", unit.id);
       }
 
+      const started = it.startedOn ?? today;
+      if (it.dateOnly) {
+        await supabase.from("gps_unit_assignments").update({ started_on: started }).eq("unit_id", unit.id).is("ended_on", null);
+        res.moved++;
+        continue;
+      }
+
       const same =
         (unit.current_hire_id ?? null) === (it.hireId ?? null) &&
         (unit.current_athlete_id ?? null) === (athleteId ?? null) &&
@@ -96,7 +105,7 @@ export async function applyRosterImport(orgId: string, profileId: string | null,
       if (unit.current_hire_id) touchedHires.add(unit.current_hire_id);
       if (it.hireId) touchedHires.add(it.hireId);
 
-      await supabase.from("gps_unit_assignments").update({ ended_on: today }).eq("unit_id", unit.id).is("ended_on", null);
+      await closeOpen(unit.id, started);
       if (it.hireId || athleteId || holderName) {
         const { error: ae } = await supabase.from("gps_unit_assignments").insert({
           organisation_id: orgId,
@@ -104,7 +113,7 @@ export async function applyRosterImport(orgId: string, profileId: string | null,
           gps_hire_id: it.hireId,
           athlete_id: athleteId,
           holder_name: holderName,
-          started_on: today,
+          started_on: started,
           note: "Roster import",
           created_by: profileId,
         });
@@ -134,6 +143,15 @@ export async function applyRosterImport(orgId: string, profileId: string | null,
   return res;
 }
 
+/** End the unit's open assignment on `on` (never before that line's own start). */
+async function closeOpen(unitId: string, on: string): Promise<void> {
+  const { data } = await supabase.from("gps_unit_assignments").select("id, started_on").eq("unit_id", unitId).is("ended_on", null);
+  for (const a of data ?? []) {
+    const end = (a.started_on as string) > on ? (a.started_on as string) : on;
+    await supabase.from("gps_unit_assignments").update({ ended_on: end }).eq("id", a.id);
+  }
+}
+
 /** Set gps_hires.units_count to the number of register units currently on each hire. */
 export async function recountHires(hireIds: string[]): Promise<void> {
   for (const id of hireIds) {
@@ -157,12 +175,13 @@ export async function returnUnit(orgId: string, unitId: string, hireId: string |
 export async function downloadRoster(orgId: string, hireId: string | null, fileLabel: string): Promise<void> {
   let q = supabase
     .from("gps_units")
-    .select("unit_code, size, current_holder_name, gps_hires:current_hire_id(client_name), athletes:current_athlete_id(first_name, last_name, date_of_birth, primary_sport, sex, level)")
+    .select("id, unit_code, size, current_holder_name, gps_hires:current_hire_id(client_name), athletes:current_athlete_id(first_name, last_name, date_of_birth, primary_sport, sex, level)")
     .eq("organisation_id", orgId);
   q = hireId ? q.eq("current_hire_id", hireId) : q.not("current_hire_id", "is", null);
   const { data, error } = await q;
   if (error) throw error;
   type Raw = {
+    id: string;
     unit_code: string;
     size: string | null;
     current_holder_name: string | null;
@@ -170,14 +189,17 @@ export async function downloadRoster(orgId: string, hireId: string | null, fileL
     athletes: ExportUnit["athlete"] | ExportUnit["athlete"][] | null;
   };
   const one = <T,>(v: T | T[] | null): T | null => (!v ? null : Array.isArray(v) ? v[0] ?? null : v);
+  const { data: open } = await supabase.from("gps_unit_assignments").select("unit_id, started_on").eq("organisation_id", orgId).is("ended_on", null);
+  const since = new Map((open ?? []).map((o) => [o.unit_id as string, o.started_on as string]));
   const units: ExportUnit[] = ((data ?? []) as unknown as Raw[]).map((u) => ({
     unit_code: u.unit_code,
     size: u.size,
     hire_name: one(u.gps_hires)?.client_name ?? null,
+    hired_on: since.get(u.id) ?? null,
     athlete: one(u.athletes),
     holder_name: u.current_holder_name,
   }));
-  const blob = await writeXlsx(rosterExportRows(units), { headerRow: 2, titleRow: 0, sheetName: "Sheet1", colWidths: [3, 13, 16, 14, 12, 14, 10, 14, 22] });
+  const blob = await writeXlsx(rosterExportRows(units), { headerRow: 2, titleRow: 0, sheetName: "Sheet1", colWidths: [3, 13, 16, 14, 12, 14, 10, 14, 26, 13] });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -193,13 +215,12 @@ export async function reassignUnit(
   orgId: string,
   profileId: string | null,
   unit: UnitRow,
-  target: { hireId: string | null; athleteId: string | null; holderName: string | null }
+  target: { hireId: string | null; athleteId: string | null; holderName: string | null; startedOn?: string | null }
 ): Promise<{ error?: string }> {
-  const today = perthToday();
+  const today = target.startedOn || perthToday();
   const holderName = target.athleteId ? null : target.holderName?.trim() || null;
   const has = !!(target.hireId || target.athleteId || holderName);
-  const { error: ce } = await supabase.from("gps_unit_assignments").update({ ended_on: today }).eq("unit_id", unit.id).is("ended_on", null);
-  if (ce) return { error: ce.message };
+  await closeOpen(unit.id, today);
   if (has) {
     const { error } = await supabase.from("gps_unit_assignments").insert({
       organisation_id: orgId,

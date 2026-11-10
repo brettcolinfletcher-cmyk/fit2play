@@ -19,9 +19,11 @@ export type RosterRow = {
   level: "elite" | "semi_pro" | "amateur" | "junior" | null;
   hiredTo: string;
   size: string;
+  hiredOn: string | null; // ISO, optional "Date hired" column
+  hiredOnRaw?: string;
 };
 
-type Field = "unit" | "last" | "first" | "full" | "dob" | "sport" | "gender" | "level" | "hiredTo" | "size";
+type Field = "unit" | "last" | "first" | "full" | "dob" | "sport" | "gender" | "level" | "hiredTo" | "size" | "hiredOn";
 
 const ALIASES: Record<Field, string[]> = {
   unit: ["unit id", "unit", "unit code", "unit no", "device id", "device", "serial", "serial number", "gps unit", "gps id", "pod id", "pod"],
@@ -34,6 +36,7 @@ const ALIASES: Record<Field, string[]> = {
   level: ["level", "competition level"],
   hiredTo: ["hired to", "hirer", "team", "club", "squad", "client", "group", "organisation", "organization"],
   size: ["size", "vest size", "vest", "garment size"],
+  hiredOn: ["date hired", "hired on", "hire date", "date issued", "issued", "date out", "start date", "hire start"],
 };
 
 const SIZE_WORDS: Record<string, string> = {
@@ -148,6 +151,8 @@ export function parseRoster(grid: string[][]): ParsedRoster {
       level: parseLevel(get(r, "level")),
       hiredTo: get(r, "hiredTo"),
       size: size ? sizeOf(size) ?? size.toUpperCase() : "",
+      hiredOn: parseDate(get(r, "hiredOn")),
+      hiredOnRaw: get(r, "hiredOn"),
     });
   }
   if (!rows.length) warnings.push("No data rows under the header.");
@@ -157,7 +162,7 @@ export function parseRoster(grid: string[][]): ParsedRoster {
 // ---- matching / planning -----------------------------------------------------
 
 export type UnitLite = { id: string; unit_code: string; size: string | null; status: string; current_hire_id: string | null; current_athlete_id: string | null; current_holder_name: string | null };
-export type HireLite = { id: string; client_name: string; team_id: string | null; status: string };
+export type HireLite = { id: string; client_name: string; team_id: string | null; status: string; start_date?: string | null };
 export type AthleteLite = { id: string; first_name: string | null; last_name: string | null; date_of_birth: string | null };
 export type Membership = { athlete_id: string; team_id: string };
 export type TeamLite = { id: string; name: string };
@@ -214,6 +219,7 @@ export function planRoster(
     else if (seen.has(row.unitCode)) { issues.push("Unit listed twice; later row ignored"); skip = true; }
     seen.add(row.unitCode);
     if (row.dobRaw && !row.dob) issues.push(`Couldn't read DOB "${row.dobRaw}"`);
+    if (row.hiredOnRaw && !row.hiredOn) issues.push(`Couldn't read Date hired "${row.hiredOnRaw}"`);
 
     const unit = row.unitCode ? unitByCode.get(row.unitCode) ?? null : null;
     const athlete = matchAthlete(row, ctx.athletes);
@@ -264,6 +270,7 @@ export type ExportUnit = {
   unit_code: string;
   size: string | null;
   hire_name: string | null;
+  hired_on?: string | null;
   athlete: { first_name: string | null; last_name: string | null; date_of_birth: string | null; primary_sport: string | null; sex: string | null; level: string | null } | null;
   holder_name: string | null;
 };
@@ -278,13 +285,13 @@ function dmy(isoDate: string | null): string {
 
 /**
  * Rows in the PlayerData roster layout: title in B1, header in row 3, data from row 5.
- * Column I "Hired to" is extra (delete it before sending to PlayerData if they reject it).
+ * Columns I "Hired to" and J "Date hired" are extra (delete before sending to PlayerData if they reject them).
  */
 export function rosterExportRows(units: ExportUnit[], title = "PlayerData Roster"): (string | null)[][] {
   const out: (string | null)[][] = [
     [null, title],
     [],
-    [null, "Unit ID", "Last Name", "Name", "DOB", "Sport", "Gender", "Level", "Hired to"],
+    [null, "Unit ID", "Last Name", "Name", "DOB", "Sport", "Gender", "Level", "Hired to", "Date hired"],
     [],
   ];
   const sorted = [...units].sort((a, b) => (a.hire_name ?? "~").localeCompare(b.hire_name ?? "~") || a.unit_code.localeCompare(b.unit_code));
@@ -308,6 +315,7 @@ export function rosterExportRows(units: ExportUnit[], title = "PlayerData Roster
       a?.sex === "female" ? "Female" : a?.sex === "male" ? "Male" : "",
       a?.level ? LEVEL_OUT[a.level] ?? a.level : "",
       u.hire_name ?? "",
+      dmy(u.hired_on ?? null),
     ]);
   }
   return out;

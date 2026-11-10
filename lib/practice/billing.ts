@@ -99,6 +99,7 @@ export type GpsHire = {
   price_per_unit: boolean;
   interval_months: number;
   next_renewal_date: string | null;
+  agreed_until: string | null;
   notes: string | null;
 };
 
@@ -123,6 +124,12 @@ export function renewalPeriod(h: Pick<GpsHire, "next_renewal_date" | "start_date
   return { start, end: addDaysISO(next, -1), next };
 }
 
+/** True when the next renewal period would start after the agreed end date. */
+export function renewalPastAgreement(h: Pick<GpsHire, "next_renewal_date" | "start_date" | "interval_months" | "agreed_until">): boolean {
+  if (!h.agreed_until) return false;
+  return renewalPeriod(h).start > h.agreed_until;
+}
+
 export function intervalLabel(months: number): string {
   if (months === 1) return "month";
   if (months === 3) return "quarter";
@@ -130,7 +137,7 @@ export function intervalLabel(months: number): string {
   return `${months} months`;
 }
 
-export type FollowUpReason = "renewal_overdue" | "renewal_due" | "invoice_overdue" | "unpaid" | "units_out";
+export type FollowUpReason = "renewal_overdue" | "renewal_due" | "agreement_ended" | "agreement_ending" | "invoice_overdue" | "unpaid" | "units_out";
 
 export type FollowUp = { reason: FollowUpReason; label: string; severity: 1 | 2 | 3; days?: number };
 
@@ -142,14 +149,23 @@ export type FollowUp = { reason: FollowUpReason; label: string; severity: 1 | 2 
  * - units out: hire ended but units not marked returned
  */
 export function hireFollowUps(
-  h: Pick<GpsHire, "status" | "subscription_cents" | "next_renewal_date" | "units_count"> & { units_returned_date?: string | null },
+  h: Pick<GpsHire, "status" | "subscription_cents" | "next_renewal_date" | "units_count"> & { units_returned_date?: string | null; agreed_until?: string | null },
   owing: { owingCents: number; oldestOverdueDue: string | null },
   today: string,
-  dueSoonDays = 7
+  dueSoonDays = 7,
+  agreementSoonDays = 14
 ): FollowUp[] {
   const out: FollowUp[] = [];
   const hasSub = (h.subscription_cents ?? 0) > 0;
-  if (h.status === "active" && hasSub && h.next_renewal_date) {
+  const live = h.status === "active" || h.status === "paused";
+  if (live && h.agreed_until) {
+    const d = daysBetween(today, h.agreed_until);
+    if (d < 0) out.push({ reason: "agreement_ended", label: `Agreement ended ${-d}d ago`, severity: 3, days: d });
+    else if (d <= agreementSoonDays) out.push({ reason: "agreement_ending", label: d === 0 ? "Agreement ends today" : `Agreement ends in ${d}d`, severity: 2, days: d });
+  }
+  // no renewal nag once the next period would start after the agreed end
+  const pastAgreement = !!(h.agreed_until && h.next_renewal_date && h.next_renewal_date > h.agreed_until);
+  if (h.status === "active" && hasSub && h.next_renewal_date && !pastAgreement) {
     const d = daysBetween(today, h.next_renewal_date);
     if (d < 0) out.push({ reason: "renewal_overdue", label: `Renewal ${-d}d overdue`, severity: 3, days: d });
     else if (d <= dueSoonDays) out.push({ reason: "renewal_due", label: d === 0 ? "Renews today" : `Renews in ${d}d`, severity: 2, days: d });

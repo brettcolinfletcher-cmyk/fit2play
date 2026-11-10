@@ -7,7 +7,7 @@ import { useRequireDashboardStaff } from "@/lib/useRequireDashboardStaff";
 import { supabase } from "@/lib/supabaseClient";
 import {
   addDaysISO, addMonthsISO, centsToInput, fmtDate, hireBillingKind, hireFollowUps, hirePeriodCents, intervalLabel,
-  money, parseMoney, perthToday, renewalPeriod, type FollowUp, type GpsHire,
+  money, parseMoney, perthToday, renewalPastAgreement, renewalPeriod, type FollowUp, type GpsHire,
 } from "@/lib/practice/billing";
 import { createInvoice, type InvoiceLineInput } from "@/lib/practice/invoicing";
 import { downloadRoster } from "@/lib/practice/gpsUnits";
@@ -23,7 +23,7 @@ import UnitRegister from "@/components/gps/UnitRegister";
  */
 
 const HIRE_COLS =
-  "id, client_name, team_id, athlete_id, contact_name, contact_email, contact_phone, units_count, unit_refs, start_date, end_date, units_returned_date, status, one_off_fee_cents, subscription_cents, price_per_unit, interval_months, next_renewal_date, notes";
+  "id, client_name, team_id, athlete_id, contact_name, contact_email, contact_phone, units_count, unit_refs, start_date, end_date, units_returned_date, status, one_off_fee_cents, subscription_cents, price_per_unit, interval_months, next_renewal_date, agreed_until, notes";
 
 type AthleteLite = { id: string; first_name: string | null; last_name: string | null; date_of_birth: string | null };
 type TeamLite = { id: string; name: string };
@@ -38,7 +38,7 @@ function planLabel(h: GpsHire): string {
   const parts: string[] = [];
   if ((h.one_off_fee_cents ?? 0) > 0) parts.push(`${money(h.one_off_fee_cents!)} one-off`);
   if ((h.subscription_cents ?? 0) > 0) parts.push(`${money(h.subscription_cents!)}${h.price_per_unit ? "/unit" : ""} per ${intervalLabel(h.interval_months)}`);
-  return parts.join(" + ") || "No charge";
+  return (parts.join(" + ") || "No charge") + (h.agreed_until ? ` · until ${fmtDate(h.agreed_until)}` : "");
 }
 function sevClass(s: number): string {
   return s === 3 ? "bg-rose-500/20 text-rose-200" : s === 2 ? "bg-amber-500/20 text-amber-200" : "bg-sky-500/20 text-sky-200";
@@ -186,7 +186,7 @@ export default function GpsHirePage() {
             <RosterImport
               orgId={orgId}
               profileId={profileId}
-              hires={hires.map((h) => ({ id: h.id, client_name: h.client_name, team_id: h.team_id, status: h.status }))}
+              hires={hires.map((h) => ({ id: h.id, client_name: h.client_name, team_id: h.team_id, status: h.status, start_date: h.start_date }))}
               teams={teams}
               athletes={athletes}
               onDone={() => { setUnitsKey((k) => k + 1); void load(); }}
@@ -195,7 +195,7 @@ export default function GpsHirePage() {
             <div className="mt-6 rounded-xl border border-slate-800 bg-slate-900/50">
               <div className="flex items-center justify-between border-b border-slate-800 px-4 py-2.5">
                 <h2 className="text-sm font-semibold text-slate-100">Needs follow-up</h2>
-                <span className="text-xs text-slate-500">Renewals within 7 days, overdue renewals, money owing, units not returned</span>
+                <span className="text-xs text-slate-500">Renewals due or overdue, agreements ending within 14 days, money owing, units not returned</span>
               </div>
               {loading ? <p className="px-4 py-3 text-xs text-slate-500">Loading…</p> : chase.length === 0 ? (
                 <p className="px-4 py-3 text-xs text-slate-500">Nothing to chase right now.</p>
@@ -396,6 +396,7 @@ function HireForm({ editId, hire, orgId, profileId, athletes, teams, onClose, on
   const [perUnit, setPerUnit] = useState(hire?.price_per_unit ?? false);
   const [interval, setIntervalM] = useState(hire?.interval_months ?? 1);
   const [nextRenewal, setNextRenewal] = useState(hire?.next_renewal_date ?? "");
+  const [agreedUntil, setAgreedUntil] = useState(hire?.agreed_until ?? "");
   const [notes, setNotes] = useState(hire?.notes ?? "");
   const [raiseNow, setRaiseNow] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -447,6 +448,7 @@ function HireForm({ editId, hire, orgId, profileId, athletes, teams, onClose, on
       price_per_unit: perUnit,
       interval_months: interval,
       next_renewal_date: renewal,
+      agreed_until: agreedUntil || null,
       notes: notes.trim() || null,
       updated_at: new Date().toISOString(),
     };
@@ -559,6 +561,17 @@ function HireForm({ editId, hire, orgId, profileId, athletes, teams, onClose, on
           ) : null}
         </div>
 
+        <div>
+          <label className="block text-xs font-medium text-slate-400">Agreed until <span className="text-slate-600">(length of hire)</span></label>
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            <input type="date" value={agreedUntil} onChange={(e) => setAgreedUntil(e.target.value)} className="rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-sm text-slate-200" />
+            {[1, 3, 6, 12].map((m) => (
+              <button key={m} type="button" onClick={() => setAgreedUntil(addDaysISO(addMonthsISO(start, m), -1))} className="rounded-full border border-slate-700 px-2 py-0.5 text-[11px] text-slate-300 hover:bg-slate-800">{m === 12 ? "12 months" : `${m} month${m === 1 ? "" : "s"}`}</button>
+            ))}
+            {agreedUntil ? <button type="button" onClick={() => setAgreedUntil("")} className="text-[11px] text-slate-500 hover:text-slate-300">clear (ongoing)</button> : <span className="text-[11px] text-slate-500">blank = ongoing</span>}
+          </div>
+        </div>
+
         <div className="grid grid-cols-3 gap-3">
           <div><label className="block text-xs font-medium text-slate-400">Start</label><input type="date" value={start} onChange={(e) => setStart(e.target.value)} className={inp} /></div>
           {isEdit ? (
@@ -632,8 +645,12 @@ function HireDetail({ hire: h, orgId, profileId, athletes, unitsKey, invoices, p
     if (error) { setMsg(error.message); return; }
     setNote(""); onChanged();
   }
+  const [confirmPast, setConfirmPast] = useState(false);
+  const pastAgreement = renewalPastAgreement(h);
   async function renew() {
     if (!orgId) return;
+    if (pastAgreement && !confirmPast) { setConfirmPast(true); return; }
+    setConfirmPast(false);
     setBusy(true); setMsg(null);
     const r = await renewHire(h, orgId, profileId);
     setBusy(false);
@@ -683,6 +700,7 @@ function HireDetail({ hire: h, orgId, profileId, athletes, unitsKey, invoices, p
         <div className="grid grid-cols-2 gap-2 rounded-lg border border-slate-800 p-3 text-xs text-slate-300 sm:grid-cols-4">
           <div><div className="text-slate-500">Units</div><div className="font-semibold text-slate-100">{h.units_count}</div></div>
           <div><div className="text-slate-500">Since</div><div className="font-semibold text-slate-100">{fmtDate(h.start_date)}</div></div>
+          <div><div className="text-slate-500">Agreed until</div><div className="font-semibold text-slate-100">{h.agreed_until ? fmtDate(h.agreed_until) : "Ongoing"}</div></div>
           <div className="col-span-2"><div className="text-slate-500">Plan</div><div className="font-semibold text-slate-100">{planLabel(h)}</div></div>
           {hasSub ? <div className="col-span-2"><div className="text-slate-500">Next renewal</div><div className="font-semibold text-slate-100">{fmtDate(h.next_renewal_date)} · {money(hirePeriodCents(h))}</div></div> : null}
           {h.unit_refs ? <div className="col-span-2"><div className="text-slate-500">Unit IDs</div><div className="text-slate-200">{h.unit_refs}</div></div> : null}
@@ -699,7 +717,7 @@ function HireDetail({ hire: h, orgId, profileId, athletes, unitsKey, invoices, p
         <div className="flex flex-wrap gap-2">
           {hasSub && h.status === "active" ? (
             <button type="button" onClick={() => void renew()} disabled={busy} className="rounded-lg border border-lime-500/50 bg-lime-500/15 px-3 py-1.5 text-xs font-medium text-lime-200 hover:bg-lime-500/25 disabled:opacity-50">
-              Renew: invoice {fmtDate(next.start)} – {fmtDate(next.end)} ({money(hirePeriodCents(h))})
+              {confirmPast ? `Agreement ended ${fmtDate(h.agreed_until)}. Renew anyway?` : `Renew: invoice ${fmtDate(next.start)} – ${fmtDate(next.end)} (${money(hirePeriodCents(h))})`}
             </button>
           ) : null}
           <button type="button" onClick={() => setExtra((x) => ({ ...x, open: !x.open }))} className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-200 hover:bg-slate-800">

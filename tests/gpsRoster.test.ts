@@ -6,9 +6,9 @@ import { changeFor, matchAthlete, parseDate, parseRoster, planRoster, rosterExpo
 const GRID = [
   ["", "PlayerData Roster"],
   [],
-  ["", "Unit ID", "Last Name", "Name", "DOB", "Sport ", "Gender", "Level ", "Hired to"],
+  ["", "Unit ID", "Last Name", "Name", "DOB", "Sport ", "Gender", "Level ", "Hired to", "Date hired"],
   [],
-  ["", "AAAA1111", "Citizen", "Jane", "14/03/2008", "Football", "F", "Junior", ""],
+  ["", "AAAA1111", "Citizen", "Jane", "14/03/2008", "Football", "F", "Junior", "", "46082"],
   ["", "bbbb2222", "Small", "", "", "", "", "", "Perth FC"],
   ["", "CCCC3333", "Medium", "", "", "", "", "", ""],
   ["", "", "Nobody", "No Unit", "", "", "", "", ""],
@@ -22,7 +22,7 @@ describe("xlsx round trip + roster parse", () => {
     const p = parseRoster(grid);
     expect(p.headerLine).toBe(3);
     expect(p.rows).toHaveLength(5);
-    expect(p.rows[0]).toMatchObject({ line: 5, unitCode: "AAAA1111", lastName: "Citizen", firstName: "Jane", dob: "2008-03-14", gender: "female", level: "junior" });
+    expect(p.rows[0]).toMatchObject({ line: 5, unitCode: "AAAA1111", lastName: "Citizen", firstName: "Jane", dob: "2008-03-14", gender: "female", level: "junior", hiredOn: "2026-03-01" });
     expect(p.rows[1]).toMatchObject({ unitCode: "BBBB2222", lastName: "", size: "S", hiredTo: "Perth FC" });
     expect(p.rows[2]).toMatchObject({ unitCode: "CCCC3333", size: "M" });
   });
@@ -94,7 +94,7 @@ describe("rosterExportRows", () => {
       { unit_code: "A1", size: null, hire_name: "Perth FC", athlete: { first_name: "Jane", last_name: "Citizen", date_of_birth: "2008-03-14", primary_sport: "Football", sex: "female", level: "junior" }, holder_name: null },
     ]);
     expect(rows[2].slice(1, 8)).toEqual(["Unit ID", "Last Name", "Name", "DOB", "Sport", "Gender", "Level"]);
-    expect(rows[4]).toEqual([null, "A1", "Citizen", "Jane", "14/03/2008", "Football", "Female", "Junior", "Perth FC"]);
+    expect(rows[4]).toEqual([null, "A1", "Citizen", "Jane", "14/03/2008", "Football", "Female", "Junior", "Perth FC", ""]);
     expect(rows[5].slice(1, 4)).toEqual(["B2", "S", ""]);
   });
 });

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { fmtDate } from "@/lib/practice/billing";
+import { fmtDate, perthToday } from "@/lib/practice/billing";
 import { deleteAssignment, deleteUnit, reassignUnit, recountHires, returnUnit, UNIT_COLS, type UnitRow } from "@/lib/practice/gpsUnits";
 
 /** Unit register: every GPS unit, who has it, and its assignment history. */
@@ -171,6 +171,7 @@ function UnitDetail({ unit, orgId, profileId, hires, athletes, hireName, athName
   const [athleteId, setAthleteId] = useState<string | null>(unit.current_athlete_id);
   const [holderName, setHolderName] = useState(unit.current_athlete_id ? "" : unit.current_holder_name ?? "");
   const [search, setSearch] = useState("");
+  const [fromDate, setFromDate] = useState(perthToday());
   // confirmations
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmLine, setConfirmLine] = useState<string | null>(null);
@@ -200,7 +201,7 @@ function UnitDetail({ unit, orgId, profileId, hires, athletes, hireName, athName
   async function saveAllocation() {
     if (!orgId) return;
     setBusy(true); setErr(null); setMsg(null);
-    const r = await reassignUnit(orgId, profileId, unit, { hireId: hireSel || null, athleteId, holderName: athleteId ? null : holderName });
+    const r = await reassignUnit(orgId, profileId, unit, { hireId: hireSel || null, athleteId, holderName: athleteId ? null : holderName, startedOn: fromDate || null });
     setBusy(false);
     if (r.error) { setErr(r.error); return; }
     setMsg("Allocation updated.");
@@ -305,7 +306,11 @@ function UnitDetail({ unit, orgId, profileId, hires, athletes, hireName, athName
             </div>
           </div>
           <p className="mt-1 text-[10px] text-slate-500">Leave Player blank for a spare unit. Saving adds a line to the history below.</p>
-          <div className="mt-2 flex gap-2">
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <label className="flex items-center gap-1.5 text-xs text-slate-400">
+              From
+              <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="rounded-lg border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-200" />
+            </label>
             <button type="button" onClick={() => void saveAllocation()} disabled={busy || !allocChanged} className="rounded-lg border border-lime-500/50 bg-lime-500/15 px-3 py-1.5 text-xs text-lime-200 hover:bg-lime-500/25 disabled:opacity-40">Save allocation</button>
             {unit.current_hire_id ? (
               <button type="button" onClick={() => void returnToStock()} disabled={busy} className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-200 hover:bg-slate-800">Returned to stock</button>

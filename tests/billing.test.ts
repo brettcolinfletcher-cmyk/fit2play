@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  addMonthsISO, deriveInvoiceStatus, hireBillingKind, hireFollowUps, hirePeriodCents, money, parseMoney, renewalPeriod,
+  addMonthsISO, deriveInvoiceStatus, renewalPastAgreement, hireBillingKind, hireFollowUps, hirePeriodCents, money, parseMoney, renewalPeriod,
 } from "@/lib/practice/billing";
 
 describe("money helpers", () => {
@@ -55,6 +55,22 @@ describe("hireFollowUps", () => {
   });
   it("ignores renewal for one-off hires", () => {
     expect(hireFollowUps({ ...base, subscription_cents: null, next_renewal_date: "2026-11-01" }, { owingCents: 0, oldestOverdueDue: null }, "2026-11-09")).toEqual([]);
+  });
+});
+
+describe("agreement term", () => {
+  const base = { status: "active" as const, subscription_cents: 2000, units_count: 5 };
+  const none = { owingCents: 0, oldestOverdueDue: null };
+  it("flags agreements ending soon or already ended", () => {
+    expect(hireFollowUps({ ...base, next_renewal_date: "2026-12-30", agreed_until: "2026-11-20" }, none, "2026-11-09")[0].label).toBe("Agreement ends in 11d");
+    expect(hireFollowUps({ ...base, next_renewal_date: "2026-12-30", agreed_until: "2026-11-01" }, none, "2026-11-09")[0].reason).toBe("agreement_ended");
+    expect(hireFollowUps({ ...base, next_renewal_date: "2026-12-30", agreed_until: "2027-06-30" }, none, "2026-11-09")).toEqual([]);
+  });
+  it("stops renewal nags past the agreed end", () => {
+    const f = hireFollowUps({ ...base, next_renewal_date: "2026-11-05", agreed_until: "2026-10-31" }, none, "2026-11-09");
+    expect(f.map((x) => x.reason)).toEqual(["agreement_ended"]);
+    expect(renewalPastAgreement({ next_renewal_date: "2026-11-05", start_date: "2026-01-01", interval_months: 1, agreed_until: "2026-10-31" })).toBe(true);
+    expect(renewalPastAgreement({ next_renewal_date: "2026-10-01", start_date: "2026-01-01", interval_months: 1, agreed_until: "2026-10-31" })).toBe(false);
   });
 });
 

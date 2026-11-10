@@ -9,6 +9,7 @@ import {
   type AthleteLite, type Change, type HireLite, type Membership, type PlanRow, type RosterRow, type TeamLite, type UnitLite,
 } from "@/lib/practice/gpsRoster";
 import { applyRosterImport, UNIT_COLS, type ImportResult } from "@/lib/practice/gpsUnits";
+import { fmtDate, perthToday } from "@/lib/practice/billing";
 
 /**
  * Drag-and-drop PlayerData roster upload for the GPS hire page.
@@ -25,7 +26,7 @@ const CHANGE_STYLE: Record<Change, string> = {
 };
 const CHANGE_LABEL: Record<Change, string> = { new: "new unit", assign: "assign", reassign: "change", unassign: "unassign", none: "no change" };
 
-type Ctx = { units: UnitLite[]; memberships: Membership[] };
+type Ctx = { units: UnitLite[]; memberships: Membership[]; openSince: Record<string, string> };
 type Override = { athleteId?: string | null; hireId?: string | null };
 
 export default function RosterImport({ orgId, profileId, hires, teams, athletes, onDone }: {
@@ -62,12 +63,15 @@ export default function RosterImport({ orgId, profileId, hires, teams, athletes,
       const parsed = parseRoster(grid);
       if (!parsed.rows.length) throw new Error(parsed.warnings[0] ?? "No rows found.");
       if (!orgId) throw new Error("No organisation.");
-      const [{ data: u, error: ue }, { data: m }] = await Promise.all([
+      const [{ data: u, error: ue }, { data: m }, { data: oa }] = await Promise.all([
         supabase.from("gps_units").select(UNIT_COLS).eq("organisation_id", orgId),
         supabase.from("athlete_teams").select("athlete_id, team_id"),
+        supabase.from("gps_unit_assignments").select("unit_id, started_on").eq("organisation_id", orgId).is("ended_on", null),
       ]);
       if (ue) throw ue;
-      setCtx({ units: (u ?? []) as UnitLite[], memberships: (m ?? []) as Membership[] });
+      const openSince: Record<string, string> = {};
+      for (const a of oa ?? []) openSince[a.unit_id as string] = a.started_on as string;
+      setCtx({ units: (u ?? []) as UnitLite[], memberships: (m ?? []) as Membership[], openSince });
       setOverrides({});
       setFile({ name: f.name, rows: parsed.rows, warnings: parsed.warnings });
     } catch (e) {
@@ -90,9 +94,14 @@ export default function RosterImport({ orgId, profileId, hires, teams, athletes,
     const willCreate = !athleteId && createMissing && p.athlete.kind === "none" && !!name;
     const sizeChanged = !!p.unit && !!p.row.size && p.unit.size !== p.row.size;
     const change = p.skip ? null : changeFor(p.unit, { hireId, athleteId, holderName: athleteId ? null : name || null }, sizeChanged);
-    return { p, athleteId, hireId, willCreate, change };
+    const openStart = p.unit ? ctx?.openSince[p.unit.id] ?? null : null;
+    const dateOnly = change === "none" && !!p.row.hiredOn && !!openStart && p.row.hiredOn !== openStart;
+    // Date hired: from the file; else the hire's start date for a unit's first allocation; else today
+    const hireStart = hireId ? hires.find((h) => h.id === hireId)?.start_date ?? null : null;
+    const startedOn = p.row.hiredOn ?? (!p.unit || (!p.unit.current_hire_id && !openStart) ? hireStart : null);
+    return { p, athleteId, hireId, willCreate, change, dateOnly, startedOn, openStart };
   });
-  const actionable = resolved.filter((r) => r.change && r.change !== "none");
+  const actionable = resolved.filter((r) => (r.change && r.change !== "none") || r.dateOnly);
   const skipped = resolved.filter((r) => r.p.skip);
   const ambiguousLeft = resolved.filter((r) => !r.p.skip && r.p.athlete.kind === "ambiguous" && !r.athleteId && overrides[r.p.row.line]?.athleteId === undefined);
   const openHires = hires.filter((h) => h.status !== "ended");
@@ -105,8 +114,8 @@ export default function RosterImport({ orgId, profileId, hires, teams, athletes,
     if (!orgId || !ctx) return;
     setBusy(true); setErr(null);
     const items = resolved
-      .filter((r) => r.change && r.change !== "none")
-      .map((r) => ({ row: r.p.row, unitId: r.p.unit?.id ?? null, athleteId: r.athleteId, createAthlete: r.willCreate, hireId: r.hireId }));
+      .filter((r) => (r.change && r.change !== "none") || r.dateOnly)
+      .map((r) => ({ row: r.p.row, unitId: r.p.unit?.id ?? null, athleteId: r.athleteId, createAthlete: r.willCreate, hireId: r.hireId, startedOn: r.startedOn, dateOnly: r.dateOnly }));
     const res = await applyRosterImport(orgId, profileId, items);
     setBusy(false);
     setResult(res);
@@ -127,7 +136,7 @@ export default function RosterImport({ orgId, profileId, hires, teams, athletes,
       >
         <input ref={inputRef} type="file" accept=".xlsx,.csv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void readFile(f); e.target.value = ""; }} />
         <div className="text-sm font-medium text-slate-200">{busy ? "Reading…" : "Drop a PlayerData roster here"}</div>
-        <div className="mt-0.5 text-xs text-slate-500">.xlsx or .csv · Unit ID, Last Name, Name, DOB, Sport, Gender, Level · optional Hired to, Size · you&apos;ll see a preview before anything changes</div>
+        <div className="mt-0.5 text-xs text-slate-500">.xlsx or .csv · Unit ID, Last Name, Name, DOB, Sport, Gender, Level · optional Size, Hired to, Date hired · you&apos;ll see a preview before anything changes</div>
       </div>
       {err ? <p className="mt-2 text-xs text-rose-300">{err}</p> : null}
       {result ? (
@@ -173,11 +182,12 @@ export default function RosterImport({ orgId, profileId, hires, teams, athletes,
                     <th className="px-2 py-1.5">Size</th>
                     <th className="px-2 py-1.5">Player</th>
                     <th className="px-2 py-1.5">Hire</th>
+                    <th className="px-2 py-1.5">From</th>
                     <th className="px-2 py-1.5">Change</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {resolved.map(({ p, athleteId, hireId, willCreate, change }) => {
+                  {resolved.map(({ p, athleteId, hireId, willCreate, change, dateOnly, startedOn, openStart }) => {
                     const name = holderLabel(p.row);
                     const unitHire = p.unit?.current_hire_id ? hires.find((h) => h.id === p.unit!.current_hire_id)?.client_name : null;
                     return (
@@ -204,10 +214,13 @@ export default function RosterImport({ orgId, profileId, hires, teams, athletes,
                           )}
                           {unitHire && unitHire !== hires.find((h) => h.id === hireId)?.client_name ? <div className="text-[10px] text-slate-500">now: {unitHire}</div> : null}
                         </td>
+                        <td className="px-2 py-1.5 whitespace-nowrap text-slate-400">
+                          {p.skip ? null : change === "none" && !dateOnly ? (openStart ? fmtDate(openStart) : "") : fmtDate(startedOn ?? perthToday())}
+                        </td>
                         <td className="px-2 py-1.5">
                           {p.skip ? <span className="text-rose-300">{p.issues.join("; ")}</span> : (
                             <>
-                              {change ? <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${CHANGE_STYLE[change]}`}>{CHANGE_LABEL[change]}</span> : null}
+                              {dateOnly ? <span className="rounded bg-sky-500/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-sky-200">date fix</span> : change ? <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${CHANGE_STYLE[change]}`}>{CHANGE_LABEL[change]}</span> : null}
                               {p.issues.length ? <div className="text-[10px] text-amber-300">{p.issues.join("; ")}</div> : null}
                             </>
                           )}
