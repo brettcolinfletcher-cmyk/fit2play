@@ -82,6 +82,7 @@ import {
 } from "@/lib/reportSections";
 import { useRequireDashboardStaff } from "@/lib/useRequireDashboardStaff";
 import { supabase } from "@/lib/supabaseClient";
+import { fetchMetricsForSessions } from "@/lib/fetchAllRows";
 import ReportBuilder from "@/components/athletes/ReportBuilder";
 import {
   CHART_AXIS_LINE,
@@ -731,10 +732,11 @@ export default function AthleteDetailPage() {
       const sids = sess.map((x) => x.id);
       const map = new Map<string, MetricRow[]>();
       if (sids.length > 0) {
-        const { data: mrows, error: mErr } = await supabase
-          .from("metrics")
-          .select("session_id, key, value, rep_index, side")
-          .in("session_id", sids);
+        const { data: mrows, error: mErr } = await fetchMetricsForSessions<MetricRow>(
+          supabase,
+          sids,
+          "session_id, key, value, rep_index, side"
+        );
 
         if (cancelled) return;
         if (mErr) {

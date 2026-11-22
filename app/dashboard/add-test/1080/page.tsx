@@ -38,6 +38,7 @@ export default function AddTest1080Page() {
       const { data } = await supabase
         .from("athletes")
         .select("id, first_name, last_name")
+        .neq("status", "archived") // archived athletes stay out of pickers
         .order("last_name", { ascending: true });
       setAthletes((data as Athlete[]) ?? []);
     }

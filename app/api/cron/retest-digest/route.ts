@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { isServerSecretRequest, staffUserFromRequest } from "@/lib/routeAuth";
 import { FROM, REPLY_TO, SITE_URL, getResend } from "@/lib/email/mailer";
+import { fetchAllRows } from "@/lib/fetchAllRows";
 import { computeRetestDue, latestTestByAthlete, perthToday, type RetestRow } from "@/lib/retestDue";
 
 export const dynamic = "force-dynamic";
@@ -41,7 +42,10 @@ export async function GET(req: Request) {
   });
   const [aRes, sRes, atRes, tRes] = await Promise.all([
     db.from("athletes").select("id, first_name, last_name, status").neq("status", "archived"),
-    db.from("sessions").select("athlete_id, session_date"),
+    // Paged: sessions is past Supabase's 1000-row default cap.
+    fetchAllRows<{ athlete_id: string | null; session_date: string | null }>((from, to) =>
+      db.from("sessions").select("athlete_id, session_date").order("id").range(from, to)
+    ),
     db.from("athlete_teams").select("athlete_id, team_id"),
     db.from("teams").select("id, name, retest_interval_weeks"),
   ]);

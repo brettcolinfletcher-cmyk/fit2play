@@ -19,6 +19,8 @@ type Row = {
   athlete_name: string | null;
 };
 
+const PAGE = 50;
+
 export default function ActivityPage() {
   const staffOk = useRequireDashboardStaff();
   const [rows, setRows] = useState<Row[]>([]);
@@ -26,6 +28,7 @@ export default function ActivityPage() {
   const [error, setError] = useState<string | null>(null);
   const [athleteFilter, setAthleteFilter] = useState("");
   const [hideViews, setHideViews] = useState(false);
+  const [limit, setLimit] = useState(PAGE);
 
   useEffect(() => {
     if (!staffOk) return;
@@ -78,7 +81,10 @@ export default function ActivityPage() {
         <div className="mt-6 flex flex-wrap items-center gap-3">
           <select
             value={athleteFilter}
-            onChange={(e) => setAthleteFilter(e.target.value)}
+            onChange={(e) => {
+              setAthleteFilter(e.target.value);
+              setLimit(PAGE);
+            }}
             className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
           >
             <option value="">All athletes</option>
@@ -89,7 +95,10 @@ export default function ActivityPage() {
             ))}
           </select>
           <label className="flex items-center gap-2 text-sm text-slate-600">
-            <input type="checkbox" checked={hideViews} onChange={(e) => setHideViews(e.target.checked)} />
+            <input type="checkbox" checked={hideViews} onChange={(e) => {
+                setHideViews(e.target.checked);
+                setLimit(PAGE);
+              }} />
             Hide views
           </label>
         </div>
@@ -103,7 +112,7 @@ export default function ActivityPage() {
             <p className="px-4 py-6 text-sm text-slate-400">No activity recorded yet.</p>
           ) : (
             <ul className="divide-y divide-slate-100">
-              {shown.map((r) => (
+              {shown.slice(0, limit).map((r) => (
                 <li key={r.id} className="grid gap-1 px-4 py-3 text-sm sm:grid-cols-[11rem_9rem_1fr_12rem] sm:gap-4">
                   <span className="text-xs text-slate-500 sm:text-sm">{formatDisplayDateTime(r.at)}</span>
                   <span className="font-medium text-slate-800">{r.actor_name}</span>
@@ -123,6 +132,17 @@ export default function ActivityPage() {
                   </span>
                 </li>
               ))}
+              {shown.length > limit ? (
+                <li className="px-4 py-3">
+                  <button
+                    type="button"
+                    onClick={() => setLimit((n) => n + PAGE)}
+                    className="text-xs font-medium text-lime-700 hover:underline"
+                  >
+                    Show {Math.min(PAGE, shown.length - limit)} more ({shown.length - limit} hidden)
+                  </button>
+                </li>
+              ) : null}
             </ul>
           )}
         </div>

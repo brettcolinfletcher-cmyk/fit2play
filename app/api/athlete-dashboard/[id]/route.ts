@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { fetchMetricsForSessions } from "@/lib/fetchAllRows";
 import { normalizeSessionRow } from "@/lib/athleteDashboardData";
 import type { NormalizedSession } from "@/lib/athleteDashboardData";
 import { computePerformanceSummary } from "@/lib/performanceSummary";
@@ -203,10 +204,11 @@ export async function GET(
 
     let metricsBySession = new Map<string, ReportMetricRow[]>();
     if (sessionIds.length > 0) {
-      const { data: rawMetrics } = await supabase
-        .from("metrics")
-        .select("session_id, key, value, rep_index, side")
-        .in("session_id", sessionIds);
+      const { data: rawMetrics } = await fetchMetricsForSessions<ReportMetricRow>(
+        supabase,
+        sessionIds,
+        "session_id, key, value, rep_index, side"
+      );
       metricsBySession = new Map();
       for (const row of (rawMetrics ?? []) as ReportMetricRow[]) {
         const list = metricsBySession.get(row.session_id) ?? [];

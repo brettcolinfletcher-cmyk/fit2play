@@ -16,6 +16,7 @@ import {
 } from "@/lib/athleteReportData";
 import { buildAthleteVsAthleteSections } from "@/lib/athleteVsAthleteComparison";
 import { supabase } from "@/lib/supabaseClient";
+import { fetchMetricsForSessions } from "@/lib/fetchAllRows";
 
 type AthleteOption = {
   id: string;
@@ -200,10 +201,11 @@ function aggregateBestInRangeData(sources: BestInRangeData[]): BestInRangeData {
 async function fetchMetricsMap(sessionIds: string[]): Promise<Map<string, ReportMetricRow[]>> {
   const map = new Map<string, ReportMetricRow[]>();
   if (sessionIds.length === 0) return map;
-  const { data: mrows, error } = await supabase
-    .from("metrics")
-    .select("session_id, key, value, rep_index, side")
-    .in("session_id", sessionIds);
+  const { data: mrows, error } = await fetchMetricsForSessions<ReportMetricRow>(
+    supabase,
+    sessionIds,
+    "session_id, key, value, rep_index, side"
+  );
   if (error) throw new Error(error.message);
   for (const row of (mrows ?? []) as ReportMetricRow[]) {
     const list = map.get(row.session_id) ?? [];
@@ -307,6 +309,7 @@ export default function AthleteComparePage() {
       const { data, error: e } = await supabase
         .from("athletes")
         .select("id, first_name, last_name")
+        .neq("status", "archived") // archived athletes stay out of pickers
         .order("last_name", { ascending: true });
       if (cancelled) return;
       if (e) {

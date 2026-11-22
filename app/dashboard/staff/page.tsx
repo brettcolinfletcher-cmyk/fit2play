@@ -8,6 +8,7 @@ import DashboardNav from "@/components/DashboardNav";
 import SyncHealthBanner from "@/components/SyncHealthBanner";
 import { DEFAULT_RETEST_WEEKS, computeRetestDue, latestTestByAthlete, perthToday } from "@/lib/retestDue";
 import { formatDisplayDate } from "@/lib/dateDisplay";
+import { fetchAllRows } from "@/lib/fetchAllRows";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -142,12 +143,17 @@ export default function StaffDashboardPage() {
         supabase
           .from("athletes")
           .select("id, first_name, last_name, status"),
-        supabase
-          .from("sessions")
-          .select(
-            "id, athlete_id, session_date, source, test_type, test_sub_type, created_at"
-          )
-          .order("session_date", { ascending: false, nullsFirst: false }),
+        // Paged: sessions is past Supabase's 1000-row default cap.
+        fetchAllRows<SessionRow>((from, to) =>
+          supabase
+            .from("sessions")
+            .select(
+              "id, athlete_id, session_date, source, test_type, test_sub_type, created_at"
+            )
+            .order("session_date", { ascending: false, nullsFirst: false })
+            .order("id", { ascending: true })
+            .range(from, to)
+        ),
         supabase.from("athlete_teams").select("athlete_id, team_id"),
         supabase.from("teams").select("id, name, retest_interval_weeks"),
       ]);

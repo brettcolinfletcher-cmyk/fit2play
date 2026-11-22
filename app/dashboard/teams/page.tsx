@@ -75,7 +75,7 @@ export default function TeamsPage() {
       supabase
         .from("athlete_teams")
         .select("team_id, athlete_id, athletes(id, first_name, last_name)"),
-      supabase.from("athletes").select("id, first_name, last_name").order("last_name"),
+      supabase.from("athletes").select("id, first_name, last_name").neq("status", "archived").order("last_name"),
       supabase.from("test_protocols").select("id, name").order("sort_order"),
     ]);
     if (tRes.error) {

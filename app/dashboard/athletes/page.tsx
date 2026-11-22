@@ -49,6 +49,19 @@ type Scope =
   | { kind: "archived" };
 
 type ViewMode = "cards" | "table";
+
+type ResultSection = {
+  key: string;
+  label: string | null; // null = single scope, no section header
+  athletes: AthleteRow[];
+  defaultOpen: boolean;
+  muted: boolean;
+};
+
+/** Cards shown per team section in the All view before "Show all". */
+const SECTION_PREVIEW = 12;
+/** Cards shown when a single team / Unassigned / Archived is picked. */
+const SINGLE_SCOPE_PREVIEW = 24;
 type SortMode = "last_tested_desc" | "name_asc";
 type StatusFilter = "active_and_monitoring" | "active" | "monitoring";
 
@@ -154,6 +167,10 @@ export default function AthletesListPage() {
   // Bulk report export: selection persists across filters but only visible athletes are exported.
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [bulkOpen, setBulkOpen] = useState(false);
+
+  // Result sections (All view groups by team). Missing key = use the section's default.
+  const [sectionOpen, setSectionOpen] = useState<Map<string, boolean>>(() => new Map());
+  const [sectionShowAll, setSectionShowAll] = useState<Set<string>>(() => new Set());
 
   // ──────────────────────────────────────────────────────────────────────────
   // Data fetch
@@ -370,6 +387,43 @@ export default function AthletesListPage() {
     return arr;
   }, [filtered, sortMode, statsByAthlete]);
 
+  const sections = useMemo((): ResultSection[] => {
+    if (scope.kind !== "all") {
+      const key = scope.kind === "team" ? `scope:team:${scope.id}` : `scope:${scope.kind}`;
+      return [{ key, label: null, athletes: sorted, defaultOpen: true, muted: false }];
+    }
+    const byTeam = new Map<string, AthleteRow[]>();
+    const unassigned: AthleteRow[] = [];
+    for (const a of sorted) {
+      const ids = teamIdsByAthlete.get(a.id) ?? [];
+      if (ids.length === 0) unassigned.push(a);
+      for (const tid of ids) {
+        const list = byTeam.get(tid);
+        if (list) list.push(a);
+        else byTeam.set(tid, [a]);
+      }
+    }
+    const out: ResultSection[] = [...byTeam.entries()]
+      .map(([tid, list]) => ({
+        key: tid,
+        label: teamNameById.get(tid) ?? "Team",
+        athletes: list,
+        defaultOpen: true,
+        muted: false,
+      }))
+      .sort((x, y) => y.athletes.length - x.athletes.length || (x.label ?? "").localeCompare(y.label ?? ""));
+    if (unassigned.length > 0) {
+      out.push({
+        key: "__unassigned__",
+        label: "Unassigned",
+        athletes: unassigned,
+        defaultOpen: out.length === 0,
+        muted: true,
+      });
+    }
+    return out;
+  }, [scope, sorted, teamIdsByAthlete, teamNameById]);
+
   // ──────────────────────────────────────────────────────────────────────────
   // Derived: summary strip
   // ──────────────────────────────────────────────────────────────────────────
@@ -433,6 +487,133 @@ export default function AthletesListPage() {
       return next;
     });
   }, [sorted]);
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Results: grouped into collapsible team sections in the All view
+  // ──────────────────────────────────────────────────────────────────────────
+
+  function renderCard(a: AthleteRow) {
+    const st = statsByAthlete.get(a.id);
+    const teamIds = teamIdsByAthlete.get(a.id) ?? [];
+    const teamNames = teamIds
+      .map((id) => teamNameById.get(id))
+      .filter((x): x is string => Boolean(x));
+    return (
+      <AthleteCard
+        key={a.id}
+        athlete={a}
+        teamNames={teamNames}
+        sessionCount={st?.count ?? 0}
+        lastSession={st?.lastSession ?? null}
+        menuOpen={openMenuId === a.id}
+        updating={statusUpdatingId === a.id}
+        onMenuToggle={() =>
+          setOpenMenuId((cur) => (cur === a.id ? null : a.id))
+        }
+        onStatusChange={handleStatusChange}
+        selected={selectedIds.has(a.id)}
+        onToggleSelect={() => toggleSelected(a.id)}
+      />
+    );
+  }
+
+  function renderRow(a: AthleteRow) {
+    const st = statsByAthlete.get(a.id);
+    const teamIds = teamIdsByAthlete.get(a.id) ?? [];
+    const teamNames = teamIds
+      .map((id) => teamNameById.get(id))
+      .filter((x): x is string => Boolean(x));
+    return (
+      <tr
+        key={a.id}
+        className="border-b border-slate-800/80 hover:bg-slate-900/80"
+      >
+        <td className="w-10 px-4 py-3">
+          <input
+            type="checkbox"
+            checked={selectedIds.has(a.id)}
+            onChange={() => toggleSelected(a.id)}
+            aria-label={`Select ${displayName(a)} for report export`}
+            className="rounded border-slate-600 bg-slate-950 text-lime-500 focus:ring-lime-500/40"
+          />
+        </td>
+        <td className="px-4 py-3 text-slate-100">
+          <Link
+            href={`/dashboard/athletes/${a.id}`}
+            className="hover:text-lime-300 hover:underline"
+          >
+            {displayName(a)}
+          </Link>
+        </td>
+        <td className="px-4 py-3 text-slate-400">
+          {teamNames.length > 0 ? teamNames.join(", ") : "—"}
+        </td>
+        <td className="px-4 py-3 text-slate-400">
+          {a.primary_sport ?? "—"}
+        </td>
+        <td className="px-4 py-3">
+          <StatusPill status={a.status} />
+        </td>
+        <td className="px-4 py-3 tabular-nums text-slate-300">
+          {st?.count ?? 0}
+        </td>
+        <td className="px-4 py-3 text-slate-400">
+          {formatLastTested(st?.lastSession)}
+        </td>
+        <td className="px-4 py-3 text-right">
+          <Link
+            href={`/dashboard/athletes/${a.id}`}
+            className="mr-2 text-xs text-lime-300 hover:underline"
+          >
+            View
+          </Link>
+          <Link
+            href={`/dashboard/athletes/${a.id}/edit`}
+            className="text-xs text-slate-300 hover:text-lime-300 hover:underline"
+          >
+            Edit
+          </Link>
+        </td>
+      </tr>
+    );
+  }
+
+  function renderSectionBody(list: AthleteRow[]) {
+    if (viewMode === "cards") {
+      return (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {list.map((a) => renderCard(a))}
+        </div>
+      );
+    }
+    return (
+      <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/40">
+        <table className="w-full min-w-[720px] text-left text-sm">
+          <thead>
+            <tr className="border-b border-slate-800 text-xs uppercase tracking-wide text-slate-500">
+              <th className="w-10 px-4 py-3">
+                <input
+                  type="checkbox"
+                  checked={allVisibleSelected}
+                  onChange={toggleSelectAllVisible}
+                  aria-label="Select all visible athletes"
+                  className="rounded border-slate-600 bg-slate-950 text-lime-500 focus:ring-lime-500/40"
+                />
+              </th>
+              <th className="px-4 py-3 font-medium">Name</th>
+              <th className="px-4 py-3 font-medium">Team(s)</th>
+              <th className="px-4 py-3 font-medium">Sport</th>
+              <th className="px-4 py-3 font-medium">Status</th>
+              <th className="px-4 py-3 font-medium">Sessions</th>
+              <th className="px-4 py-3 font-medium">Last Session</th>
+              <th className="px-4 py-3 font-medium text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>{list.map((a) => renderRow(a))}</tbody>
+        </table>
+      </div>
+    );
+  }
 
   // ──────────────────────────────────────────────────────────────────────────
   // Render guards
@@ -642,119 +823,66 @@ export default function AthletesListPage() {
               <p className="mt-8 text-center text-xs text-slate-500">
                 No athletes match these filters.
               </p>
-            ) : viewMode === "cards" ? (
-              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {sorted.map((a) => {
-                  const st = statsByAthlete.get(a.id);
-                  const teamIds = teamIdsByAthlete.get(a.id) ?? [];
-                  const teamNames = teamIds
-                    .map((id) => teamNameById.get(id))
-                    .filter((x): x is string => Boolean(x));
+            ) : (
+              <div className="mt-4 space-y-3">
+                {sections.map((sec) => {
+                  const searching = search.trim().length > 0;
+                  const open = searching || (sectionOpen.get(sec.key) ?? sec.defaultOpen);
+                  const showAll = searching || sectionShowAll.has(sec.key);
+                  const cap = sec.label ? SECTION_PREVIEW : SINGLE_SCOPE_PREVIEW;
+                  const visible = showAll ? sec.athletes : sec.athletes.slice(0, cap);
+                  const overflow = sec.athletes.length > cap && !searching;
                   return (
-                    <AthleteCard
-                      key={a.id}
-                      athlete={a}
-                      teamNames={teamNames}
-                      sessionCount={st?.count ?? 0}
-                      lastSession={st?.lastSession ?? null}
-                      menuOpen={openMenuId === a.id}
-                      updating={statusUpdatingId === a.id}
-                      onMenuToggle={() =>
-                        setOpenMenuId((cur) => (cur === a.id ? null : a.id))
-                      }
-                      onStatusChange={handleStatusChange}
-                      selected={selectedIds.has(a.id)}
-                      onToggleSelect={() => toggleSelected(a.id)}
-                    />
+                    <div key={sec.key}>
+                      {sec.label ? (
+                        <button
+                          type="button"
+                          onClick={() => setSectionOpen((m) => new Map(m).set(sec.key, !open))}
+                          aria-expanded={open}
+                          className="flex w-full items-center justify-between gap-3 rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-2 text-left transition hover:bg-slate-900/60"
+                        >
+                          <span className="flex min-w-0 items-center gap-2">
+                            <svg
+                              viewBox="0 0 20 20"
+                              fill="currentColor"
+                              aria-hidden
+                              className={`h-3 w-3 shrink-0 text-slate-500 transition-transform ${open ? "rotate-90" : ""}`}
+                            >
+                              <path d="M7.3 4.3a1 1 0 0 1 1.4 0l5 5a1 1 0 0 1 0 1.4l-5 5a1 1 0 1 1-1.4-1.4L11.6 10 7.3 5.7a1 1 0 0 1 0-1.4Z" />
+                            </svg>
+                            <span className={`truncate text-sm font-medium ${sec.muted ? "text-slate-500" : "text-slate-200"}`}>
+                              {sec.label}
+                            </span>
+                          </span>
+                          <span className="shrink-0 text-[11px] tabular-nums text-slate-500">
+                            {sec.athletes.length}
+                          </span>
+                        </button>
+                      ) : null}
+                      {open ? (
+                        <div className={sec.label ? "mt-3" : ""}>
+                          {renderSectionBody(visible)}
+                          {overflow ? (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setSectionShowAll((prev) => {
+                                  const next = new Set(prev);
+                                  if (next.has(sec.key)) next.delete(sec.key);
+                                  else next.add(sec.key);
+                                  return next;
+                                })
+                              }
+                              className="mt-2 text-xs font-medium text-lime-500 hover:underline"
+                            >
+                              {showAll ? "Show fewer" : `Show all ${sec.athletes.length}`}
+                            </button>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
                   );
                 })}
-              </div>
-            ) : (
-              <div className="mt-4 overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/40">
-                <table className="w-full min-w-[720px] text-left text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-800 text-xs uppercase tracking-wide text-slate-500">
-                      <th className="w-10 px-4 py-3">
-                        <input
-                          type="checkbox"
-                          checked={allVisibleSelected}
-                          onChange={toggleSelectAllVisible}
-                          aria-label="Select all visible athletes"
-                          className="rounded border-slate-600 bg-slate-950 text-lime-500 focus:ring-lime-500/40"
-                        />
-                      </th>
-                      <th className="px-4 py-3 font-medium">Name</th>
-                      <th className="px-4 py-3 font-medium">Team(s)</th>
-                      <th className="px-4 py-3 font-medium">Sport</th>
-                      <th className="px-4 py-3 font-medium">Status</th>
-                      <th className="px-4 py-3 font-medium">Sessions</th>
-                      <th className="px-4 py-3 font-medium">Last Session</th>
-                      <th className="px-4 py-3 font-medium text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sorted.map((a) => {
-                      const st = statsByAthlete.get(a.id);
-                      const teamIds = teamIdsByAthlete.get(a.id) ?? [];
-                      const teamNames = teamIds
-                        .map((id) => teamNameById.get(id))
-                        .filter((x): x is string => Boolean(x));
-                      return (
-                        <tr
-                          key={a.id}
-                          className="border-b border-slate-800/80 hover:bg-slate-900/80"
-                        >
-                          <td className="w-10 px-4 py-3">
-                            <input
-                              type="checkbox"
-                              checked={selectedIds.has(a.id)}
-                              onChange={() => toggleSelected(a.id)}
-                              aria-label={`Select ${displayName(a)} for report export`}
-                              className="rounded border-slate-600 bg-slate-950 text-lime-500 focus:ring-lime-500/40"
-                            />
-                          </td>
-                          <td className="px-4 py-3 text-slate-100">
-                            <Link
-                              href={`/dashboard/athletes/${a.id}`}
-                              className="hover:text-lime-300 hover:underline"
-                            >
-                              {displayName(a)}
-                            </Link>
-                          </td>
-                          <td className="px-4 py-3 text-slate-400">
-                            {teamNames.length > 0 ? teamNames.join(", ") : "—"}
-                          </td>
-                          <td className="px-4 py-3 text-slate-400">
-                            {a.primary_sport ?? "—"}
-                          </td>
-                          <td className="px-4 py-3">
-                            <StatusPill status={a.status} />
-                          </td>
-                          <td className="px-4 py-3 tabular-nums text-slate-300">
-                            {st?.count ?? 0}
-                          </td>
-                          <td className="px-4 py-3 text-slate-400">
-                            {formatLastTested(st?.lastSession)}
-                          </td>
-                          <td className="px-4 py-3 text-right">
-                            <Link
-                              href={`/dashboard/athletes/${a.id}`}
-                              className="mr-2 text-xs text-lime-300 hover:underline"
-                            >
-                              View
-                            </Link>
-                            <Link
-                              href={`/dashboard/athletes/${a.id}/edit`}
-                              className="text-xs text-slate-300 hover:text-lime-300 hover:underline"
-                            >
-                              Edit
-                            </Link>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
               </div>
             )}
           </div>

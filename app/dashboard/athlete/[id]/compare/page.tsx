@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import DashboardNav from "@/components/DashboardNav";
 import { formatDisplayDate } from "@/lib/dateDisplay";
 import { createClient } from "@supabase/supabase-js";
+import { fetchMetricsForSessions } from "@/lib/fetchAllRows";
 import ZoomableChart from "@/components/charts/ZoomableChart";
 
 import {
@@ -96,10 +97,8 @@ export default function ComparePage() {
 
       if (sess?.length) {
         const ids = sess.map((s) => s.id);
-        const { data: mets } = await supabase
-          .from("metrics")
-          .select("*")
-          .in("session_id", ids);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: mets } = await fetchMetricsForSessions<any>(supabase, ids, "*");
 
         setMetrics(mets || []);
       }

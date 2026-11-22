@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
+import { fetchMetricsForSessions } from "@/lib/fetchAllRows";
 import DashboardNav from "@/components/DashboardNav";
 import ZoomableChart from "@/components/charts/ZoomableChart";
 import { formatDisplayDate } from "@/lib/dateDisplay";
@@ -183,6 +184,7 @@ export default function SprintReportPage() {
           supabase
             .from("athletes")
             .select("id, first_name, last_name")
+            .neq("status", "archived") // archived athletes stay out of pickers
             .order("last_name", { ascending: true }),
           supabase.from("teams").select("id, name, sport").order("name"),
           supabase.from("athlete_teams").select("athlete_id, team_id"),
@@ -256,10 +258,11 @@ export default function SprintReportPage() {
         newSessions[aid] = sprintSessions;
         if (sprintSessions.length > 0) {
           const ids = sprintSessions.map((s) => s.id);
-          const { data: mData } = await supabase
-            .from("metrics")
-            .select("session_id, key, value")
-            .in("session_id", ids);
+          const { data: mData } = await fetchMetricsForSessions<MetricRow>(
+            supabase,
+            ids,
+            "session_id, key, value"
+          );
           newMetrics[aid] = (mData ?? []) as MetricRow[];
         } else {
           newMetrics[aid] = [];
@@ -299,10 +302,11 @@ export default function SprintReportPage() {
         return;
       }
       const ids = sprintSessions.map((s) => s.id);
-      const { data: mData } = await supabase
-        .from("metrics")
-        .select("session_id, key, value")
-        .in("session_id", ids);
+      const { data: mData } = await fetchMetricsForSessions<MetricRow>(
+        supabase,
+        ids,
+        "session_id, key, value"
+      );
       setMetrics((mData ?? []) as MetricRow[]);
       setLoading(false);
     }
