@@ -251,17 +251,20 @@ export default function StaffDashboardPage() {
         lastSession: r.lastTest!,
         days: daysBetween(r.lastTest!, nowMs),
         weeks: r.intervalWeeks,
-      }));
+        team: teamByAthlete.get(r.athleteId)?.name ?? null,
+      }))
+      .sort((a, b) => b.days - a.days);
   }, [athletes, sessions, teamByAthlete, nowMs]);
 
   const neverTested = useMemo(() => {
-    const rows: Athlete[] = [];
+    const rows: { athlete: Athlete; team: string | null }[] = [];
     for (const a of athletes) {
       if (a.status === "archived") continue;
-      if (!lastSessionByAthlete.has(a.id)) rows.push(a);
+      if (!lastSessionByAthlete.has(a.id)) rows.push({ athlete: a, team: teamByAthlete.get(a.id)?.name ?? null });
     }
+    rows.sort((x, y) => athleteName(x.athlete).localeCompare(athleteName(y.athlete)));
     return rows;
-  }, [athletes, lastSessionByAthlete]);
+  }, [athletes, lastSessionByAthlete, teamByAthlete]);
 
   const recent = useMemo(() => sessions.slice(0, 10), [sessions]);
 
@@ -344,20 +347,26 @@ export default function StaffDashboardPage() {
                     label="Overdue testing"
                     count={overdue.length}
                     tone="overdue"
+                    defaultOpen
                   >
                     {overdue.length === 0 ? (
-                      <EmptyRow text="Everyone tested within the last 12 weeks." />
+                      <EmptyRow text="Everyone is within their team's retest interval." />
                     ) : (
-                      overdue.map((r) => (
-                        <AttentionRow
-                          key={r.athlete.id}
-                          href={`/dashboard/athletes/${r.athlete.id}`}
-                          name={athleteName(r.athlete)}
-                          right={`${describeOverdue(r.days)} ago`}
-                          subtle={`Last: ${fmtDate(r.lastSession)}`}
-                          status={r.athlete.status}
-                        />
-                      ))
+                      <TeamBuckets
+                        rows={overdue.map((r) => ({
+                          key: r.athlete.id,
+                          team: r.team,
+                          node: (
+                            <AttentionRow
+                              href={`/dashboard/athletes/${r.athlete.id}`}
+                              name={athleteName(r.athlete)}
+                              right={`${describeOverdue(r.days)} ago`}
+                              subtle={`Last: ${fmtDate(r.lastSession)}`}
+                              status={r.athlete.status}
+                            />
+                          ),
+                        }))}
+                      />
                     )}
                   </AttentionGroup>
 
@@ -369,20 +378,25 @@ export default function StaffDashboardPage() {
                     {neverTested.length === 0 ? (
                       <EmptyRow text="All non-archived athletes have at least one session." />
                     ) : (
-                      neverTested.map((a) => (
-                        <AttentionRow
-                          key={a.id}
-                          href={`/dashboard/athletes/${a.id}`}
-                          name={athleteName(a)}
-                          right="No sessions"
-                          subtle="Awaiting first test"
-                          status={a.status}
-                        />
-                      ))
+                      <TeamBuckets
+                        rows={neverTested.map(({ athlete: a, team }) => ({
+                          key: a.id,
+                          team,
+                          node: (
+                            <AttentionRow
+                              href={`/dashboard/athletes/${a.id}`}
+                              name={athleteName(a)}
+                              right="No sessions"
+                              subtle="Awaiting first test"
+                              status={a.status}
+                            />
+                          ),
+                        }))}
+                      />
                     )}
                   </AttentionGroup>
 
-                  <AttentionGroup label="Asymmetry flags" count={0} tone="deferred">
+                  <AttentionGroup label="Asymmetry flags" count={0} tone="deferred" defaultOpen>
                     <EmptyRow text="Deferred — waiting on real Hawkins data." />
                   </AttentionGroup>
                 </div>
@@ -520,13 +534,16 @@ function AttentionGroup({
   label,
   count,
   tone,
+  defaultOpen = false,
   children,
 }: {
   label: string;
   count: number;
   tone: "overdue" | "never" | "deferred";
+  defaultOpen?: boolean;
   children: React.ReactNode;
 }) {
+  const [open, setOpen] = useState(defaultOpen);
   const pillCls =
     tone === "overdue"
       ? "border-amber-400/30 bg-amber-400/10 text-amber-200"
@@ -535,17 +552,25 @@ function AttentionGroup({
       : "border-slate-700 bg-slate-800/40 text-slate-400";
   return (
     <div>
-      <div className="flex items-center justify-between px-4 py-2.5">
-        <p className="text-[11px] font-medium uppercase tracking-wider text-slate-500">
-          {label}
-        </p>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between px-4 py-2.5 text-left transition hover:bg-slate-900/60"
+      >
+        <span className="flex items-center gap-2">
+          <Chevron open={open} />
+          <span className="text-[11px] font-medium uppercase tracking-wider text-slate-500">
+            {label}
+          </span>
+        </span>
         <span
           className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${pillCls}`}
         >
           {count}
         </span>
-      </div>
-      <div>{children}</div>
+      </button>
+      {open ? <div className="pb-1">{children}</div> : null}
     </div>
   );
 }
@@ -583,6 +608,100 @@ function AttentionRow({
         {right}
       </span>
     </Link>
+  );
+}
+
+const NO_TEAM = "No team";
+const BUCKET_PREVIEW = 8;
+
+type BucketRow = { key: string; team: string | null; node: React.ReactNode };
+
+function Chevron({ open }: { open: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      fill="currentColor"
+      aria-hidden
+      className={`h-3 w-3 shrink-0 text-slate-500 transition-transform ${open ? "rotate-90" : ""}`}
+    >
+      <path d="M7.3 4.3a1 1 0 0 1 1.4 0l5 5a1 1 0 0 1 0 1.4l-5 5a1 1 0 1 1-1.4-1.4L11.6 10 7.3 5.7a1 1 0 0 1 0-1.4Z" />
+    </svg>
+  );
+}
+
+// Groups rows by team. Teams are collapsed by default (unless there is only one),
+// largest first, "No team" last. Expanded teams show the first few rows.
+function TeamBuckets({ rows }: { rows: BucketRow[] }) {
+  const buckets = useMemo(() => {
+    const m = new Map<string, BucketRow[]>();
+    for (const r of rows) {
+      const k = r.team ?? NO_TEAM;
+      const list = m.get(k);
+      if (list) list.push(r);
+      else m.set(k, [r]);
+    }
+    return [...m.entries()].sort((a, b) => {
+      if (a[0] === NO_TEAM) return 1;
+      if (b[0] === NO_TEAM) return -1;
+      return b[1].length - a[1].length || a[0].localeCompare(b[0]);
+    });
+  }, [rows]);
+
+  return (
+    <div>
+      {buckets.map(([team, list]) => (
+        <TeamBucket key={team} team={team} rows={list} defaultOpen={buckets.length === 1} />
+      ))}
+    </div>
+  );
+}
+
+function TeamBucket({
+  team,
+  rows,
+  defaultOpen,
+}: {
+  team: string;
+  rows: BucketRow[];
+  defaultOpen: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  const [showAll, setShowAll] = useState(false);
+  const visible = showAll ? rows : rows.slice(0, BUCKET_PREVIEW);
+
+  return (
+    <div className="mx-3 mb-1.5 overflow-hidden rounded-lg border border-slate-800">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition hover:bg-slate-900/60"
+      >
+        <span className="flex min-w-0 items-center gap-2">
+          <Chevron open={open} />
+          <span className={`truncate text-xs font-medium ${team === NO_TEAM ? "text-slate-500" : "text-slate-200"}`}>
+            {team}
+          </span>
+        </span>
+        <span className="shrink-0 text-[11px] tabular-nums text-slate-500">{rows.length}</span>
+      </button>
+      {open ? (
+        <div className="divide-y divide-slate-800 border-t border-slate-800">
+          {visible.map((r) => (
+            <div key={r.key}>{r.node}</div>
+          ))}
+          {rows.length > BUCKET_PREVIEW ? (
+            <button
+              type="button"
+              onClick={() => setShowAll((v) => !v)}
+              className="w-full px-4 py-2 text-left text-[11px] font-medium text-lime-500 hover:underline"
+            >
+              {showAll ? "Show fewer" : `Show all ${rows.length}`}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
