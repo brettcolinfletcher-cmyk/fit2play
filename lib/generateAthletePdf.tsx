@@ -1,12 +1,11 @@
 import { pdf } from "@react-pdf/renderer";
 import AthletePdfDocument from "@/components/athletes/AthletePdfDocument";
 import {
-  computeDateComparisonData,
-  formatChartAxisDate,
   type ReportHopTestRow,
   type ReportMetricRow,
   type ReportSessionRow,
 } from "@/lib/athleteReportData";
+import { buildDayIndex, compareTestDays } from "@/lib/dayComparison";
 import {
   buildPdfReportCharts,
   type MetricRowWithSide,
@@ -60,8 +59,9 @@ export type GenerateAthletePdfInput = {
   visibility: ReportVisibility;
   criteria: CriteriaResolver;
   mode: "best" | "date_comparison";
-  dateAId?: string | null;
-  dateBId?: string | null;
+  /** Test days (YYYY-MM-DD) to compare in "date_comparison" mode. */
+  dateA?: string | null;
+  dateB?: string | null;
   includeNotes: boolean;
   includeTargets: boolean;
   includeAnthropometry: boolean;
@@ -117,8 +117,8 @@ export async function logPdfReport(args: {
   rangeStart: string | null;
   rangeEnd: string | null;
   mode: "best" | "date_comparison";
-  dateAId?: string | null;
-  dateBId?: string | null;
+  dateA?: string | null;
+  dateB?: string | null;
   includeNotes: boolean;
   summaryComment: string;
 }): Promise<void> {
@@ -129,8 +129,8 @@ export async function logPdfReport(args: {
     date_range_end: args.rangeEnd || null,
     mode: args.mode,
     specific_dates:
-      args.mode === "date_comparison" && args.dateAId && args.dateBId
-        ? [args.dateAId, args.dateBId]
+      args.mode === "date_comparison" && args.dateA && args.dateB
+        ? [args.dateA, args.dateB].sort()
         : [],
     include_notes: args.includeNotes,
     summary_comment: args.summaryComment || null,
@@ -157,8 +157,8 @@ export async function generateAthletePdfBlob(
     includeAnthropometry,
     summaryComment,
   } = input;
-  const dateAId = input.dateAId ?? null;
-  const dateBId = input.dateBId ?? null;
+  const dateA = input.dateA ?? null;
+  const dateB = input.dateB ?? null;
 
   const athleteName = athleteDisplayName(athlete);
   // Matches app/dashboard/athletes/[id]/page.tsx's derivation: READINESS
@@ -168,14 +168,6 @@ export async function generateAthletePdfBlob(
   const dashboardMode: "rtp" | "performance" =
     String(athlete.dashboard_mode ?? "rtp") === "performance" ? "performance" : "rtp";
 
-  const sessA = dateAId ? scopeSessions.find((s) => s.id === dateAId) ?? null : null;
-  const sessB = dateBId ? scopeSessions.find((s) => s.id === dateBId) ?? null : null;
-  const compareDateALabel = sessA?.session_date
-    ? formatChartAxisDate(sessA.session_date)
-    : "Date A";
-  const compareDateBLabel = sessB?.session_date
-    ? formatChartAxisDate(sessB.session_date)
-    : "Date B";
 
   const pdfCharts =
     mode === "best"
@@ -242,14 +234,8 @@ export async function generateAthletePdfBlob(
   }
 
   const dateComparisonData =
-    mode === "date_comparison"
-      ? computeDateComparisonData(
-          scopeSessions,
-          metricsBySession,
-          scopeHopTests,
-          dateAId,
-          dateBId
-        )
+    mode === "date_comparison" && dateA && dateB
+      ? compareTestDays(buildDayIndex(scopeSessions, metricsBySession, scopeHopTests), dateA, dateB)
       : undefined;
 
   return pdf(
@@ -262,8 +248,6 @@ export async function generateAthletePdfBlob(
       rangeStart={exportFrom}
       rangeEnd={exportTo}
       mode={mode}
-      compareDateALabel={compareDateALabel}
-      compareDateBLabel={compareDateBLabel}
       includeNotes={includeNotes}
       showTargets={includeTargets}
       showAnthropometry={includeAnthropometry}

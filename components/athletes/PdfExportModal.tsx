@@ -2,12 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  sessionOptionLabel,
-  sortedSessionOptions,
   type ReportHopTestRow,
   type ReportMetricRow,
   type ReportSessionRow,
 } from "@/lib/athleteReportData";
+import { buildDayIndex, listTestDays } from "@/lib/dayComparison";
 import {
   athleteDisplayName,
   downloadBlob,
@@ -53,8 +52,8 @@ export default function PdfExportModal({
   const [exportFrom, setExportFrom] = useState<string | null>(null);
   const [exportTo, setExportTo] = useState<string | null>(null);
   const [mode, setMode] = useState<"best" | "date_comparison">("best");
-  const [dateAId, setDateAId] = useState<string | null>(null);
-  const [dateBId, setDateBId] = useState<string | null>(null);
+  const [dateA, setDateA] = useState<string | null>(null);
+  const [dateB, setDateB] = useState<string | null>(null);
   const [includeNotes, setIncludeNotes] = useState(false);
   const [includeTargets, setIncludeTargets] = useState(false);
   const [includeAnthropometry, setIncludeAnthropometry] = useState(true);
@@ -84,18 +83,17 @@ export default function PdfExportModal({
     [hopTests, exportFrom, exportTo]
   );
 
-  const sessionOptions = useMemo(() => sortedSessionOptions(scopeSessions), [scopeSessions]);
+  const dayOptions = useMemo(
+    () => listTestDays(buildDayIndex(scopeSessions, metricsBySession, scopeHopTests)),
+    [scopeSessions, metricsBySession, scopeHopTests]
+  );
 
+  // Default: previous test day vs the latest one.
   useEffect(() => {
     if (!open) return;
-    if (sessionOptions.length >= 1) {
-      setDateAId(sessionOptions[0]!.id);
-      setDateBId(sessionOptions[1]?.id ?? sessionOptions[0]!.id);
-    } else {
-      setDateAId(null);
-      setDateBId(null);
-    }
-  }, [open, sessionOptions]);
+    setDateB(dayOptions[0]?.date ?? null);
+    setDateA(dayOptions[1]?.date ?? dayOptions[0]?.date ?? null);
+  }, [open, dayOptions]);
 
   const athleteName = athleteDisplayName(athlete);
 
@@ -106,8 +104,8 @@ export default function PdfExportModal({
       return;
     }
     if (mode === "date_comparison") {
-      if (!dateAId || !dateBId) {
-        setFormError("Choose two sessions for date comparison.");
+      if (!dateA || !dateB || dateA === dateB) {
+        setFormError("Choose two different test days to compare.");
         return;
       }
     }
@@ -135,8 +133,8 @@ export default function PdfExportModal({
         visibility,
         criteria,
         mode,
-        dateAId,
-        dateBId,
+        dateA,
+        dateB,
         includeNotes,
         includeTargets,
         includeAnthropometry,
@@ -150,8 +148,8 @@ export default function PdfExportModal({
         rangeStart: exportFrom,
         rangeEnd: exportTo,
         mode,
-        dateAId,
-        dateBId,
+        dateA,
+        dateB,
         includeNotes,
         summaryComment: trimmedComment,
       });
@@ -167,8 +165,8 @@ export default function PdfExportModal({
     athlete,
     athleteName,
     criteria,
-    dateAId,
-    dateBId,
+    dateA,
+    dateB,
     exportFrom,
     exportTo,
     includeAnthropometry,
@@ -256,13 +254,13 @@ export default function PdfExportModal({
               <div>
                 <label className="block text-xs font-medium text-slate-400">Date A</label>
                 <select
-                  value={dateAId ?? ""}
-                  onChange={(e) => setDateAId(e.target.value || null)}
+                  value={dateA ?? ""}
+                  onChange={(e) => setDateA(e.target.value || null)}
                   className={inputClass}
                 >
-                  {sessionOptions.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {sessionOptionLabel(s)}
+                  {dayOptions.map((o) => (
+                    <option key={o.date} value={o.date}>
+                      {o.label}
                     </option>
                   ))}
                 </select>
@@ -270,13 +268,13 @@ export default function PdfExportModal({
               <div>
                 <label className="block text-xs font-medium text-slate-400">Date B</label>
                 <select
-                  value={dateBId ?? ""}
-                  onChange={(e) => setDateBId(e.target.value || null)}
+                  value={dateB ?? ""}
+                  onChange={(e) => setDateB(e.target.value || null)}
                   className={inputClass}
                 >
-                  {sessionOptions.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {sessionOptionLabel(s)}
+                  {dayOptions.map((o) => (
+                    <option key={o.date} value={o.date}>
+                      {o.label}
                     </option>
                   ))}
                 </select>

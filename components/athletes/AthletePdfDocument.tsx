@@ -2,7 +2,7 @@ import { Document, Font, Image, Page, Text, View, StyleSheet } from "@react-pdf/
 import PdfGroupedBarChart from "@/components/athletes/pdf/charts/PdfGroupedBarChart";
 import PdfLineChart from "@/components/athletes/pdf/charts/PdfLineChart";
 import PdfRankDials, { type PdfRankDial } from "@/components/athletes/pdf/charts/PdfRankDials";
-import type { DateComparisonData } from "@/lib/athleteReportData";
+import type { CompareTone, DayCompareTest, DayComparisonData } from "@/lib/dayComparison";
 import type { PdfReportCharts } from "@/lib/pdfReportChartData";
 import type { AthleteSnapshot } from "@/lib/athleteSnapshot";
 import type { SummaryCategory } from "@/lib/performanceSummary";
@@ -267,9 +267,12 @@ const styles = StyleSheet.create({
   colMetric: { width: "38%" },
   colBest: { width: "28%" },
   colDate: { width: "34%" },
-  colA: { width: "28%" },
-  colB: { width: "28%" },
-  colD: { width: "16%" },
+  cmpMetric: { width: "32%" },
+  cmpVal: { width: "20%" },
+  cmpChg: { width: "17%" },
+  cmpPct: { width: "11%" },
+  cmpNote: { fontSize: 7.5, color: "#6b7280", marginBottom: 4 },
+  cmpIntro: { fontSize: 8, color: "#6b7280", marginBottom: 6, paddingLeft: 9 },
   // tests-included columns
   colTiModality: { width: "60%" },
   colTiSessions: { width: "20%", textAlign: "right" },
@@ -702,8 +705,6 @@ export type PdfProps = {
   rangeStart: string | null;
   rangeEnd: string | null;
   mode: "best" | "date_comparison";
-  compareDateALabel?: string;
-  compareDateBLabel?: string;
   includeNotes: boolean;
   /** Show the "Target ..." line under each Performance Summary value (default off). */
   showTargets?: boolean;
@@ -711,7 +712,7 @@ export type PdfProps = {
   showAnthropometry?: boolean;
   summaryComment: string | null;
   sectionComments: Record<string, string | null>;
-  dateComparisonData?: DateComparisonData;
+  dateComparisonData?: DayComparisonData;
   /** Native SVG charts for "best" mode only */
   pdfCharts?: PdfReportCharts | null;
   /** Computed athlete snapshot (readiness + symmetry gauges); "best" mode only. */
@@ -726,33 +727,50 @@ export type PdfProps = {
   brand?: "fit2play" | "fit2perform";
 };
 
+const CMP_TONE_COLOR: Record<CompareTone, string> = {
+  better: "#15803d",
+  worse: "#dc2626",
+  same: "#6b7280",
+  na: "#9ca3af",
+};
+
 function CompareTable({
   title,
-  rows,
+  test,
   labelA,
   labelB,
 }: {
   title: string;
-  rows: { label: string; va: string; vb: string; delta: string }[];
+  test: DayCompareTest;
   labelA: string;
   labelB: string;
 }) {
-  if (rows.length === 0) return null;
+  if (test.rows.length === 0) return null;
+  const onlyOn =
+    test.presence === "a_only" ? labelA : test.presence === "b_only" ? labelB : null;
   return (
-    <View style={styles.tableCard}>
+    <View style={styles.tableCard} wrap={false}>
       <Text style={styles.tableCardTitle}>{title}</Text>
+      {onlyOn ? <Text style={styles.cmpNote}>{`Only tested on ${onlyOn}`}</Text> : null}
+      {test.note ? <Text style={styles.cmpNote}>{test.note}</Text> : null}
       <View style={styles.tableHeader}>
-        <Text style={[styles.colMetric, styles.th]}>Metric</Text>
-        <Text style={[styles.colA, styles.th]}>{labelA}</Text>
-        <Text style={[styles.colB, styles.th]}>{labelB}</Text>
-        <Text style={[styles.colD, styles.th]}>Chg</Text>
+        <Text style={[styles.cmpMetric, styles.th]}>Metric</Text>
+        <Text style={[styles.cmpVal, styles.th]}>{labelA}</Text>
+        <Text style={[styles.cmpVal, styles.th]}>{labelB}</Text>
+        <Text style={[styles.cmpChg, styles.th]}>Change</Text>
+        <Text style={[styles.cmpPct, styles.th]}>%</Text>
       </View>
-      {rows.map((r, i) => (
-        <View key={`${r.label}-${i}`} style={i % 2 === 0 ? styles.row : styles.rowAlt}>
-          <Text style={[styles.colMetric, styles.td]}>{r.label}</Text>
-          <Text style={[styles.colA, styles.tdMono]}>{r.va}</Text>
-          <Text style={[styles.colB, styles.tdMono]}>{r.vb}</Text>
-          <Text style={[styles.colD, styles.tdMono]}>{r.delta}</Text>
+      {test.rows.map((r, i) => (
+        <View key={r.id} style={i % 2 === 0 ? styles.row : styles.rowAlt}>
+          <Text style={[styles.cmpMetric, styles.td]}>{r.label}</Text>
+          <Text style={[styles.cmpVal, styles.tdMono]}>{r.va}</Text>
+          <Text style={[styles.cmpVal, styles.tdMono]}>{r.vb}</Text>
+          <Text style={[styles.cmpChg, styles.tdMono, { color: CMP_TONE_COLOR[r.tone] }]}>
+            {r.change}
+          </Text>
+          <Text style={[styles.cmpPct, styles.tdMono, { color: CMP_TONE_COLOR[r.tone] }]}>
+            {r.pct}
+          </Text>
         </View>
       ))}
     </View>
@@ -768,8 +786,6 @@ export default function AthletePdfDocument({
   rangeStart,
   rangeEnd,
   mode,
-  compareDateALabel = "Date A",
-  compareDateBLabel = "Date B",
   includeNotes,
   showTargets = false,
   showAnthropometry = true,
@@ -929,35 +945,29 @@ export default function AthletePdfDocument({
         {mode === "date_comparison" && dc ? (
           <>
             <Text style={styles.sectionBanner}>
-              {`Session Comparison \u2014 ${compareDateALabel} vs ${compareDateBLabel}`}
+              {`Test Day Comparison \u2014 ${dc.labelA} vs ${dc.labelB}`}
             </Text>
-            <CompareTable
-              title="LINEAR SPRINT"
-              labelA={compareDateALabel}
-              labelB={compareDateBLabel}
-              rows={dc.linear}
-            />
-            <CompareTable
-              title={"FORCE PLATE \u2014 CMJ"}
-              labelA={compareDateALabel}
-              labelB={compareDateBLabel}
-              rows={dc.cmj}
-            />
-            <CompareTable
-              title={"FORCE PLATE \u2014 DROP JUMP"}
-              labelA={compareDateALabel}
-              labelB={compareDateBLabel}
-              rows={dc.dj}
-            />
-            {dc.hop.map((block) => (
-              <CompareTable
-                key={block.testType}
-                title={`HOP \u2014 ${block.title.toUpperCase()}`}
-                labelA={compareDateALabel}
-                labelB={compareDateBLabel}
-                rows={block.rows}
-              />
-            ))}
+            <Text style={styles.cmpIntro}>
+              {`Best result of each day. Change is ${dc.labelB} compared with ${dc.labelA}. Green = improved, red = declined.`}
+            </Text>
+            {dc.groups.flatMap((group) =>
+              group.tests.map((test) => (
+                <CompareTable
+                  key={`${group.family}-${test.key}`}
+                  title={
+                    test.title === group.title
+                      ? group.title.toUpperCase()
+                      : `${group.title.toUpperCase()} \u2014 ${test.title.toUpperCase()}`
+                  }
+                  test={test}
+                  labelA={dc.labelA}
+                  labelB={dc.labelB}
+                />
+              ))
+            )}
+            {dc.groups.length === 0 ? (
+              <Text style={styles.cmpIntro}>No test results on the selected days.</Text>
+            ) : null}
           </>
         ) : null}
 
