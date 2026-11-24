@@ -326,6 +326,13 @@ export async function runHawkinsSync(
         : [];
 
     const athleteIdCache = new Map<string, string>();
+
+    // Sessions deleted in Fit2Play: never re-created by a backfill or overlap window.
+    const { data: excludedRows } = await supabase
+      .from("sync_excluded_sessions")
+      .select("external_id")
+      .eq("source", "hawkins");
+    const excludedIds = new Set((excludedRows ?? []).map((r) => String(r.external_id)));
     const skippedNoAthlete = new Set<string>();
     // Athletes who had a body-weight reading (CMJ system weight / Weigh In) in this run.
     const weightAthleteIds = new Set<string>();
@@ -335,6 +342,7 @@ export async function runHawkinsSync(
       const test = raw as Record<string, unknown>;
       const hawkinsTestId =
         test.id != null ? String(test.id) : JSON.stringify(test).slice(0, 64);
+      if (excludedIds.has(hawkinsTestId)) continue;
       const extAthleteId = hawkinsAthleteId(test);
       if (!extAthleteId) {
         errors.push(`test ${hawkinsTestId}: missing athlete id`);

@@ -528,6 +528,10 @@ export default function AthleteDetailPage() {
   const [athleteView, setAthleteView] = useState<AthleteViewData | null>(null);
   const [perfDataLoading, setPerfDataLoading] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
+  // Session delete: two-step confirm per row.
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hopTests, setHopTests] = useState<HopTestDbRow[]>([]);
@@ -1100,6 +1104,32 @@ export default function AthleteDetailPage() {
   function toggleExpand(sid: string) {
     setExpanded((prev) => { const n = new Set(prev); n.has(sid) ? n.delete(sid) : n.add(sid); return n; });
   }
+  /**
+   * Permanently deletes a session and its metrics. Synced sessions (1080,
+   * Hawkins) are also added to sync_excluded_sessions so the next sync doesn't
+   * bring them back (1080's API still lists sessions deleted in the 1080 app).
+   */
+  async function deleteSession(sid: string) {
+    setDeletingId(sid);
+    setDeleteError(null);
+    const { error: delErr } = await supabase.rpc("delete_session_and_exclude", {
+      p_session_id: sid,
+      p_reason: "Deleted from athlete page",
+    });
+    setDeletingId(null);
+    if (delErr) {
+      setDeleteError(delErr.message);
+      return;
+    }
+    setConfirmDeleteId(null);
+    setSessions((prev) => prev.filter((x) => x.id !== sid));
+    setMetricsBySession((prev) => {
+      const next = new Map(prev);
+      next.delete(sid);
+      return next;
+    });
+  }
+
   function renderSessionSection(list: SessionRow[]) {
     if (list.length === 0) return <p className="text-xs text-slate-500">No sessions.</p>;
     return (
@@ -1150,6 +1180,47 @@ export default function AthleteDetailPage() {
                       </tbody>
                     </table>
                   )}
+                  <div className="mt-3 flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 pt-2 text-xs">
+                    {confirmDeleteId === s.id ? (
+                      <>
+                        <span className="text-slate-500">
+                          Delete this session and its {rows.length} metrics permanently?
+                          {s.source === "1080" || s.source === "hawkins"
+                            ? " The sync won't bring it back."
+                            : ""}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDeleteId(null)}
+                          className="rounded-full border border-slate-200 px-3 py-1 text-slate-500 hover:border-slate-300"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          disabled={deletingId === s.id}
+                          onClick={() => void deleteSession(s.id)}
+                          className="rounded-full border border-rose-300 bg-rose-50 px-3 py-1 font-medium text-rose-600 hover:bg-rose-100"
+                        >
+                          {deletingId === s.id ? "Deleting…" : "Delete"}
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDeleteError(null);
+                          setConfirmDeleteId(s.id);
+                        }}
+                        className="text-slate-400 hover:text-rose-600"
+                      >
+                        Delete session
+                      </button>
+                    )}
+                  </div>
+                  {deleteError && confirmDeleteId === s.id ? (
+                    <p className="mt-1 text-right text-xs text-rose-500">{deleteError}</p>
+                  ) : null}
                 </div>
               )}
             </div>

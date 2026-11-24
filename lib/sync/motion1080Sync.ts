@@ -656,6 +656,50 @@ export async function runMotion1080Sync(
     }
     const summaries = asArray(await listRes.json());
 
+    // Sessions deleted in Fit2Play. 1080's API keeps returning sessions deleted
+    // in the 1080 app, so these are skipped rather than re-created.
+    const { data: excludedRows } = await supabase
+      .from("sync_excluded_sessions")
+      .select("external_id")
+      .eq("source", "1080");
+    const excludedIds = new Set((excludedRows ?? []).map((r) => String(r.external_id)));
+
+    // Diagnostic: show which fields 1080 sends per session, and any that look
+    // like a deleted / archived flag, so deleted sessions can be skipped
+    // automatically once the field is known. Visible in Vercel function logs.
+    {
+      const first = summaries.find((x) => x && typeof x === "object") as
+        | Record<string, unknown>
+        | undefined;
+      if (first) {
+        console.log("[1080 sync] session summary fields:", JSON.stringify(Object.keys(first)));
+        console.log("[1080 sync] example summary:", JSON.stringify(first).slice(0, 1500));
+      }
+      const flagPattern = /(delet|archiv|hidden|hide|remov|status|active|visible|trash)/i;
+      const flagValues = new Map<string, Map<string, number>>();
+      for (const x of summaries) {
+        if (!x || typeof x !== "object") continue;
+        for (const [k, v] of Object.entries(x as Record<string, unknown>)) {
+          if (!flagPattern.test(k)) continue;
+          const counts = flagValues.get(k) ?? new Map<string, number>();
+          const key = JSON.stringify(v);
+          counts.set(key, (counts.get(key) ?? 0) + 1);
+          flagValues.set(k, counts);
+        }
+      }
+      for (const [k, counts] of flagValues) {
+        console.log(`[1080 sync] flag-like field "${k}":`, JSON.stringify(Object.fromEntries(counts)));
+      }
+      if (excludedIds.size > 0) {
+        for (const x of summaries) {
+          const id = x && typeof x === "object" ? (x as Record<string, unknown>).id : null;
+          if (id != null && excludedIds.has(String(id))) {
+            console.log("[1080 sync] excluded session still listed by 1080:", JSON.stringify(x).slice(0, 1500));
+          }
+        }
+      }
+    }
+
     const athleteIdCache = new Map<string, string>();
 
     // ── 3. Process each session ───────────────────────────────────────────────
@@ -668,6 +712,9 @@ export async function runMotion1080Sync(
         : s.client_id != null ? String(s.client_id)
         : null;
       if (!wid || !clientId) continue;
+      if (excludedIds.has(wid)) continue;
+      // Explicit deleted flags, if 1080 ever sends them.
+      if (s.isDeleted === true || s.deleted === true || s.IsDeleted === true) continue;
 
       // Resolve internal athlete ID
       let internalAthleteId =
