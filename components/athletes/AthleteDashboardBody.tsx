@@ -373,7 +373,11 @@ export default function AthleteDashboardBody({
   return (
     <>
       {/* ── Top panel: score rings or team ranking ─────────────── */}
-      {topPanelNode ? <div className="mt-6">{topPanelNode}</div> : null}
+      {topPanelNode ? (
+        <div id="overview" className="mt-6 scroll-mt-28">
+          {topPanelNode}
+        </div>
+      ) : null}
 
       {/* ── Latest results ─────────────────────────────────────── */}
       <AthleteTestSummary
@@ -406,7 +410,7 @@ export default function AthleteDashboardBody({
       ) : null}
 
       {/* ── Trend data ─────────────────────────────────────────── */}
-      <div className="mt-12 space-y-10">
+      <div id="trends" className="mt-12 scroll-mt-28 space-y-10">
         <div className="flex items-center gap-4">
           <div className="h-px flex-1 bg-slate-800" />
           <p className="text-[0.62rem] uppercase tracking-widest text-slate-500">Longitudinal trends</p>

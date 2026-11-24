@@ -31,6 +31,8 @@ type Props = {
     lsiPass: number,
     isCriterion: boolean
   ) => void;
+  /** Start expanded (used inside the athlete page's Report settings panel). */
+  defaultOpen?: boolean;
 };
 
 const CHECKBOX_CLASS =
@@ -193,8 +195,9 @@ export default function ReportBuilder({
   onSetCriterion,
   onSetCutoff,
   onSetClinicDefault,
+  defaultOpen = false,
 }: Props) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
 
   const subTestsBySection = useMemo(() => {
     const map = new Map<string, string[]>();

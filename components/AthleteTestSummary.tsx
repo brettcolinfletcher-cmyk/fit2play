@@ -198,7 +198,7 @@ export default function AthleteTestSummary({
   const isoHasData = isoSubTests.some((s) => s.left != null || s.right != null);
 
   return (
-    <div className="mt-8">
+    <div id="latest" className="mt-8 scroll-mt-28">
       <div className="mb-4 flex items-center gap-3">
         <div className="h-px flex-1 bg-slate-800" />
         <p className="text-[0.65rem] uppercase tracking-widest text-slate-500">Latest test results</p>

@@ -457,7 +457,7 @@ export default function SprintPerformanceCharts({ athleteId }: Props) {
   if (!bestRep) return null;
 
   return (
-    <section className="rounded-2xl border bg-slate-950/70 p-5 f2p-dark-panel">
+    <section id="sprint-reps" className="scroll-mt-28 rounded-2xl border bg-slate-950/70 p-5 f2p-dark-panel">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-200">

@@ -980,33 +980,6 @@ export default function AthleteDetailPage() {
     [sessions]
   );
 
-  const sectionsWithData = useMemo(() => {
-    const keys: string[] = ["summary"];
-    if (has1080Charts && hasLinearSprint && visibility.isSectionVisible("linear") && inProtocol("linear"))
-      keys.push("linear");
-    if (has505 && visibility.isSectionVisible("cod") && inProtocol("cod")) keys.push("cod");
-    if (cmjSeries.length > 0 && visibility.isSectionVisible("cmj") && inProtocol("cmj")) keys.push("cmj");
-    if (djSeries.length > 0 && visibility.isSectionVisible("drop_jump") && inProtocol("drop_jump"))
-      keys.push("drop_jump");
-    if (
-      slDjSeries.length > 0 &&
-      visibility.isSectionVisible("drop_jump_single") &&
-      inProtocol("drop_jump_single")
-    )
-      keys.push("drop_jump_single");
-    if (visibility.isSectionVisible("hop_tests") && inProtocol("hop_tests")) keys.push("hop_tests");
-    return keys;
-  }, [
-    has1080Charts,
-    hasLinearSprint,
-    has505,
-    cmjSeries.length,
-    djSeries.length,
-    slDjSeries.length,
-    visibility,
-    inProtocol,
-  ]);
-
   function sectionNote(section: string): string | null {
     return sectionCommentBySection[section] ?? null;
   }
@@ -1304,37 +1277,6 @@ export default function AthleteDetailPage() {
                     </dl>
                   }
                 />
-                <div className="flex flex-wrap items-center justify-end gap-3">
-                  <span className="text-xs text-slate-500">Athlete sees</span>
-                  <div className="inline-flex rounded-full bg-white p-1 text-xs shadow-[0_1px_4px_rgba(0,0,0,0.06)] ring-1 ring-slate-200">
-                    {(
-                      [
-                        ["rings", "Score rings"],
-                        ["dials", "Team ranking"],
-                      ] as const
-                    ).map(([v, label]) => (
-                      <button
-                        key={v}
-                        type="button"
-                        onClick={() => chooseTopView(v)}
-                        // Inline colours: the frosted theme overrides bg-slate-900, which left
-                        // the active option white-on-white.
-                        style={topView === v ? { backgroundColor: "#0f172a", color: "#ffffff" } : undefined}
-                        className={
-                          topView === v
-                            ? "rounded-full px-3 py-1 font-medium"
-                            : "rounded-full px-3 py-1 text-slate-600 hover:text-slate-900"
-                        }
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                  <span className="ml-2 text-xs text-slate-500">Cards</span>
-                  <PillToggle value={cardTone} options={CARD_TONE_OPTIONS} onChange={chooseCardTone} />
-                </div>
-                {cardToneError ? <p className="text-xs text-rose-500">{cardToneError}</p> : null}
-                {topViewError ? <p className="text-xs text-rose-500">{topViewError}</p> : null}
               </div>
             ) : (
               <SnapshotHeader
@@ -1347,7 +1289,83 @@ export default function AthleteDetailPage() {
               />
             )}
 
-            <div className="mt-6">
+            <SectionJumpNav />
+
+            {/* Staff-only settings for what the athlete sees: closed by default so it
+                doesn't push the results down the page. */}
+            <details className="group mt-4 rounded-2xl border border-slate-800 bg-slate-900/40 px-5 py-3">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 [&::-webkit-details-marker]:hidden">
+                <span className="flex flex-wrap items-baseline gap-2">
+                  <span className="text-sm font-semibold uppercase tracking-wide text-lime-300">
+                    Report settings
+                  </span>
+                  <span className="text-xs text-slate-500">what this athlete sees</span>
+                </span>
+                <span className="flex shrink-0 items-center gap-2 text-xs text-slate-400">
+                  <span className="hidden sm:inline">
+                    {dashboardMode === "performance"
+                      ? `${topView === "dials" ? "Team ranking" : "Score rings"} · `
+                      : ""}
+                    {cardTone === "dark" ? "Dark" : "Light"} cards
+                  </span>
+                  <span aria-hidden className="group-open:hidden">▼</span>
+                  <span aria-hidden className="hidden group-open:inline">▲</span>
+                </span>
+              </summary>
+              <div className="mt-3 space-y-3 border-t border-slate-800 pt-4">
+                <div className="flex flex-wrap items-center gap-3">
+                  {dashboardMode === "performance" ? (
+                    <>
+                      <span className="text-xs text-slate-500">Athlete sees</span>
+                      <div className="inline-flex rounded-full bg-white p-1 text-xs shadow-[0_1px_4px_rgba(0,0,0,0.06)] ring-1 ring-slate-200">
+                        {(
+                          [
+                            ["rings", "Score rings"],
+                            ["dials", "Team ranking"],
+                          ] as const
+                        ).map(([v, label]) => (
+                          <button
+                            key={v}
+                            type="button"
+                            onClick={() => chooseTopView(v)}
+                            // Inline colours: the frosted theme overrides bg-slate-900, which left
+                            // the active option white-on-white.
+                            style={topView === v ? { backgroundColor: "#0f172a", color: "#ffffff" } : undefined}
+                            className={
+                              topView === v
+                                ? "rounded-full px-3 py-1 font-medium"
+                                : "rounded-full px-3 py-1 text-slate-600 hover:text-slate-900"
+                            }
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  ) : null}
+                  <span className="text-xs text-slate-500">Cards</span>
+                  <PillToggle value={cardTone} options={CARD_TONE_OPTIONS} onChange={chooseCardTone} />
+                </div>
+                {cardToneError ? <p className="text-xs text-rose-500">{cardToneError}</p> : null}
+                {topViewError ? <p className="text-xs text-rose-500">{topViewError}</p> : null}
+                <ReportBuilder
+                  sessions={filteredSessions}
+                  visibility={visibility}
+                  criteria={criteria}
+                  hopTests={filteredHopTests}
+                  onToggle={handleReportToggle}
+                  onSetCriterion={handleSetCriterion}
+                  onSetCutoff={handleSetCutoff}
+                  onSetClinicDefault={handleSetClinicDefault}
+                  defaultOpen
+                />
+              </div>
+            </details>
+
+            <div
+              id={dashboardMode !== "performance" ? "overview" : undefined}
+              className="mt-6 scroll-mt-28"
+            >
               {dashboardMode !== "performance" ? <TeamRankDials athleteId={id} /> : null}
               {protocolActive ? (
                 <p className="mt-2 text-xs text-slate-500">
@@ -1364,14 +1382,6 @@ export default function AthleteDetailPage() {
                 </p>
               ) : null}
             </div>
-
-            {dashboardMode !== "performance" ? (
-              <div className="mt-6 flex flex-wrap items-center justify-end gap-3">
-                <span className="text-xs text-slate-500">Athlete sees cards</span>
-                <PillToggle value={cardTone} options={CARD_TONE_OPTIONS} onChange={chooseCardTone} />
-                {cardToneError ? <span className="text-xs text-rose-500">{cardToneError}</span> : null}
-              </div>
-            ) : null}
 
             {perfDataLoading && !viewData ? (
               <p className="mt-6 text-xs text-slate-400">Loading athlete view…</p>
@@ -1411,19 +1421,6 @@ export default function AthleteDetailPage() {
               </p>
               <div className="h-px flex-1 bg-slate-800" />
             </div>
-
-            <SectionJumpNav sectionsWithData={sectionsWithData} />
-
-            <ReportBuilder
-              sessions={filteredSessions}
-              visibility={visibility}
-              criteria={criteria}
-              hopTests={filteredHopTests}
-              onToggle={handleReportToggle}
-              onSetCriterion={handleSetCriterion}
-              onSetCutoff={handleSetCutoff}
-              onSetClinicDefault={handleSetClinicDefault}
-            />
 
             <DateRangeBar
               rangeStart={rangeStart}
@@ -1638,7 +1635,7 @@ export default function AthleteDetailPage() {
             ) : null}
 
             {/* ── Sessions (collapsed by default so a long history doesn't dominate the page) ── */}
-            <details className="group mt-10">
+            <details id="sessions" className="group mt-10 scroll-mt-28">
               <summary className="flex cursor-pointer items-center justify-between gap-2 list-none [&::-webkit-details-marker]:hidden">
                 <span className="flex items-center gap-2">
                   <h2 className="text-sm font-semibold uppercase tracking-wide text-lime-300">
