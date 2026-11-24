@@ -1,8 +1,24 @@
-import { Document, Font, Image, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
+import {
+  Circle,
+  Document,
+  Font,
+  Image,
+  Page,
+  Polyline,
+  Svg,
+  Text,
+  View,
+  StyleSheet,
+} from "@react-pdf/renderer";
 import PdfGroupedBarChart from "@/components/athletes/pdf/charts/PdfGroupedBarChart";
 import PdfLineChart from "@/components/athletes/pdf/charts/PdfLineChart";
 import PdfRankDials, { type PdfRankDial } from "@/components/athletes/pdf/charts/PdfRankDials";
-import type { CompareTone, DayCompareTest, DayComparisonData } from "@/lib/dayComparison";
+import type {
+  CompareTest,
+  CompareTone,
+  DayComparisonData,
+  LsiBand,
+} from "@/lib/dayComparison";
 import type { PdfReportCharts } from "@/lib/pdfReportChartData";
 import type { AthleteSnapshot } from "@/lib/athleteSnapshot";
 import type { SummaryCategory } from "@/lib/performanceSummary";
@@ -267,10 +283,9 @@ const styles = StyleSheet.create({
   colMetric: { width: "38%" },
   colBest: { width: "28%" },
   colDate: { width: "34%" },
-  cmpMetric: { width: "32%" },
-  cmpVal: { width: "20%" },
-  cmpChg: { width: "17%" },
-  cmpPct: { width: "11%" },
+  cmpMetric: { width: "24%" },
+  cmpTrend: { width: "10%", justifyContent: "center" },
+  cmpChg: { width: "14%" },
   cmpNote: { fontSize: 7.5, color: "#6b7280", marginBottom: 4 },
   cmpIntro: { fontSize: 8, color: "#6b7280", marginBottom: 6, paddingLeft: 9 },
   // tests-included columns
@@ -734,42 +749,106 @@ const CMP_TONE_COLOR: Record<CompareTone, string> = {
   na: "#9ca3af",
 };
 
+const CMP_LSI: Record<LsiBand, { bg: string; fg: string }> = {
+  good: { bg: "#dcfce7", fg: "#15803d" },
+  watch: { bg: "#fef3c7", fg: "#b45309" },
+  poor: { bg: "#fee2e2", fg: "#b91c1c" },
+};
+
+function PdfSparkline({ values, tone }: { values: (number | null)[]; tone: CompareTone }) {
+  const pts = values.flatMap((v, i) => (v == null ? [] : [{ i, v }]));
+  if (pts.length < 2) return <Text style={styles.tdMono}>{"\u2014"}</Text>;
+  const W = 40;
+  const H = 12;
+  const pad = 2;
+  const min = Math.min(...pts.map((p) => p.v));
+  const max = Math.max(...pts.map((p) => p.v));
+  const span = max - min || 1;
+  const step = values.length > 1 ? (W - pad * 2) / (values.length - 1) : 0;
+  const xy = pts.map((p) => ({
+    x: pad + p.i * step,
+    y: max === min ? H / 2 : H - pad - ((p.v - min) / span) * (H - pad * 2),
+  }));
+  const last = xy[xy.length - 1]!;
+  const color = CMP_TONE_COLOR[tone] === CMP_TONE_COLOR.na ? "#9ca3af" : CMP_TONE_COLOR[tone];
+  return (
+    <Svg width={W} height={H} viewBox={`0 0 ${W} ${H}`}>
+      <Polyline
+        points={xy.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ")}
+        fill="none"
+        stroke={color}
+        strokeWidth={1.2}
+      />
+      <Circle cx={last.x} cy={last.y} r={1.5} fill={color} />
+    </Svg>
+  );
+}
+
 function CompareTable({
   title,
   test,
-  labelA,
-  labelB,
+  dayLabels,
+  changeLabel,
 }: {
   title: string;
-  test: DayCompareTest;
-  labelA: string;
-  labelB: string;
+  test: CompareTest;
+  dayLabels: string[];
+  changeLabel: string;
 }) {
   if (test.rows.length === 0) return null;
-  const onlyOn =
-    test.presence === "a_only" ? labelA : test.presence === "b_only" ? labelB : null;
+  const dayWidth = `${(52 / Math.max(dayLabels.length, 1)).toFixed(2)}%`;
   return (
     <View style={styles.tableCard} wrap={false}>
       <Text style={styles.tableCardTitle}>{title}</Text>
-      {onlyOn ? <Text style={styles.cmpNote}>{`Only tested on ${onlyOn}`}</Text> : null}
+      {test.daysTested < 2 ? (
+        <Text style={styles.cmpNote}>Only tested on one of these days</Text>
+      ) : null}
       {test.note ? <Text style={styles.cmpNote}>{test.note}</Text> : null}
       <View style={styles.tableHeader}>
         <Text style={[styles.cmpMetric, styles.th]}>Metric</Text>
-        <Text style={[styles.cmpVal, styles.th]}>{labelA}</Text>
-        <Text style={[styles.cmpVal, styles.th]}>{labelB}</Text>
-        <Text style={[styles.cmpChg, styles.th]}>Change</Text>
-        <Text style={[styles.cmpPct, styles.th]}>%</Text>
+        {dayLabels.map((l) => (
+          <Text key={l} style={[{ width: dayWidth }, styles.th]}>
+            {l}
+          </Text>
+        ))}
+        <Text style={[styles.cmpTrend, styles.th]}>Trend</Text>
+        <Text style={[styles.cmpChg, styles.th]}>{changeLabel}</Text>
       </View>
       {test.rows.map((r, i) => (
         <View key={r.id} style={i % 2 === 0 ? styles.row : styles.rowAlt}>
           <Text style={[styles.cmpMetric, styles.td]}>{r.label}</Text>
-          <Text style={[styles.cmpVal, styles.tdMono]}>{r.va}</Text>
-          <Text style={[styles.cmpVal, styles.tdMono]}>{r.vb}</Text>
+          {r.cells.map((c, ci) => {
+            const band = r.lsiBands?.[ci] ?? null;
+            const best = ci === r.bestIdx ? { fontWeight: 700 as const } : {};
+            return (
+              <View key={ci} style={{ width: dayWidth }}>
+                {band ? (
+                  <Text
+                    style={[
+                      styles.tdMono,
+                      best,
+                      {
+                        backgroundColor: CMP_LSI[band].bg,
+                        color: CMP_LSI[band].fg,
+                        alignSelf: "flex-start",
+                        paddingHorizontal: 3,
+                        borderRadius: 2,
+                      },
+                    ]}
+                  >
+                    {c}
+                  </Text>
+                ) : (
+                  <Text style={[styles.tdMono, best]}>{c}</Text>
+                )}
+              </View>
+            );
+          })}
+          <View style={styles.cmpTrend}>
+            <PdfSparkline values={r.values} tone={r.tone} />
+          </View>
           <Text style={[styles.cmpChg, styles.tdMono, { color: CMP_TONE_COLOR[r.tone] }]}>
             {r.change}
-          </Text>
-          <Text style={[styles.cmpPct, styles.tdMono, { color: CMP_TONE_COLOR[r.tone] }]}>
-            {r.pct}
           </Text>
         </View>
       ))}
@@ -941,14 +1020,16 @@ export default function AthletePdfDocument({
           <SectionCommentBlock comment={sectionComments.linear} />
         ) : null}
 
-        {/* DATE COMPARISON mode keeps its existing table-only layout. */}
+        {/* TEST DAY COMPARISON mode: table-only layout, one card per test. */}
         {mode === "date_comparison" && dc ? (
           <>
             <Text style={styles.sectionBanner}>
-              {`Test Day Comparison \u2014 ${dc.labelA} vs ${dc.labelB}`}
+              {`Test Day Comparison \u2014 ${dc.labels[0]} to ${dc.labels[dc.labels.length - 1]}`}
             </Text>
             <Text style={styles.cmpIntro}>
-              {`Best result of each day. Change is ${dc.labelB} compared with ${dc.labelA}. Green = improved, red = declined.`}
+              {`Best result of each day, oldest first. Bold = best value in the row. Change is the latest result compared with ${
+                dc.reference === "baseline" ? "the first result" : "the result before it"
+              }. Green = improved, red = declined. LSI: green 90%+, amber 80\u201390%, red under 80%.`}
             </Text>
             {dc.groups.flatMap((group) =>
               group.tests.map((test) => (
@@ -960,8 +1041,8 @@ export default function AthletePdfDocument({
                       : `${group.title.toUpperCase()} \u2014 ${test.title.toUpperCase()}`
                   }
                   test={test}
-                  labelA={dc.labelA}
-                  labelB={dc.labelB}
+                  dayLabels={dc.shortLabels}
+                  changeLabel={dc.reference === "baseline" ? "Since baseline" : "Since previous"}
                 />
               ))
             )}

@@ -1,6 +1,6 @@
 /**
- * Test-day comparison: pick two test days for one athlete and compare every
- * test done on them, side by side.
+ * Test-day comparison: pick up to six test days for one athlete and compare
+ * every test done on them, side by side.
  *
  * Rules
  * - A "test day" is a calendar date (session_date, first 10 chars).
@@ -13,7 +13,8 @@
  * - 1080 reps are grouped by what the rep actually was (sprint vs change of
  *   direction), not by the session label, because one 1080 session often
  *   holds both. See repKinds1080.
- * - Results are always shown earlier day first; change = later - earlier.
+ * - Days are shown oldest first. Change = latest result vs the first result
+ *   ("baseline") or vs the result before it ("previous").
  */
 import { hopTestDisplayName, type ReportHopTestRow } from "@/lib/athleteReportData";
 import {
@@ -400,7 +401,14 @@ function parseHawkinsName(
       continue;
     }
     if (redundant?.test(t)) continue;
-    tokens.push(t.charAt(0).toUpperCase() + t.slice(1));
+    // Body position is tagged inconsistently ("…-Left-Prone", "…-Prone-Right",
+    // "Seated Knee Extension"), so isometrics ignore it, as the dashboard does.
+    const name =
+      family === "isometric"
+        ? t.replace(/\b(prone|supine|seated|standing)\b/gi, " ").replace(/\s+/g, " ").trim()
+        : t;
+    if (!name) continue;
+    tokens.push(name.charAt(0).toUpperCase() + name.slice(1));
   }
   if (sawLeft && sawRight) {
     // "Left-Right" describes the protocol, not a single side.
@@ -501,84 +509,63 @@ export function listTestDays(index: DayIndex): TestDayOption[] {
 
 // ─── Comparison ──────────────────────────────────────────────────────────────
 
+/** Most test days shown side by side (keeps the PDF readable). */
+export const MAX_COMPARE_DAYS = 6;
+
+/** "baseline" = first result vs latest; "previous" = the result before the latest vs latest. */
+export type CompareReference = "baseline" | "previous";
+
 export type CompareTone = "better" | "worse" | "same" | "na";
 
-export type DayCompareRow = {
+/** LSI bands, same cut-offs as the dashboard (90 / 80). */
+export type LsiBand = "good" | "watch" | "poor";
+
+export type CompareRow = {
   id: string;
+  /** Includes the unit, e.g. "Jump height (cm)". Cells are numbers only. */
   label: string;
-  a: number | null;
-  b: number | null;
-  va: string;
-  vb: string;
+  values: (number | null)[];
+  cells: string[];
+  /** Index of the best value in the row (null when fewer than 2 values). */
+  bestIdx: number | null;
+  /** e.g. "+3.8 · +11.5%" or "+5.3 pts" */
   change: string;
-  pct: string;
   tone: CompareTone;
+  higherBetter: boolean;
+  /** Set on LSI rows: band per day. */
+  lsiBands: (LsiBand | null)[] | null;
 };
 
-export type DayCompareTest = {
+export type CompareTest = {
   key: string;
   title: string;
-  /** e.g. which 1080 protocols were used, when they differ between the days */
+  /** e.g. COD session labels that differ between days */
   note: string | null;
-  presence: "both" | "a_only" | "b_only";
-  rows: DayCompareRow[];
+  /** How many of the selected days this test was done on. */
+  daysTested: number;
+  rows: CompareRow[];
 };
 
-export type DayCompareGroup = {
+export type CompareGroup = {
   family: CompareFamily;
   title: string;
-  tests: DayCompareTest[];
+  tests: CompareTest[];
 };
 
 export type DayComparisonData = {
-  /** Always the earlier day. */
-  dateA: string;
-  /** Always the later day. */
-  dateB: string;
-  labelA: string;
-  labelB: string;
-  groups: DayCompareGroup[];
+  /** Selected days, oldest first. */
+  dates: string[];
+  /** dd/mm/yyyy per day */
+  labels: string[];
+  /** dd/mm/yy per day, for narrow columns */
+  shortLabels: string[];
+  reference: CompareReference;
+  groups: CompareGroup[];
 };
 
-function withUnit(text: string, unit: string): string {
-  if (!unit) return text;
-  return unit === "%" ? `${text}%` : `${text} ${unit}`;
-}
-
-function fmtValue(v: number, digits: number, unit: string): string {
-  return withUnit(v.toFixed(digits), unit);
-}
-
-function buildRow(
-  id: string,
-  label: string,
-  a: number | null,
-  b: number | null,
-  digits: number,
-  unit: string,
-  higherBetter: boolean,
-  changeUnit = unit,
-  withPct = true
-): DayCompareRow {
-  const va = a != null ? fmtValue(a, digits, unit) : "—";
-  const vb = b != null ? fmtValue(b, digits, unit) : "—";
-  if (a == null || b == null) {
-    return { id, label, a, b, va, vb, change: "—", pct: "—", tone: "na" };
-  }
-  const diff = b - a;
-  const shown = Number(diff.toFixed(digits));
-  if (shown === 0) {
-    return { id, label, a, b, va, vb, change: "0", pct: withPct ? "0%" : "—", tone: "same" };
-  }
-  const sign = diff > 0 ? "+" : "-";
-  const change = withUnit(`${sign}${Math.abs(diff).toFixed(digits)}`, changeUnit);
-  let pct = "—";
-  if (withPct && a !== 0) {
-    const p = (diff / Math.abs(a)) * 100;
-    pct = `${p > 0 ? "+" : "-"}${Math.abs(p).toFixed(1)}%`;
-  }
-  const better = higherBetter ? diff > 0 : diff < 0;
-  return { id, label, a, b, va, vb, change, pct, tone: better ? "better" : "worse" };
+function lsiBand(v: number | null): LsiBand | null {
+  if (v == null) return null;
+  return v >= 90 ? "good" : v >= 80 ? "watch" : "poor";
 }
 
 function lsi(l: number | undefined, r: number | undefined): number | null {
@@ -588,47 +575,92 @@ function lsi(l: number | undefined, r: number | undefined): number | null {
   return (Math.min(l, r) / hi) * 100;
 }
 
+function buildRow(
+  id: string,
+  label: string,
+  values: (number | null)[],
+  digits: number,
+  higherBetter: boolean,
+  reference: CompareReference,
+  isLsi = false
+): CompareRow {
+  const cells = values.map((v) => (v == null ? "—" : isLsi ? `${v.toFixed(1)}%` : v.toFixed(digits)));
+  const present = values.flatMap((v, i) => (v == null ? [] : [i]));
+
+  let bestIdx: number | null = null;
+  if (present.length >= 2) {
+    for (const i of present) {
+      const v = values[i]!;
+      if (bestIdx == null || (higherBetter ? v > values[bestIdx]! : v < values[bestIdx]!)) bestIdx = i;
+    }
+  }
+
+  const base = { id, label, values, cells, bestIdx, higherBetter, lsiBands: isLsi ? values.map(lsiBand) : null };
+  if (present.length < 2) return { ...base, change: "—", tone: "na" };
+
+  const to = values[present[present.length - 1]!]!;
+  const from = values[reference === "baseline" ? present[0]! : present[present.length - 2]!]!;
+  const diff = to - from;
+  if (Number(diff.toFixed(isLsi ? 1 : digits)) === 0) {
+    return { ...base, change: isLsi ? "0 pts" : "0 · 0%", tone: "same" };
+  }
+  const sign = diff > 0 ? "+" : "-";
+  let change: string;
+  if (isLsi) {
+    change = `${sign}${Math.abs(diff).toFixed(1)} pts`;
+  } else {
+    const pct = from !== 0 ? ` · ${sign}${Math.abs((diff / from) * 100).toFixed(1)}%` : "";
+    change = `${sign}${Math.abs(diff).toFixed(digits)}${pct}`;
+  }
+  const better = higherBetter ? diff > 0 : diff < 0;
+  return { ...base, change, tone: better ? "better" : "worse" };
+}
+
+function unitLabel(label: string, unit: string): string {
+  return unit ? `${label} (${unit})` : label;
+}
+
 function compareTest(
-  tdA: TestDay | undefined,
-  tdB: TestDay | undefined,
-  labelA: string,
-  labelB: string
-): DayCompareTest {
-  const base = (tdA ?? tdB)!;
+  tds: (TestDay | undefined)[],
+  labels: string[],
+  reference: CompareReference
+): CompareTest {
+  const base = tds.find((t) => t != null)!;
   const specs = SPECS[base.family];
-  const ra = resolve(tdA);
-  const rb = resolve(tdB);
-  const rows: DayCompareRow[] = [];
+  const resolved = tds.map((t) => resolve(t));
+  const rows: CompareRow[] = [];
   let lsiSpec: MetricSpec | null = null;
 
   for (const s of specs) {
     for (const side of SIDES) {
-      const a = ra.get(`${s.id}|${side}`) ?? null;
-      const b = rb.get(`${s.id}|${side}`) ?? null;
-      if (a == null && b == null) continue;
-      const label = side === "both" ? s.label : `${s.label} · ${side === "left" ? "L" : "R"}`;
-      rows.push(buildRow(`${s.id}|${side}`, label, a, b, s.digits, s.unit, s.higherBetter));
+      const values = resolved.map((r) => r.get(`${s.id}|${side}`) ?? null);
+      if (values.every((v) => v == null)) continue;
+      const name = side === "both" ? s.label : `${s.label} ${side === "left" ? "L" : "R"}`;
+      rows.push(
+        buildRow(`${s.id}|${side}`, unitLabel(name, s.unit), values, s.digits, s.higherBetter, reference)
+      );
     }
     if (!lsiSpec && s.higherBetter) {
-      const pairA = ra.has(`${s.id}|left`) && ra.has(`${s.id}|right`);
-      const pairB = rb.has(`${s.id}|left`) && rb.has(`${s.id}|right`);
-      if (pairA || pairB) lsiSpec = s;
+      if (resolved.some((r) => r.has(`${s.id}|left`) && r.has(`${s.id}|right`))) lsiSpec = s;
     }
   }
 
   if (lsiSpec) {
     const id = lsiSpec.id;
-    const a = lsi(ra.get(`${id}|left`), ra.get(`${id}|right`));
-    const b = lsi(rb.get(`${id}|left`), rb.get(`${id}|right`));
-    rows.push(buildRow(`lsi|${id}`, `LSI · ${lsiSpec.label}`, a, b, 1, "%", true, "pts", false));
+    const values = resolved.map((r) => lsi(r.get(`${id}|left`), r.get(`${id}|right`)));
+    rows.push(buildRow(`lsi|${id}`, `LSI (${lsiSpec.label.toLowerCase()})`, values, 1, true, reference, true));
   }
 
   let note: string | null = null;
-  if (tdA && tdB && base.family === "cod") {
-    const la = [...tdA.labels].sort().join(", ");
-    const lb = [...tdB.labels].sort().join(", ");
-    if (la.toLowerCase() !== lb.toLowerCase()) {
-      note = `Session labels differ (${labelA}: ${la}; ${labelB}: ${lb}), so times may not be like for like.`;
+  if (base.family === "cod") {
+    const perDay = tds.flatMap((t, i) =>
+      t ? [{ label: labels[i]!, names: [...t.labels].sort().join(", ") }] : []
+    );
+    const distinct = new Set(perDay.map((d) => d.names.toLowerCase()));
+    if (distinct.size > 1) {
+      note = `Session labels differ (${perDay
+        .map((d) => `${d.label}: ${d.names}`)
+        .join("; ")}), so times may not be like for like.`;
     }
   }
 
@@ -636,43 +668,51 @@ function compareTest(
     key: base.key,
     title: base.title,
     note,
-    presence: tdA && tdB ? "both" : tdA ? "a_only" : "b_only",
+    daysTested: tds.filter((t) => t != null).length,
     rows,
   };
 }
 
+/** Compare any number of test days (oldest first in the result). */
 export function compareTestDays(
   index: DayIndex,
-  date1: string,
-  date2: string
+  dates: string[],
+  reference: CompareReference = "baseline"
 ): DayComparisonData {
-  const [dateA, dateB] = date1 <= date2 ? [date1, date2] : [date2, date1];
-  const labelA = formatTestDay(dateA);
-  const labelB = formatTestDay(dateB);
-  const dayA = index.get(dateA) ?? new Map<string, TestDay>();
-  const dayB = index.get(dateB) ?? new Map<string, TestDay>();
+  const sorted = [...new Set(dates)].sort();
+  const labels = sorted.map(formatTestDay);
+  const shortLabels = labels.map((l) => (l.length === 10 ? `${l.slice(0, 6)}${l.slice(8)}` : l));
+  const days = sorted.map((d) => index.get(d) ?? new Map<string, TestDay>());
 
-  const byFamily = new Map<CompareFamily, DayCompareTest[]>();
-  const keys = new Set<string>([...dayA.keys(), ...dayB.keys()]);
+  const keys = new Set<string>();
+  for (const day of days) for (const k of day.keys()) keys.add(k);
+
+  const byFamily = new Map<CompareFamily, CompareTest[]>();
   for (const key of keys) {
-    const t = compareTest(dayA.get(key), dayB.get(key), labelA, labelB);
+    const tds = days.map((day) => day.get(key));
+    const t = compareTest(tds, labels, reference);
     if (t.rows.length === 0) continue;
-    const fam = (dayA.get(key) ?? dayB.get(key))!.family;
+    const fam = tds.find((x) => x != null)!.family;
     const list = byFamily.get(fam) ?? [];
     list.push(t);
     byFamily.set(fam, list);
   }
 
-  const groups: DayCompareGroup[] = [];
+  const groups: CompareGroup[] = [];
   for (const family of COMPARE_FAMILY_ORDER) {
     const tests = byFamily.get(family);
     if (!tests?.length) continue;
     tests.sort((x, y) => {
-      const px = x.presence === "both" ? 0 : 1;
-      const py = y.presence === "both" ? 0 : 1;
+      const px = x.daysTested >= 2 ? 0 : 1;
+      const py = y.daysTested >= 2 ? 0 : 1;
       return px - py || x.title.localeCompare(y.title);
     });
     groups.push({ family, title: COMPARE_FAMILY_TITLE[family], tests });
   }
-  return { dateA, dateB, labelA, labelB, groups };
+  return { dates: sorted, labels, shortLabels, reference, groups };
+}
+
+/** Default selection: the most recent test days, up to `count`. */
+export function defaultCompareDays(options: TestDayOption[], count = 4): string[] {
+  return options.slice(0, count).map((o) => o.date);
 }

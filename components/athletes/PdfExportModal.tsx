@@ -6,7 +6,13 @@ import {
   type ReportMetricRow,
   type ReportSessionRow,
 } from "@/lib/athleteReportData";
-import { buildDayIndex, listTestDays } from "@/lib/dayComparison";
+import {
+  MAX_COMPARE_DAYS,
+  buildDayIndex,
+  defaultCompareDays,
+  listTestDays,
+  type CompareReference,
+} from "@/lib/dayComparison";
 import {
   athleteDisplayName,
   downloadBlob,
@@ -52,8 +58,9 @@ export default function PdfExportModal({
   const [exportFrom, setExportFrom] = useState<string | null>(null);
   const [exportTo, setExportTo] = useState<string | null>(null);
   const [mode, setMode] = useState<"best" | "date_comparison">("best");
-  const [dateA, setDateA] = useState<string | null>(null);
-  const [dateB, setDateB] = useState<string | null>(null);
+  const [compareDays, setCompareDays] = useState<string[]>([]);
+  const [reference, setReference] = useState<CompareReference>("baseline");
+  const [includeSingleDayTests, setIncludeSingleDayTests] = useState(true);
   const [includeNotes, setIncludeNotes] = useState(false);
   const [includeTargets, setIncludeTargets] = useState(false);
   const [includeAnthropometry, setIncludeAnthropometry] = useState(true);
@@ -88,12 +95,21 @@ export default function PdfExportModal({
     [scopeSessions, metricsBySession, scopeHopTests]
   );
 
-  // Default: previous test day vs the latest one.
+  // Default: the last 4 test days in the export range.
   useEffect(() => {
     if (!open) return;
-    setDateB(dayOptions[0]?.date ?? null);
-    setDateA(dayOptions[1]?.date ?? dayOptions[0]?.date ?? null);
+    setCompareDays(defaultCompareDays(dayOptions));
   }, [open, dayOptions]);
+
+  const toggleCompareDay = (date: string) => {
+    setCompareDays((cur) =>
+      cur.includes(date)
+        ? cur.filter((d) => d !== date)
+        : cur.length >= MAX_COMPARE_DAYS
+          ? cur
+          : [...cur, date]
+    );
+  };
 
   const athleteName = athleteDisplayName(athlete);
 
@@ -104,8 +120,8 @@ export default function PdfExportModal({
       return;
     }
     if (mode === "date_comparison") {
-      if (!dateA || !dateB || dateA === dateB) {
-        setFormError("Choose two different test days to compare.");
+      if (compareDays.length < 2) {
+        setFormError("Tick at least two test days to compare.");
         return;
       }
     }
@@ -133,8 +149,9 @@ export default function PdfExportModal({
         visibility,
         criteria,
         mode,
-        dateA,
-        dateB,
+        compareDays,
+        reference,
+        includeSingleDayTests,
         includeNotes,
         includeTargets,
         includeAnthropometry,
@@ -148,8 +165,7 @@ export default function PdfExportModal({
         rangeStart: exportFrom,
         rangeEnd: exportTo,
         mode,
-        dateA,
-        dateB,
+        compareDays,
         includeNotes,
         summaryComment: trimmedComment,
       });
@@ -165,16 +181,17 @@ export default function PdfExportModal({
     athlete,
     athleteName,
     criteria,
-    dateA,
-    dateB,
+    compareDays,
     exportFrom,
     exportTo,
     includeAnthropometry,
     includeNotes,
+    includeSingleDayTests,
     includeTargets,
     metricsBySession,
     mode,
     onClose,
+    reference,
     scopeHopTests,
     scopeSessions,
     sectionComments,
@@ -244,41 +261,62 @@ export default function PdfExportModal({
                     : "border-slate-700 bg-slate-950 text-slate-500 hover:border-slate-600 hover:text-slate-400"
                 }`}
               >
-                Date comparison
+                Compare test days
               </button>
             </div>
           </div>
 
           {mode === "date_comparison" && (
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-3">
               <div>
-                <label className="block text-xs font-medium text-slate-400">Date A</label>
-                <select
-                  value={dateA ?? ""}
-                  onChange={(e) => setDateA(e.target.value || null)}
-                  className={inputClass}
-                >
-                  {dayOptions.map((o) => (
-                    <option key={o.date} value={o.date}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
+                <p className="text-xs font-medium text-slate-400">
+                  Test days <span className="font-normal text-slate-500">(2 to {MAX_COMPARE_DAYS})</span>
+                </p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {[...dayOptions].reverse().map((o) => {
+                    const on = compareDays.includes(o.date);
+                    return (
+                      <button
+                        key={o.date}
+                        type="button"
+                        title={o.summary}
+                        aria-pressed={on}
+                        onClick={() => toggleCompareDay(o.date)}
+                        className={`rounded-lg border px-2.5 py-1 text-left text-xs transition-colors ${
+                          on ? "border-lime-400 bg-lime-400/15 text-lime-300" : "border-slate-700 bg-slate-950 text-slate-500 hover:border-slate-600 hover:text-slate-400"
+                        }`}
+                      >
+                        <span className="block font-medium">{o.label.split(" · ")[0]}</span>
+                        <span className="block text-[10px] opacity-80">{o.summary}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-400">Date B</label>
-                <select
-                  value={dateB ?? ""}
-                  onChange={(e) => setDateB(e.target.value || null)}
-                  className={inputClass}
-                >
-                  {dayOptions.map((o) => (
-                    <option key={o.date} value={o.date}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <span className="text-slate-400">Change compared with</span>
+                {(["baseline", "previous"] as const).map((r) => (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => setReference(r)}
+                    className={`rounded-full border px-3 py-1 font-medium transition-colors ${
+                      reference === r ? "border-lime-400 bg-lime-400/15 text-lime-300" : "border-slate-700 bg-slate-950 text-slate-500 hover:border-slate-600 hover:text-slate-400"
+                    }`}
+                  >
+                    {r === "baseline" ? "Baseline (first day)" : "Previous test"}
+                  </button>
+                ))}
               </div>
+              <label className="flex cursor-pointer items-center gap-2 text-xs text-slate-300">
+                <input
+                  type="checkbox"
+                  checked={includeSingleDayTests}
+                  onChange={(e) => setIncludeSingleDayTests(e.target.checked)}
+                  className="rounded border-slate-600 bg-slate-950 text-lime-500 focus:ring-lime-500/40"
+                />
+                Include tests done on only one of these days
+              </label>
             </div>
           )}
 

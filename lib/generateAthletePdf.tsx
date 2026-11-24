@@ -5,7 +5,7 @@ import {
   type ReportMetricRow,
   type ReportSessionRow,
 } from "@/lib/athleteReportData";
-import { buildDayIndex, compareTestDays } from "@/lib/dayComparison";
+import { buildDayIndex, compareTestDays, type CompareReference } from "@/lib/dayComparison";
 import {
   buildPdfReportCharts,
   type MetricRowWithSide,
@@ -59,9 +59,12 @@ export type GenerateAthletePdfInput = {
   visibility: ReportVisibility;
   criteria: CriteriaResolver;
   mode: "best" | "date_comparison";
-  /** Test days (YYYY-MM-DD) to compare in "date_comparison" mode. */
-  dateA?: string | null;
-  dateB?: string | null;
+  /** Test days (YYYY-MM-DD) to compare in "date_comparison" mode (2 to 6). */
+  compareDays?: string[];
+  /** What the change column is measured against. */
+  reference?: CompareReference;
+  /** Include tests done on only one of the compared days (default true). */
+  includeSingleDayTests?: boolean;
   includeNotes: boolean;
   includeTargets: boolean;
   includeAnthropometry: boolean;
@@ -117,8 +120,7 @@ export async function logPdfReport(args: {
   rangeStart: string | null;
   rangeEnd: string | null;
   mode: "best" | "date_comparison";
-  dateA?: string | null;
-  dateB?: string | null;
+  compareDays?: string[];
   includeNotes: boolean;
   summaryComment: string;
 }): Promise<void> {
@@ -129,8 +131,8 @@ export async function logPdfReport(args: {
     date_range_end: args.rangeEnd || null,
     mode: args.mode,
     specific_dates:
-      args.mode === "date_comparison" && args.dateA && args.dateB
-        ? [args.dateA, args.dateB].sort()
+      args.mode === "date_comparison" && args.compareDays?.length
+        ? [...args.compareDays].sort()
         : [],
     include_notes: args.includeNotes,
     summary_comment: args.summaryComment || null,
@@ -157,8 +159,9 @@ export async function generateAthletePdfBlob(
     includeAnthropometry,
     summaryComment,
   } = input;
-  const dateA = input.dateA ?? null;
-  const dateB = input.dateB ?? null;
+  const compareDays = input.compareDays ?? [];
+  const reference = input.reference ?? "baseline";
+  const includeSingleDayTests = input.includeSingleDayTests ?? true;
 
   const athleteName = athleteDisplayName(athlete);
   // Matches app/dashboard/athletes/[id]/page.tsx's derivation: READINESS
@@ -233,10 +236,23 @@ export async function generateAthletePdfBlob(
     }
   }
 
-  const dateComparisonData =
-    mode === "date_comparison" && dateA && dateB
-      ? compareTestDays(buildDayIndex(scopeSessions, metricsBySession, scopeHopTests), dateA, dateB)
+  const fullComparison =
+    mode === "date_comparison" && compareDays.length >= 2
+      ? compareTestDays(
+          buildDayIndex(scopeSessions, metricsBySession, scopeHopTests),
+          compareDays,
+          reference
+        )
       : undefined;
+  const dateComparisonData =
+    fullComparison && !includeSingleDayTests
+      ? {
+          ...fullComparison,
+          groups: fullComparison.groups
+            .map((g) => ({ ...g, tests: g.tests.filter((t) => t.daysTested >= 2) }))
+            .filter((g) => g.tests.length > 0),
+        }
+      : fullComparison;
 
   return pdf(
     <AthletePdfDocument

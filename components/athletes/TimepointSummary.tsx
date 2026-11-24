@@ -8,11 +8,14 @@ import {
   type ReportSessionRow,
 } from "@/lib/athleteReportData";
 import {
+  MAX_COMPARE_DAYS,
   buildDayIndex,
   compareTestDays,
-  formatTestDay,
+  defaultCompareDays,
   listTestDays,
+  type CompareReference,
   type CompareTone,
+  type LsiBand,
 } from "@/lib/dayComparison";
 
 export type SummarySessionRow = ReportSessionRow;
@@ -32,11 +35,53 @@ const TONE_CLASS: Record<CompareTone, string> = {
   na: "text-slate-500",
 };
 
+const TONE_STROKE: Record<CompareTone, string> = {
+  better: "#a3e635",
+  worse: "#fb7185",
+  same: "#64748b",
+  na: "#64748b",
+};
+
+const LSI_CHIP: Record<LsiBand, string> = {
+  good: "bg-emerald-500/15 text-emerald-400",
+  watch: "bg-amber-500/15 text-amber-400",
+  poor: "bg-rose-500/15 text-rose-400",
+};
+
+/** Tiny trend line across the selected days; gaps (untested days) are skipped. */
+function Sparkline({ values, tone }: { values: (number | null)[]; tone: CompareTone }) {
+  const pts = values.flatMap((v, i) => (v == null ? [] : [{ i, v }]));
+  if (pts.length < 2) return <span className="text-slate-600">—</span>;
+  const W = 72;
+  const H = 20;
+  const pad = 3;
+  const min = Math.min(...pts.map((p) => p.v));
+  const max = Math.max(...pts.map((p) => p.v));
+  const span = max - min || 1;
+  const step = values.length > 1 ? (W - pad * 2) / (values.length - 1) : 0;
+  const xy = pts.map((p) => ({
+    x: pad + p.i * step,
+    y: max === min ? H / 2 : H - pad - ((p.v - min) / span) * (H - pad * 2),
+  }));
+  const last = xy[xy.length - 1]!;
+  return (
+    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} aria-hidden="true">
+      <polyline
+        points={xy.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ")}
+        fill="none"
+        stroke={TONE_STROKE[tone]}
+        strokeWidth={1.5}
+      />
+      <circle cx={last.x} cy={last.y} r={2} fill={TONE_STROKE[tone]} />
+    </svg>
+  );
+}
+
 export default function TimepointSummary({ sessions, metricsBySession, hopTests }: Props) {
   const [mode, setMode] = useState<"best" | "compare">("best");
-  const [pickedA, setDateA] = useState<string | null>(null);
-  const [pickedB, setDateB] = useState<string | null>(null);
-
+  const [pickedDays, setPickedDays] = useState<string[] | null>(null);
+  const [reference, setReference] = useState<CompareReference>("baseline");
+  const [limitHit, setLimitHit] = useState(false);
   const [showSingleDay, setShowSingleDay] = useState(true);
 
   const dayIndex = useMemo(
@@ -45,11 +90,24 @@ export default function TimepointSummary({ sessions, metricsBySession, hopTests 
   );
   const dayOptions = useMemo(() => listTestDays(dayIndex), [dayIndex]);
 
-  // Default: previous test day vs the latest one. A pick that falls outside
-  // the current date range falls back to the default.
-  const isOption = (d: string | null) => d != null && dayOptions.some((o) => o.date === d);
-  const dateB = isOption(pickedB) ? pickedB : (dayOptions[0]?.date ?? null);
-  const dateA = isOption(pickedA) ? pickedA : (dayOptions[1]?.date ?? dayOptions[0]?.date ?? null);
+  // Default: the last 4 test days. Picks outside the current date range drop out.
+  const selectedDays = useMemo(() => {
+    if (!pickedDays) return defaultCompareDays(dayOptions);
+    const valid = new Set(dayOptions.map((o) => o.date));
+    return pickedDays.filter((d) => valid.has(d));
+  }, [pickedDays, dayOptions]);
+
+  const toggleDay = (date: string) => {
+    if (selectedDays.includes(date)) {
+      setPickedDays(selectedDays.filter((d) => d !== date));
+      setLimitHit(false);
+    } else if (selectedDays.length >= MAX_COMPARE_DAYS) {
+      setLimitHit(true);
+    } else {
+      setPickedDays([...selectedDays, date]);
+      setLimitHit(false);
+    }
+  };
 
   const bestInRange = useMemo(
     () => computeBestInRangeData(sessions, metricsBySession, hopTests),
@@ -60,10 +118,10 @@ export default function TimepointSummary({ sessions, metricsBySession, hopTests 
 
   const compareData = useMemo(
     () =>
-      mode === "compare" && dateA && dateB && dateA !== dateB
-        ? compareTestDays(dayIndex, dateA, dateB)
+      mode === "compare" && selectedDays.length >= 2
+        ? compareTestDays(dayIndex, selectedDays, reference)
         : null,
-    [mode, dayIndex, dateA, dateB]
+    [mode, dayIndex, selectedDays, reference]
   );
 
   const showLinearBest = bestLinear.length > 0;
@@ -74,11 +132,11 @@ export default function TimepointSummary({ sessions, metricsBySession, hopTests 
   const compareGroups = (compareData?.groups ?? [])
     .map((g) => ({
       ...g,
-      tests: showSingleDay ? g.tests : g.tests.filter((t) => t.presence === "both"),
+      tests: showSingleDay ? g.tests : g.tests.filter((t) => t.daysTested >= 2),
     }))
     .filter((g) => g.tests.length > 0);
   const singleDayCount = (compareData?.groups ?? []).reduce(
-    (n, g) => n + g.tests.filter((t) => t.presence !== "both").length,
+    (n, g) => n + g.tests.filter((t) => t.daysTested < 2).length,
     0
   );
 
@@ -111,7 +169,7 @@ export default function TimepointSummary({ sessions, metricsBySession, hopTests 
                 : "border-slate-700 bg-slate-900/60 text-slate-500 hover:border-slate-600 hover:text-slate-400"
             }`}
           >
-            Date comparison
+            Compare test days
           </button>
         </div>
       </div>
@@ -238,34 +296,51 @@ export default function TimepointSummary({ sessions, metricsBySession, hopTests 
 
       {mode === "compare" && (
         <div className="mt-4 space-y-6">
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-3">
             <div>
-              <label className="block text-xs font-medium text-slate-400">Date A</label>
-              <select
-                value={dateA ?? ""}
-                onChange={(e) => setDateA(e.target.value || null)}
-                className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-200"
-              >
-                {dayOptions.map((o) => (
-                  <option key={o.date} value={o.date}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
+              <p className="text-xs font-medium text-slate-400">
+                Test days <span className="font-normal text-slate-500">(up to {MAX_COMPARE_DAYS})</span>
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {[...dayOptions].reverse().map((o) => {
+                  const on = selectedDays.includes(o.date);
+                  return (
+                    <button
+                      key={o.date}
+                      type="button"
+                      title={o.summary}
+                      aria-pressed={on}
+                      onClick={() => toggleDay(o.date)}
+                      className={`rounded-lg border px-3 py-1.5 text-left text-xs transition-colors ${
+                        on ? "border-lime-400 bg-lime-400/15 text-lime-300" : "border-slate-700 bg-slate-900/60 text-slate-500 hover:border-slate-600 hover:text-slate-400"
+                      }`}
+                    >
+                      <span className="block font-medium">{o.label.split(" · ")[0]}</span>
+                      <span className="block text-[10px] opacity-80">{o.summary}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              {limitHit ? (
+                <p className="mt-2 text-xs text-amber-400">
+                  Up to {MAX_COMPARE_DAYS} days at once. Untick one to add another.
+                </p>
+              ) : null}
             </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-400">Date B</label>
-              <select
-                value={dateB ?? ""}
-                onChange={(e) => setDateB(e.target.value || null)}
-                className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-200"
-              >
-                {dayOptions.map((o) => (
-                  <option key={o.date} value={o.date}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span className="text-slate-400">Change compared with</span>
+              {(["baseline", "previous"] as const).map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  onClick={() => setReference(r)}
+                  className={`rounded-full border px-3 py-1 font-medium transition-colors ${
+                    reference === r ? "border-lime-400 bg-lime-400/15 text-lime-300" : "border-slate-700 bg-slate-900/60 text-slate-500 hover:border-slate-600 hover:text-slate-400"
+                  }`}
+                >
+                  {r === "baseline" ? "Baseline (first day)" : "Previous test"}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -274,13 +349,12 @@ export default function TimepointSummary({ sessions, metricsBySession, hopTests 
               Only one test day in the selected range. Widen the date range to compare.
             </p>
           ) : !compareData ? (
-            <p className="text-xs text-slate-500">Pick two different test days.</p>
+            <p className="text-xs text-slate-500">Tick at least two test days.</p>
           ) : (
             <>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-xs text-slate-500">
-                  Best result of each day. Change is {compareData.labelB} compared with{" "}
-                  {compareData.labelA}.
+                  Best result of each day, oldest first. Best value in each row is in bold.
                 </p>
                 {singleDayCount > 0 ? (
                   <label className="flex cursor-pointer items-center gap-2 text-xs text-slate-400">
@@ -302,17 +376,14 @@ export default function TimepointSummary({ sessions, metricsBySession, hopTests 
                   <div className="space-y-3">
                     {group.tests.map((test) => (
                       <div key={test.key}>
-                        {test.title !== group.title || test.presence !== "both" ? (
+                        {test.title !== group.title || test.daysTested < 2 ? (
                           <div className="mt-2 flex flex-wrap items-center gap-2">
                             {test.title !== group.title ? (
                               <p className="text-xs font-medium text-slate-300">{test.title}</p>
                             ) : null}
-                            {test.presence !== "both" ? (
+                            {test.daysTested < 2 ? (
                               <span className="rounded-full border border-slate-700 px-2 py-0.5 text-[10px] text-slate-500">
-                                Only tested on{" "}
-                                {test.presence === "a_only"
-                                  ? compareData.labelA
-                                  : compareData.labelB}
+                                Only tested on one of these days
                               </span>
                             ) : null}
                           </div>
@@ -321,27 +392,49 @@ export default function TimepointSummary({ sessions, metricsBySession, hopTests 
                           <p className="mt-1 text-[11px] text-amber-400/80">{test.note}</p>
                         ) : null}
                         <div className={tableWrap}>
-                          <table className="w-full min-w-[480px] text-left text-xs">
+                          <table className="w-full min-w-[560px] text-left text-xs">
                             <thead>
                               <tr className="border-b border-slate-800 bg-slate-900/60 text-slate-500">
                                 <th className="px-3 py-2 font-medium">Metric</th>
-                                <th className="px-3 py-2 font-medium">{compareData.labelA}</th>
-                                <th className="px-3 py-2 font-medium">{compareData.labelB}</th>
-                                <th className="px-3 py-2 font-medium">Change</th>
-                                <th className="px-3 py-2 font-medium">%</th>
+                                {compareData.labels.map((l) => (
+                                  <th key={l} className="px-2 py-2 font-medium">
+                                    {l}
+                                  </th>
+                                ))}
+                                <th className="px-2 py-2 font-medium">Trend</th>
+                                <th className="px-3 py-2 font-medium">
+                                  {reference === "baseline" ? "Since baseline" : "Since previous"}
+                                </th>
                               </tr>
                             </thead>
                             <tbody className="text-slate-200">
                               {test.rows.map((r) => (
                                 <tr key={r.id} className="border-b border-slate-800/80">
                                   <td className="px-3 py-2 text-slate-400">{r.label}</td>
-                                  <td className="px-3 py-2 font-mono">{r.va}</td>
-                                  <td className="px-3 py-2 font-mono">{r.vb}</td>
-                                  <td className={`px-3 py-2 font-mono ${TONE_CLASS[r.tone]}`}>
-                                    {r.change}
+                                  {r.cells.map((c, i) => {
+                                    const band = r.lsiBands?.[i] ?? null;
+                                    return (
+                                      <td
+                                        key={i}
+                                        className={`px-2 py-2 font-mono ${
+                                          i === r.bestIdx ? "font-semibold text-slate-50" : ""
+                                        }`}
+                                      >
+                                        {band ? (
+                                          <span className={`rounded px-1.5 py-0.5 ${LSI_CHIP[band]}`}>
+                                            {c}
+                                          </span>
+                                        ) : (
+                                          c
+                                        )}
+                                      </td>
+                                    );
+                                  })}
+                                  <td className="px-2 py-2">
+                                    <Sparkline values={r.values} tone={r.tone} />
                                   </td>
-                                  <td className={`px-3 py-2 font-mono ${TONE_CLASS[r.tone]}`}>
-                                    {r.pct}
+                                  <td className={`whitespace-nowrap px-3 py-2 font-mono ${TONE_CLASS[r.tone]}`}>
+                                    {r.change}
                                   </td>
                                 </tr>
                               ))}
@@ -356,8 +449,7 @@ export default function TimepointSummary({ sessions, metricsBySession, hopTests 
 
               {compareGroups.length === 0 ? (
                 <p className="text-xs text-slate-500">
-                  No tests in common between {formatTestDay(compareData.dateA)} and{" "}
-                  {formatTestDay(compareData.dateB)}.
+                  No test was done on more than one of the ticked days.
                 </p>
               ) : null}
             </>
