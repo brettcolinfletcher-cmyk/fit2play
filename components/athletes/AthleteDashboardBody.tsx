@@ -422,8 +422,8 @@ export default function AthleteDashboardBody({
         {show.cmj && cmjRows.length > 0 && <CmjTrendPanel rows={cmjRows} />}
         {show.drop_jump && djRows.length > 0 && <DjTrendPanel rows={djRows} />}
         {show.drop_jump_single && slDjRows.length > 0 && <SlDjTrendPanel rows={slDjRows} />}
-        {show.dynamometry && <DynamometryTrendPanel rows={dynamometryRows} />}
         {show.hop_tests && <HopJumpTrendPanel rows={hopJumpRows} />}
+        {show.dynamometry && <DynamometryTrendPanel rows={dynamometryRows} />}
       </div>
     </>
   );

@@ -12,12 +12,15 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type MouseEv
 type NavItem = { id: string; label: string; group: "view" | "detail" };
 
 const NAV_ITEMS: NavItem[] = [
-  { id: "overview", label: "Overview", group: "view" },
+  // Summary sections (clinician view; overview/latest/trends also in athlete view)
+  { id: "overview", label: "Status", group: "view" },
   { id: "latest", label: "Latest results", group: "view" },
+  { id: "summary", label: "Compare", group: "view" },
+  { id: "targets", label: "Targets", group: "view" },
   { id: "trends", label: "Trends", group: "view" },
-  { id: "sprint-reps", label: "Sprint reps", group: "view" },
-  { id: "summary", label: "Compare days", group: "detail" },
+  // Detail, in the one test order used everywhere: speed, COD, jumps, hops, strength
   { id: "linear", label: "Sprint", group: "detail" },
+  { id: "sprint-reps", label: "Sprint reps", group: "detail" },
   { id: "cod", label: "COD", group: "detail" },
   { id: "cmj", label: "CMJ", group: "detail" },
   { id: "drop_jump", label: "Drop jump", group: "detail" },

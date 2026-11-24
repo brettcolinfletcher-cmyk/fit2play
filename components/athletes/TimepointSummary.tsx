@@ -23,6 +23,8 @@ export type SummaryMetricRow = ReportMetricRow;
 export type SummaryHopTestRow = ReportHopTestRow;
 
 type Props = {
+  /** Which view opens first (default: compare test days). */
+  defaultMode?: "best" | "compare";
   sessions: SummarySessionRow[];
   metricsBySession: Map<string, SummaryMetricRow[]>;
   hopTests: SummaryHopTestRow[];
@@ -77,8 +79,13 @@ function Sparkline({ values, tone }: { values: (number | null)[]; tone: CompareT
   );
 }
 
-export default function TimepointSummary({ sessions, metricsBySession, hopTests }: Props) {
-  const [mode, setMode] = useState<"best" | "compare">("best");
+export default function TimepointSummary({
+  sessions,
+  metricsBySession,
+  hopTests,
+  defaultMode = "compare",
+}: Props) {
+  const [mode, setMode] = useState<"best" | "compare">(defaultMode);
   const [pickedDays, setPickedDays] = useState<string[] | null>(null);
   const [reference, setReference] = useState<CompareReference>("baseline");
   const [limitHit, setLimitHit] = useState(false);
@@ -146,20 +153,9 @@ export default function TimepointSummary({ sessions, metricsBySession, hopTests 
     <div id="summary" className="scroll-mt-28 mt-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-lime-300">
-          Time-point summary
+          Compare
         </h2>
         <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => setMode("best")}
-            className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
-              mode === "best"
-                ? "border-lime-400 bg-lime-400/15 text-lime-300"
-                : "border-slate-700 bg-slate-900/60 text-slate-500 hover:border-slate-600 hover:text-slate-400"
-            }`}
-          >
-            Best in range
-          </button>
           <button
             type="button"
             onClick={() => setMode("compare")}
@@ -170,6 +166,17 @@ export default function TimepointSummary({ sessions, metricsBySession, hopTests 
             }`}
           >
             Compare test days
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("best")}
+            className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+              mode === "best"
+                ? "border-lime-400 bg-lime-400/15 text-lime-300"
+                : "border-slate-700 bg-slate-900/60 text-slate-500 hover:border-slate-600 hover:text-slate-400"
+            }`}
+          >
+            Best in range
           </button>
         </div>
       </div>

@@ -35,6 +35,7 @@ import SnapshotHeader from "@/components/athletes/SnapshotHeader";
 import PerformanceSummaryGrid from "@/components/athletes/PerformanceSummaryGrid";
 import SprintPerformanceCharts from "@/components/athletes/SprintPerformanceCharts";
 import TimepointSummary from "@/components/athletes/TimepointSummary";
+import LatestResultsByDay from "@/components/athletes/LatestResultsByDay";
 import AthleteDashboardBody, {
   parseAthleteViewData,
   type AthleteViewData,
@@ -549,6 +550,9 @@ export default function AthleteDetailPage() {
   const [rangeStart, setRangeStart] = useState<string | null>(null);
   const [rangeEnd, setRangeEnd] = useState<string | null>(null);
   const [pdfModalOpen, setPdfModalOpen] = useState(false);
+  // Clinician view (results, compare, targets, detail) vs a preview of exactly
+  // what the athlete sees on their own page.
+  const [pageView, setPageView] = useState<"clinician" | "athlete">("clinician");
   const [lrPending, setLrPending] = useState<Set<string>>(() => new Set());
   const [lrSaveError, setLrSaveError] = useState<string | null>(null);
   const [visibility, setVisibility] = useState<ReportVisibility>(ALL_VISIBLE);
@@ -1360,6 +1364,61 @@ export default function AthleteDetailPage() {
               />
             )}
 
+            {/* ── View bar: which view, and the filters that apply to the whole page ── */}
+            <div className="mt-6 flex flex-col gap-3 rounded-2xl border border-slate-800 bg-slate-900/40 px-5 py-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex flex-wrap items-center gap-2">
+                {(
+                  [
+                    ["clinician", "Clinician view"],
+                    ["athlete", "Athlete view"],
+                  ] as const
+                ).map(([v, label]) => (
+                  <button
+                    key={v}
+                    type="button"
+                    aria-pressed={pageView === v}
+                    onClick={() => setPageView(v)}
+                    className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                      pageView === v
+                        ? "border-lime-400 bg-lime-400/15 text-lime-300"
+                        : "border-slate-700 bg-slate-900/60 text-slate-500 hover:border-slate-600 hover:text-slate-400"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+                {pageView === "athlete" ? (
+                  <span className="text-xs text-slate-500">
+                    Exactly what {athlete.first_name ?? "the athlete"} sees on their own page.
+                  </span>
+                ) : protocolActive ? (
+                  <span className="text-xs text-slate-500">
+                    {showAllTests
+                      ? "All tests."
+                      : `${protocol?.protocolName ?? "Protocol"}${protocol?.modified ? " (modified)" : ""} tests only.`}{" "}
+                    <button
+                      type="button"
+                      onClick={() => setShowAllTests((v) => !v)}
+                      className="text-lime-600 hover:underline"
+                    >
+                      {showAllTests ? "Show protocol tests only" : "Show all tests"}
+                    </button>
+                  </span>
+                ) : null}
+              </div>
+              {pageView === "clinician" ? (
+                <DateRangeBar
+                  bare
+                  rangeStart={rangeStart}
+                  rangeEnd={rangeEnd}
+                  onChange={(s, e) => {
+                    setRangeStart(s);
+                    setRangeEnd(e);
+                  }}
+                />
+              ) : null}
+            </div>
+
             <SectionJumpNav />
 
             {/* Staff-only settings for what the athlete sees: closed by default so it
@@ -1374,9 +1433,7 @@ export default function AthleteDetailPage() {
                 </span>
                 <span className="flex shrink-0 items-center gap-2 text-xs text-slate-400">
                   <span className="hidden sm:inline">
-                    {dashboardMode === "performance"
-                      ? `${topView === "dials" ? "Team ranking" : "Score rings"} · `
-                      : ""}
+                    {`${topView === "dials" ? "Team ranking" : "Score rings"} · `}
                     {cardTone === "dark" ? "Dark" : "Light"} cards
                   </span>
                   <span aria-hidden className="group-open:hidden">▼</span>
@@ -1385,8 +1442,7 @@ export default function AthleteDetailPage() {
               </summary>
               <div className="mt-3 space-y-3 border-t border-slate-800 pt-4">
                 <div className="flex flex-wrap items-center gap-3">
-                  {dashboardMode === "performance" ? (
-                    <>
+                  <>
                       <span className="text-xs text-slate-500">Athlete sees</span>
                       <div className="inline-flex rounded-full bg-white p-1 text-xs shadow-[0_1px_4px_rgba(0,0,0,0.06)] ring-1 ring-slate-200">
                         {(
@@ -1412,8 +1468,7 @@ export default function AthleteDetailPage() {
                           </button>
                         ))}
                       </div>
-                    </>
-                  ) : null}
+                  </>
                   <span className="text-xs text-slate-500">Cards</span>
                   <PillToggle value={cardTone} options={CARD_TONE_OPTIONS} onChange={chooseCardTone} />
                 </div>
@@ -1432,81 +1487,59 @@ export default function AthleteDetailPage() {
                 />
               </div>
             </details>
+            {pageView === "clinician" ? (
+              <>
+                {/* ── Status ── */}
+                <div id="overview" className="mt-6 scroll-mt-28">
+                  <TeamRankDials athleteId={id} />
+                </div>
 
-            <div
-              id={dashboardMode !== "performance" ? "overview" : undefined}
-              className="mt-6 scroll-mt-28"
-            >
-              {dashboardMode !== "performance" ? <TeamRankDials athleteId={id} /> : null}
-              {protocolActive ? (
-                <p className="mt-2 text-xs text-slate-500">
-                  {showAllTests
-                    ? "Showing all tests."
-                    : `Showing ${protocol?.protocolName ?? "protocol"}${protocol?.modified ? " (modified)" : ""} tests only.`}{" "}
-                  <button
-                    type="button"
-                    onClick={() => setShowAllTests((v) => !v)}
-                    className="text-lime-600 hover:underline"
-                  >
-                    {showAllTests ? "Show protocol tests only" : "Show all tests"}
-                  </button>
-                </p>
-              ) : null}
-            </div>
+                {/* ── Latest results: latest test day vs the previous one, per test ── */}
+                <LatestResultsByDay
+                  sessions={filteredSessions}
+                  metricsBySession={metricsBySession}
+                  hopTests={filteredHopTests}
+                />
 
-            {perfDataLoading && !viewData ? (
-              <p className="mt-6 text-xs text-slate-400">Loading athlete view…</p>
-            ) : null}
+                {/* ── Compare test days ── */}
+                <div className="mt-10">
+                  <TimepointSummary
+                    sessions={filteredSessions}
+                    metricsBySession={metricsBySession}
+                    hopTests={filteredHopTests}
+                  />
+                </div>
 
-            {/* Everything from the top panel down to the longitudinal trends is the same
-                component the athlete's own page renders, filtered by the same settings.
-                Editable versions of the top panel (ranking controls) and the performance
-                summary (target profile, note) slot in. */}
-            {viewData ? (
-              <AthleteDashboardBody
-                data={viewData}
-                settings={viewSettings}
-                topView={topView}
-                cardTone={cardTone}
-                topPanel={
-                  dashboardMode !== "performance"
-                    ? null
-                    : topView === "dials"
-                      ? <TeamRankDials athleteId={id} />
-                      : undefined
-                }
-                performanceSummary={performanceSummaryGrid}
-              />
+                {/* ── Targets ── */}
+                <div id="targets" className="mt-10 scroll-mt-28">
+                  <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-lime-300">Targets</h2>
+                  {performanceSummaryGrid}
+                </div>
+
+                <div className="mt-12 flex items-center gap-4">
+                  <div className="h-px flex-1 bg-slate-800" />
+                  <p className="text-[0.62rem] uppercase tracking-widest text-slate-500">
+                    Trends and detail
+                  </p>
+                  <div className="h-px flex-1 bg-slate-800" />
+                </div>
+              </>
             ) : (
-              <div className="mt-6">{performanceSummaryGrid}</div>
+              <>
+                {perfDataLoading && !viewData ? (
+                  <p className="mt-6 text-xs text-slate-400">Loading athlete view…</p>
+                ) : null}
+                {/* The same component, settings and data the athlete's own page uses. */}
+                {viewData ? (
+                  <AthleteDashboardBody
+                    data={viewData}
+                    settings={viewSettings}
+                    topView={topView}
+                    cardTone={cardTone}
+                  />
+                ) : null}
+              </>
             )}
-
-            <div className="mt-6">
-              <SprintPerformanceCharts athleteId={id} />
-            </div>
-
-            <div className="mt-12 flex items-center gap-4">
-              <div className="h-px flex-1 bg-slate-800" />
-              <p className="text-[0.62rem] uppercase tracking-widest text-slate-500">
-                Practitioner tools &amp; detail
-              </p>
-              <div className="h-px flex-1 bg-slate-800" />
-            </div>
-
-            <DateRangeBar
-              rangeStart={rangeStart}
-              rangeEnd={rangeEnd}
-              onChange={(s, e) => {
-                setRangeStart(s);
-                setRangeEnd(e);
-              }}
-            />
-
-            <TimepointSummary
-              sessions={filteredSessions}
-              metricsBySession={metricsBySession}
-              hopTests={filteredHopTests}
-            />
 
             <PdfExportModal
               open={pdfModalOpen}
@@ -1522,6 +1555,8 @@ export default function AthleteDetailPage() {
               criteria={criteria}
             />
 
+            {pageView === "clinician" ? (
+              <>
             {/* ── Linear sprint trends (1080) ── */}
             {has1080Charts && hasLinearSprint && visibility.isSectionVisible("linear") && inProtocol("linear") && (
               <section id="linear" className="scroll-mt-28 mt-8">
@@ -1569,6 +1604,11 @@ export default function AthleteDetailPage() {
                 />
               </section>
             )}
+
+            {/* ── Sprint per-rep charts (1080), part of the sprint detail ── */}
+            <div className="mt-6">
+              <SprintPerformanceCharts athleteId={id} />
+            </div>
 
             {/* ── COD trends (5-0-5 / 5-10-5) ── */}
             {has505 && visibility.isSectionVisible("cod") && inProtocol("cod") && (
@@ -1751,6 +1791,8 @@ export default function AthleteDetailPage() {
                 )}
               </div>
             </details>
+              </>
+            ) : null}
           </>
         ) : null}
       </section>

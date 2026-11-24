@@ -8,6 +8,8 @@ type Props = {
   rangeStart: string | null;
   rangeEnd: string | null;
   onChange: (start: string | null, end: string | null) => void;
+  /** No card of its own (when it sits inside another bar). */
+  bare?: boolean;
 };
 
 function toYmd(d: Date): string {
@@ -37,7 +39,7 @@ const PRESETS: { id: Preset; label: string }[] = [
   { id: "1y", label: "1y" },
 ];
 
-export default function DateRangeBar({ rangeStart, rangeEnd, onChange }: Props) {
+export default function DateRangeBar({ rangeStart, rangeEnd, onChange, bare = false }: Props) {
   const activePreset = useMemo((): Preset | null => {
     if (rangeStart == null && rangeEnd == null) return "all";
     if (rangeEnd != null) return null;
@@ -61,7 +63,11 @@ export default function DateRangeBar({ rangeStart, rangeEnd, onChange }: Props) 
   }
 
   return (
-    <div className="mt-4 flex flex-col gap-3 rounded-xl border border-slate-800 bg-slate-900/40 px-4 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+    <div
+      className={`flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between ${
+        bare ? "" : "mt-4 rounded-xl border border-slate-800 bg-slate-900/40 px-4 py-3"
+      }`}
+    >
       <div className="flex flex-wrap gap-2">
         {PRESETS.map(({ id, label }) => {
           const on = activePreset === id;

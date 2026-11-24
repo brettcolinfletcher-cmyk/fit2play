@@ -35,6 +35,7 @@ export type CompareFamily =
   | "isometric"
   | "hop";
 
+/** One test order used everywhere: speed, COD, jumps, hops, strength. */
 export const COMPARE_FAMILY_ORDER: CompareFamily[] = [
   "sprint",
   "cod",
@@ -42,8 +43,8 @@ export const COMPARE_FAMILY_ORDER: CompareFamily[] = [
   "cmj",
   "dj",
   "force_plate",
-  "isometric",
   "hop",
+  "isometric",
 ];
 
 export const COMPARE_FAMILY_TITLE: Record<CompareFamily, string> = {
@@ -716,3 +717,95 @@ export function compareTestDays(
 export function defaultCompareDays(options: TestDayOption[], count = 4): string[] {
   return options.slice(0, count).map((o) => o.date);
 }
+
+// ─── Latest results ──────────────────────────────────────────────────────────
+
+/** Headline metrics per family for the latest-results cards. */
+const HEADLINE_SPECS: Record<CompareFamily, string[]> = {
+  sprint: ["top_speed", "split_10", "split_0_5"],
+  cod: ["total_time", "decel_max"],
+  speed_other: ["top_speed", "split_0_5"],
+  cmj: ["jump_height", "mrsi"],
+  dj: ["rsi", "contact_time"],
+  force_plate: ["rsi", "jump_height"],
+  hop: ["distance"],
+  isometric: ["peak_force"],
+};
+
+export type LatestResultCard = {
+  family: CompareFamily;
+  familyTitle: string;
+  key: string;
+  title: string;
+  latestDate: string;
+  latestLabel: string;
+  /** Previous day this test was done, if any. */
+  prevLabel: string | null;
+  note: string | null;
+  /** cells = [previous, latest] (or [latest] when there is no previous day). */
+  rows: CompareRow[];
+};
+
+/**
+ * For every test: the latest test day it was done vs the previous day it was
+ * done, headline metrics only. Same engine (best of day, same grouping) as
+ * Compare test days, so the two always agree.
+ */
+export function latestResults(index: DayIndex): LatestResultCard[] {
+  const datesDesc = [...index.keys()].sort((a, b) => b.localeCompare(a));
+  const seen = new Map<string, string[]>();
+  for (const d of datesDesc) {
+    for (const key of index.get(d)!.keys()) {
+      const list = seen.get(key) ?? [];
+      if (list.length < 2) list.push(d);
+      seen.set(key, list);
+    }
+  }
+
+  const cards: LatestResultCard[] = [];
+  for (const [key, dates] of seen) {
+    const [latest, prev] = dates as [string, string | undefined];
+    const days = prev ? [prev, latest] : [latest];
+    const labels = days.map(formatTestDay);
+    const tds = days.map((d) => index.get(d)!.get(key));
+    const test = compareTest(tds, labels, "baseline");
+    const family = tds[tds.length - 1]!.family;
+    const wanted = HEADLINE_SPECS[family];
+    const rows = test.rows
+      .filter((r) => {
+        const [specId, side] = r.id.split("|");
+        if (specId === "lsi") return wanted.includes(side!);
+        return wanted.includes(specId!);
+      })
+      .sort((a, b) => {
+        const ia = wanted.indexOf(a.id.startsWith("lsi|") ? a.id.split("|")[1]! : a.id.split("|")[0]!);
+        const ib = wanted.indexOf(b.id.startsWith("lsi|") ? b.id.split("|")[1]! : b.id.split("|")[0]!);
+        const la = a.id.startsWith("lsi|") ? 1 : 0;
+        const lb = b.id.startsWith("lsi|") ? 1 : 0;
+        return ia - ib || la - lb;
+      })
+      .filter((r) => r.values[r.values.length - 1] != null);
+    if (rows.length === 0) continue;
+    cards.push({
+      family,
+      familyTitle: COMPARE_FAMILY_TITLE[family],
+      key,
+      title: test.title,
+      latestDate: latest,
+      latestLabel: labels[labels.length - 1]!,
+      prevLabel: prev ? labels[0]! : null,
+      note: test.note,
+      rows,
+    });
+  }
+
+  const order = new Map(COMPARE_FAMILY_ORDER.map((f, i) => [f, i]));
+  cards.sort(
+    (a, b) =>
+      order.get(a.family)! - order.get(b.family)! ||
+      b.latestDate.localeCompare(a.latestDate) ||
+      a.title.localeCompare(b.title)
+  );
+  return cards;
+}
+
