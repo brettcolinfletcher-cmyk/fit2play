@@ -1,6 +1,7 @@
 import { Buffer } from "node:buffer";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { insertSyncLog } from "./syncLog";
+import { syncExternalTeams, type ExternalMembership } from "./externalTeams";
 
 const MOTION_BASE = "https://publicapi.1080motion.com";
 const MAX_TIME_SERIES_SAMPLES = 2000;
@@ -647,6 +648,39 @@ export async function runMotion1080Sync(
       );
       if (upErr) errors.push(`athlete ${extId}: ${upErr.message}`);
       else await fillWeightIfEmpty();
+    }
+
+    // ── 1b. Groups → teams (add-only; never fails the sync) ────────────────
+    try {
+      const memberships: ExternalMembership[] = [];
+      const groupNames = new Map<string, string>();
+      let sampleLogged = false;
+      for (const raw of motionAthletes) {
+        if (!raw || typeof raw !== "object") continue;
+        const r = raw as Record<string, unknown>;
+        if (r.id == null) continue;
+        const g = r.group;
+        if (!sampleLogged && g != null) {
+          console.log("[1080 sync] teams: sample group value:", JSON.stringify({ group: g, groupId: r.groupId }).slice(0, 300));
+          sampleLogged = true;
+        }
+        const gObj = g && typeof g === "object" ? (g as { id?: unknown; name?: unknown }) : null;
+        const gName = typeof g === "string" ? g : typeof gObj?.name === "string" ? gObj.name : null;
+        const gId =
+          r.groupId != null && r.groupId !== "" ? String(r.groupId) : gObj?.id != null ? String(gObj.id) : null;
+        if (!gId || !gName) continue;
+        groupNames.set(gId, gName);
+        memberships.push({ athleteExtId: String(r.id), teamExtId: gId });
+      }
+      const teamRes = await syncExternalTeams(
+        supabase,
+        "1080",
+        [...groupNames].map(([extId, name]) => ({ extId, name })),
+        memberships
+      );
+      console.log("[1080 sync] teams:", JSON.stringify(teamRes));
+    } catch (e) {
+      console.warn("[1080 sync] teams: skipped:", e instanceof Error ? e.message : e);
     }
 
     // ── 2. List sessions ──────────────────────────────────────────────────────

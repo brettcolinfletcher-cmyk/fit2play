@@ -21,6 +21,9 @@ const RETEST_WEEK_OPTIONS = [4, 6, 8, 10, 12, 13, 16, 26];
 
 type ProtocolLite = { id: string; name: string };
 
+type ExternalLink = { team_id: string; source: "hawkins" | "1080"; external_name: string | null };
+const SOURCE_LABEL: Record<ExternalLink["source"], string> = { hawkins: "Hawkins", "1080": "1080" };
+
 type AthleteLite = {
   id: string;
   first_name: string | null;
@@ -66,17 +69,22 @@ export default function TeamsPage() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [reportTeam, setReportTeam] = useState<Team | null>(null);
+  const [links, setLinks] = useState<ExternalLink[]>([]);
+  const [mergeFromId, setMergeFromId] = useState<string | null>(null);
+  const [mergeIntoId, setMergeIntoId] = useState("");
+  const [merging, setMerging] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const [tRes, atRes, aRes, pRes] = await Promise.all([
+    const [tRes, atRes, aRes, pRes, lRes] = await Promise.all([
       supabase.from("teams").select("id, name, sport, created_at, protocol_id, level, retest_interval_weeks").order("name"),
       supabase
         .from("athlete_teams")
         .select("team_id, athlete_id, athletes(id, first_name, last_name)"),
       supabase.from("athletes").select("id, first_name, last_name").neq("status", "archived").order("last_name"),
       supabase.from("test_protocols").select("id, name").order("sort_order"),
+      supabase.from("team_external_ids").select("team_id, source, external_name"),
     ]);
     if (tRes.error) {
       setError(tRes.error.message);
@@ -97,6 +105,7 @@ export default function TeamsPage() {
     setAthleteTeams((atRes.data ?? []) as AthleteTeamRow[]);
     setAllAthletes((aRes.data ?? []) as AthleteLite[]);
     setProtocols((pRes.data ?? []) as ProtocolLite[]);
+    setLinks((lRes.data ?? []) as ExternalLink[]);
     setLoading(false);
   }, []);
 
@@ -227,6 +236,20 @@ export default function TeamsPage() {
     }
   }
 
+  async function mergeTeams() {
+    if (!mergeFromId || !mergeIntoId) return;
+    setMerging(true);
+    const { error } = await supabase.rpc("merge_teams", { p_keep: mergeIntoId, p_drop: mergeFromId });
+    setMerging(false);
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    setMergeFromId(null);
+    setMergeIntoId("");
+    await load();
+  }
+
   async function deleteTeam(id: string) {
     const { error } = await supabase.from("teams").delete().eq("id", id);
     if (error) {
@@ -274,6 +297,7 @@ export default function TeamsPage() {
               const members = membersByTeamId.get(team.id) ?? [];
               const preview = members.slice(0, 2).map(athleteName).join(" · ");
               const more = members.length > 2 ? ` · +${members.length - 2} more` : "";
+              const teamLinks = links.filter((l) => l.team_id === team.id);
               return (
                 <div
                   key={team.id}
@@ -299,6 +323,14 @@ export default function TeamsPage() {
                           </>
                         )}
                       </p>
+                      {teamLinks.length ? (
+                        <p className="mt-1 text-[11px] text-slate-500">
+                          Synced from{" "}
+                          {teamLinks
+                            .map((l) => `${SOURCE_LABEL[l.source]}${l.external_name && l.external_name !== team.name ? ` (${l.external_name})` : ""}`)
+                            .join(", ")}
+                        </p>
+                      ) : null}
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                       {team.protocol_id ? (
@@ -335,7 +367,9 @@ export default function TeamsPage() {
                       </button>
                       {deleteConfirmId === team.id ? (
                         <span className="flex flex-wrap items-center gap-2">
-                          <span className="text-xs text-rose-300">Delete?</span>
+                          <span className="text-xs text-rose-300">
+                            {teamLinks.length ? "Delete? It comes back on the next sync. Merge it instead." : "Delete?"}
+                          </span>
                           <button
                             type="button"
                             onClick={() => void deleteTeam(team.id)}
@@ -352,16 +386,63 @@ export default function TeamsPage() {
                           </button>
                         </span>
                       ) : (
-                        <button
-                          type="button"
-                          onClick={() => setDeleteConfirmId(team.id)}
-                          className="text-xs text-slate-500 hover:text-rose-400"
-                        >
-                          Delete
-                        </button>
+                        <>
+                          {teams.length > 1 ? (
+                            <button
+                              type="button"
+                              onClick={() => { setMergeFromId(team.id); setMergeIntoId(""); }}
+                              className="text-xs text-slate-400 hover:text-lime-300"
+                            >
+                              Merge
+                            </button>
+                          ) : null}
+                          <button
+                            type="button"
+                            onClick={() => setDeleteConfirmId(team.id)}
+                            className="text-xs text-slate-500 hover:text-rose-400"
+                          >
+                            Delete
+                          </button>
+                        </>
                       )}
                     </div>
                   </div>
+                  {mergeFromId === team.id ? (
+                    <div className="mt-3 rounded-lg border border-slate-800 bg-slate-950/60 p-3">
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-slate-300">
+                        <span>Merge {team.name} into</span>
+                        <select
+                          value={mergeIntoId}
+                          onChange={(e) => setMergeIntoId(e.target.value)}
+                          className="rounded-lg border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-200"
+                        >
+                          <option value="">Pick a team…</option>
+                          {teams.filter((t) => t.id !== team.id).map((t) => (
+                            <option key={t.id} value={t.id}>{t.name}</option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          disabled={!mergeIntoId || merging}
+                          onClick={() => void mergeTeams()}
+                          className="rounded-lg border border-lime-400/50 px-2.5 py-1 font-medium text-lime-300 hover:bg-lime-400/10 disabled:opacity-40"
+                        >
+                          {merging ? "Merging…" : "Merge"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setMergeFromId(null); setMergeIntoId(""); }}
+                          className="text-slate-400 hover:text-slate-200"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                      <p className="mt-2 text-[11px] text-slate-500">
+                        Moves its athletes, bookings, invoices, GPS hires and sync links into the chosen team, then removes {team.name}.
+                        The chosen team keeps its own name and settings. This can&apos;t be undone.
+                      </p>
+                    </div>
+                  ) : null}
                 </div>
               );
             })

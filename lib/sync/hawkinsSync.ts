@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { insertSyncLog } from "./syncLog";
+import { syncExternalTeams, type ExternalMembership } from "./externalTeams";
 
 function splitAthleteName(name: string): { first_name: string; last_name: string } {
   const n = name.trim();
@@ -264,6 +265,51 @@ export async function runHawkinsSync(
           if (archErr) errors.push(`roster reconcile archive: ${archErr.message}`);
         }
       }
+    }
+
+    // ── Teams from Hawkins (add-only; never fails the sync) ─────────────────
+    try {
+      const memberships: ExternalMembership[] = [];
+      const teamNames = new Map<string, string>();
+      for (const raw of athleteList) {
+        const r = raw as { id?: unknown; teams?: unknown } | null;
+        if (!r || r.id == null || !Array.isArray(r.teams)) continue;
+        for (const t of r.teams) {
+          if (typeof t === "string" || typeof t === "number") {
+            memberships.push({ athleteExtId: String(r.id), teamExtId: String(t) });
+          } else if (t && typeof t === "object" && (t as { id?: unknown }).id != null) {
+            const o = t as { id: unknown; name?: unknown };
+            memberships.push({ athleteExtId: String(r.id), teamExtId: String(o.id) });
+            if (typeof o.name === "string") teamNames.set(String(o.id), o.name);
+          }
+        }
+      }
+      if (memberships.length) {
+        const tr = await fetch(`${apiBase}/teams`, { headers: authHeaders });
+        if (tr.ok) {
+          for (const t of normalizeHawkinsAthleteList(await tr.json())) {
+            const o = t as { id?: unknown; name?: unknown } | null;
+            if (o && o.id != null && typeof o.name === "string") teamNames.set(String(o.id), o.name);
+          }
+        } else {
+          console.warn(`[hawkins sync] teams: /teams ${tr.status}`);
+        }
+        const teamRes = await syncExternalTeams(
+          supabase,
+          "hawkins",
+          [...teamNames].map(([extId, name]) => ({ extId, name })),
+          memberships
+        );
+        console.log("[hawkins sync] teams:", JSON.stringify(teamRes));
+      } else {
+        const first = athleteList[0];
+        console.log(
+          "[hawkins sync] teams: athlete records carry no team list; keys:",
+          first && typeof first === "object" ? Object.keys(first).join(", ") : "none"
+        );
+      }
+    } catch (e) {
+      console.warn("[hawkins sync] teams: skipped:", e instanceof Error ? e.message : e);
     }
 
     let fromUnix: number;
