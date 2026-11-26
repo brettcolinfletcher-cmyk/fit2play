@@ -1246,6 +1246,9 @@ function EntryModal({
     setInfo(null);
     const startIso = toInstant(date, startMin);
     const endIso = toInstant(date, endMin);
+    // A new booking whose attendees or practitioners fail to save is removed again,
+    // so a failed Create never leaves an empty booking blocking the diary.
+    let createdId: string | null = null;
 
     try {
       if (kind === "appointment") {
@@ -1288,6 +1291,7 @@ function EntryModal({
           const res = await supabase.from("bookings").insert(payload).select("id").single();
           if (res.error) throw res.error;
           bookingId = res.data.id as string;
+          createdId = bookingId;
         }
 
         // attendees
@@ -1336,6 +1340,8 @@ function EntryModal({
           }
         }
 
+        createdId = null; // booking and attendees saved; later steps keep it
+
         // extra practitioners
         const wantExtras = [...new Set(extraPracs.filter((id) => id !== prac.id))];
         const { data: curBp } = await supabase.from("booking_practitioners").select("id, practitioner_id").eq("booking_id", bookingId);
@@ -1380,6 +1386,7 @@ function EntryModal({
       }
       onSaved();
     } catch (e) {
+      if (createdId) await supabase.from("bookings").delete().eq("id", createdId);
       const code = (e as { code?: string })?.code;
       const msg = (e as { message?: string })?.message ?? "Save failed";
       setErr(code === "23P01" || /bookings_no_overlap/.test(msg) ? "That time overlaps an existing booking." : msg);
