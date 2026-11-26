@@ -188,6 +188,8 @@ export async function invoiceBooking(bookingId: string, createdBy: string | null
   const ids: string[] = [];
   let skipped = 0;
   for (const a of attendees) {
+    // Players listed under a team are covered by the team's invoice.
+    if (a.team_id && (a.athlete_id || a.client_name)) continue;
     if (a.invoice_id || a.attendance === "cancelled") { skipped++; continue; }
     const team = one(a.teams);
     const name = team?.name ?? (nm(one(a.athletes)) || a.client_name || "Client");

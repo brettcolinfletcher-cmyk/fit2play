@@ -193,7 +193,7 @@ export async function getSlotsForDate(
   const dayStart = isoOf(dateStr, 0);
   const dayEnd = isoOf(addDaysStr(dateStr, 1), 0);
 
-  const [{ data: availability }, { data: exceptions }, { data: busyRows }, { data: blockRows }] =
+  const [{ data: availability }, { data: exceptions }, { data: busyRows }, { data: blockRows }, { data: extraRows }] =
     await Promise.all([
       admin
         .from("availability")
@@ -219,12 +219,23 @@ export async function getSlotsForDate(
         .eq("kind", "block")
         .lt("start_at", dayEnd)
         .gt("end_at", dayStart),
+      // bookings this practitioner joins as an extra practitioner
+      admin
+        .from("booking_practitioners")
+        .select("bookings!inner(start_at, end_at, status)")
+        .eq("practitioner_id", clinic.practitionerId)
+        .neq("bookings.status", "cancelled")
+        .gte("bookings.start_at", dayStart)
+        .lt("bookings.start_at", dayEnd),
     ]);
+  const extraBusy = (extraRows ?? [])
+    .map((r) => (Array.isArray(r.bookings) ? r.bookings[0] : r.bookings) as { start_at: string; end_at: string } | null)
+    .filter((b): b is { start_at: string; end_at: string } => !!b);
 
   const windows = windowsForDate(weekday, availability ?? [], exceptions ?? []);
   if (windows.length === 0) return [];
 
-  const busy = [...(busyRows ?? []), ...(blockRows ?? [])].map((b) => ({
+  const busy = [...(busyRows ?? []), ...(blockRows ?? []), ...extraBusy].map((b) => ({
     start: new Date(b.start_at as string).getTime(),
     end: new Date(b.end_at as string).getTime(),
   }));

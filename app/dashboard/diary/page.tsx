@@ -62,6 +62,7 @@ type BookingRow = {
   title: string | null;
   price_cents: number | null;
   booking_attendees: AttendeeRow[] | null;
+  booking_practitioners: { practitioner_id: string }[] | null;
 };
 type EventRow = {
   id: string;
@@ -269,11 +270,11 @@ export default function DiaryPage() {
     const rangeEnd = toInstant(addDays(days[days.length - 1], 1), 0);
     const ids = isAll ? activePracs.map((p) => p.id) : [pracId];
 
-    const [{ data: bk }, { data: ev }, { data: av }, { data: exc }] = await Promise.all([
+    const [{ data: bk }, { data: ev }, { data: av }, { data: exc }, { data: xl }] = await Promise.all([
       supabase
         .from("bookings")
         .select(
-          "id, practitioner_id, start_at, end_at, status, client_name, client_email, client_phone, notes, athlete_id, appointment_type_id, title, price_cents, appointment_types(name, colour, duration_min), athletes(first_name, last_name), booking_attendees(id, athlete_id, team_id, client_name, athletes(first_name, last_name), teams(name))"
+          "id, practitioner_id, start_at, end_at, status, client_name, client_email, client_phone, notes, athlete_id, appointment_type_id, title, price_cents, appointment_types(name, colour, duration_min), athletes(first_name, last_name), booking_attendees(id, athlete_id, team_id, client_name, athletes(first_name, last_name), teams(name)), booking_practitioners(practitioner_id)"
         )
         .in("practitioner_id", ids)
         .neq("status", "cancelled")
@@ -292,8 +293,24 @@ export default function DiaryPage() {
         .in("practitioner_id", ids)
         .gte("exception_date", days[0])
         .lte("exception_date", days[days.length - 1]),
+      // bookings where one of these practitioners is an extra (not the lead)
+      supabase
+        .from("booking_practitioners")
+        .select(
+          "practitioner_id, bookings!inner(id, practitioner_id, start_at, end_at, status, client_name, client_email, client_phone, notes, athlete_id, appointment_type_id, title, price_cents, appointment_types(name, colour, duration_min), athletes(first_name, last_name), booking_attendees(id, athlete_id, team_id, client_name, athletes(first_name, last_name), teams(name)), booking_practitioners(practitioner_id))"
+        )
+        .in("practitioner_id", ids)
+        .neq("bookings.status", "cancelled")
+        .gte("bookings.start_at", rangeStart)
+        .lt("bookings.start_at", rangeEnd),
     ]);
-    setBookings((bk ?? []) as unknown as BookingRow[]);
+    const merged = new Map<string, BookingRow>();
+    for (const b of (bk ?? []) as unknown as BookingRow[]) merged.set(b.id, b);
+    for (const r of (xl ?? []) as unknown as { bookings: BookingRow | BookingRow[] | null }[]) {
+      const b = one(r.bookings);
+      if (b && !merged.has(b.id)) merged.set(b.id, b);
+    }
+    setBookings([...merged.values()]);
     setEvents((ev ?? []) as EventRow[]);
     setAvailRows((av ?? []) as AvailRow[]);
     setExcRows((exc ?? []) as ExcRow[]);
@@ -321,18 +338,28 @@ export default function DiaryPage() {
       const prac = pracs.find((p) => p.id === b.practitioner_id);
       const att = b.booking_attendees ?? [];
       const group = att.length > 0;
-      push(date, b.practitioner_id ?? "", {
-        type: "booking",
-        id: b.id,
-        start: b.start_at,
-        end: b.end_at,
-        colour: t?.colour ?? prac?.colour ?? "#64748b",
-        title: group ? `👥 ${b.title || `Group (${att.length})`}` : ath ? athleteName(ath) : b.client_name || "(no name)",
-        sub: group
-          ? `${att.length} attendee${att.length === 1 ? "" : "s"}${t ? ` · ${t.name}` : ""}`
-          : t?.name ?? (b.status === "pending" ? "Pending request" : ""),
-        raw: b,
-      });
+      const people = att.filter((x) => !(x.team_id && !x.athlete_id && !x.client_name)).length || att.length;
+      const extras = (b.booking_practitioners ?? []).map((x) => x.practitioner_id).filter((id) => id !== b.practitioner_id);
+      const cols = [b.practitioner_id ?? "", ...extras];
+      const baseSub = group
+        ? `${people} attendee${people === 1 ? "" : "s"}${t ? ` · ${t.name}` : ""}`
+        : t?.name ?? (b.status === "pending" ? "Pending request" : "");
+      for (const col of cols) {
+        const others = cols
+          .filter((id) => id && id !== col)
+          .map((id) => pracs.find((p) => p.id === id)?.full_name.split(" ")[0])
+          .filter(Boolean);
+        push(date, col, {
+          type: "booking",
+          id: b.id,
+          start: b.start_at,
+          end: b.end_at,
+          colour: t?.colour ?? prac?.colour ?? "#64748b",
+          title: group ? `👥 ${b.title || `Group (${people})`}` : ath ? athleteName(ath) : b.client_name || "(no name)",
+          sub: others.length ? `${baseSub}${baseSub ? " · " : ""}with ${others.join(", ")}` : baseSub,
+          raw: b,
+        });
+      }
     }
     for (const e of events) {
       const date = perthParts(new Date(e.start_at)).dateStr;
@@ -947,6 +974,13 @@ type Att = {
 
 const ATTENDANCE = ["booked", "attended", "no_show", "cancelled"] as const;
 
+/** Team header row: billed once for the whole team. */
+const isTeamRow = (a: { team_id: string | null; athlete_id: string | null; client_name: string | null }) =>
+  !!a.team_id && !a.athlete_id && !a.client_name;
+/** Player listed under a team: attendance only, covered by the team invoice. */
+const isTeamPlayer = (a: { team_id: string | null; athlete_id: string | null; client_name: string | null }) =>
+  !!a.team_id && (!!a.athlete_id || !!a.client_name);
+
 function EntryModal({
   modal,
   types,
@@ -995,6 +1029,14 @@ function EntryModal({
   const [removedRows, setRemovedRows] = useState<string[]>([]);
   const [groupSearch, setGroupSearch] = useState("");
   const [manualName, setManualName] = useState("");
+  const [localTeams, setLocalTeams] = useState<TeamLite[]>([]);
+  const allTeams = useMemo(() => [...teams, ...localTeams].sort((a, b) => a.name.localeCompare(b.name)), [teams, localTeams]);
+  const [showNewTeam, setShowNewTeam] = useState(false);
+  const [newTeamName, setNewTeamName] = useState("");
+  const [creatingTeam, setCreatingTeam] = useState(false);
+  const [teamPlayerSearch, setTeamPlayerSearch] = useState<Record<string, string>>({});
+  const [saveToRoster, setSaveToRoster] = useState(true);
+  const [extraPracs, setExtraPracs] = useState<string[]>([]);
   const [existingInv, setExistingInv] = useState<{ id: string; invoice_number: string; status: string }[]>([]);
   const [status, setStatus] = useState<Status>("confirmed");
   const [saving, setSaving] = useState(false);
@@ -1010,7 +1052,7 @@ function EntryModal({
     if (isEdit && modal.editId) {
       (async () => {
         if (kind === "appointment") {
-          const [{ data }, { data: att }, { data: inv }] = await Promise.all([
+          const [{ data }, { data: att }, { data: inv }, { data: bp }] = await Promise.all([
             supabase.from("bookings").select("*").eq("id", modal.editId).single(),
             supabase
               .from("booking_attendees")
@@ -1018,7 +1060,9 @@ function EntryModal({
               .eq("booking_id", modal.editId)
               .order("created_at"),
             supabase.from("invoices").select("id, invoice_number, status").eq("booking_id", modal.editId).neq("status", "void"),
+            supabase.from("booking_practitioners").select("practitioner_id").eq("booking_id", modal.editId),
           ]);
+          setExtraPracs((bp ?? []).map((r) => r.practitioner_id as string));
           if (data) {
             setTypeId((data.appointment_type_id as string) ?? "");
             setAthleteId((data.athlete_id as string) ?? null);
@@ -1045,7 +1089,7 @@ function EntryModal({
                   athlete_id: r.athlete_id,
                   team_id: r.team_id,
                   client_name: r.client_name,
-                  label: t ? t.name : a ? athleteName(a) : r.client_name ?? "Client",
+                  label: a ? athleteName(a) : r.client_name ? r.client_name : t ? t.name : "Client",
                   price: centsToInput(r.price_cents),
                   attendance: r.attendance,
                   invoice_id: r.invoice_id,
@@ -1095,14 +1139,18 @@ function EntryModal({
   const groupMatches = useMemo(() => {
     const q = groupSearch.trim().toLowerCase();
     if (!q) return [] as { kind: "team" | "athlete"; id: string; label: string }[];
-    const tm = teams.filter((t) => t.name.toLowerCase().includes(q) && !attendees.some((x) => x.team_id === t.id)).slice(0, 4)
+    const tm = allTeams.filter((t) => t.name.toLowerCase().includes(q) && !attendees.some((x) => x.team_id === t.id && isTeamRow(x))).slice(0, 4)
       .map((t) => ({ kind: "team" as const, id: t.id, label: t.name }));
     const at = athletes.filter((a) => athleteName(a).toLowerCase().includes(q) && !attendees.some((x) => x.athlete_id === a.id)).slice(0, 6)
       .map((a) => ({ kind: "athlete" as const, id: a.id, label: athleteName(a) }));
     return [...tm, ...at];
-  }, [groupSearch, teams, athletes, attendees]);
+  }, [groupSearch, allTeams, athletes, attendees]);
 
   function addAttendee(m: { kind: "team" | "athlete"; id: string; label: string }) {
+    if (m.kind === "team") {
+      void addTeam(m.id, m.label);
+      return;
+    }
     setAttendees((p) => [
       ...p,
       {
@@ -1125,24 +1173,58 @@ function EntryModal({
     setManualName("");
   }
   function removeAttendee(a: Att) {
-    if (a.rowId) setRemovedRows((r) => [...r, a.rowId!]);
-    setAttendees((p) => p.filter((x) => x.key !== a.key));
+    const gone = isTeamRow(a) ? attendees.filter((x) => x.team_id === a.team_id) : [a];
+    const ids = gone.filter((x) => x.rowId).map((x) => x.rowId!);
+    if (ids.length) setRemovedRows((r) => [...r, ...ids]);
+    const keys = new Set(gone.map((x) => x.key));
+    setAttendees((p) => p.filter((x) => !keys.has(x.key)));
   }
   function editAttendee(key: string, ch: Partial<Att>) {
     setAttendees((p) => p.map((x) => (x.key === key ? { ...x, ...ch } : x)));
   }
-  /** Replace a team with its individual athletes (so each can be billed separately). */
-  async function splitTeam(a: Att) {
-    if (!a.team_id) return;
-    const { data } = await supabase.from("athlete_teams").select("athlete_id").eq("team_id", a.team_id);
-    const ids = (data ?? []).map((r) => r.athlete_id as string);
-    const add = athletes.filter((x) => ids.includes(x.id) && !attendees.some((y) => y.athlete_id === x.id));
-    if (!add.length) { setInfo(`No athletes listed under ${a.label}.`); return; }
-    if (a.rowId) setRemovedRows((r) => [...r, a.rowId!]);
-    setAttendees((p) => [
-      ...p.filter((x) => x.key !== a.key),
-      ...add.map((x) => ({ key: `athlete:${x.id}`, athlete_id: x.id, team_id: null, client_name: null, label: athleteName(x), price: a.price, attendance: "booked", invoice_id: null })),
-    ]);
+  /** Add a team (billed once) and list its roster underneath for attendance. */
+  async function addTeam(teamId: string, label: string) {
+    setGroupSearch("");
+    if (!groupTitle.trim()) setGroupTitle(label);
+    const { data } = await supabase.from("athlete_teams").select("athlete_id").eq("team_id", teamId);
+    const ids = new Set((data ?? []).map((r) => r.athlete_id as string));
+    const roster = athletes.filter((x) => ids.has(x.id)).sort((a, b) => athleteName(a).localeCompare(athleteName(b)));
+    setAttendees((p) => {
+      const out = [...p];
+      if (!out.some((x) => x.team_id === teamId && isTeamRow(x))) {
+        out.push({ key: `team:${teamId}`, athlete_id: null, team_id: teamId, client_name: null, label, price: "", attendance: "booked", invoice_id: null });
+      }
+      for (const x of roster) {
+        if (!out.some((y) => y.athlete_id === x.id)) {
+          out.push({ key: `p:${teamId}:${x.id}`, athlete_id: x.id, team_id: teamId, client_name: null, label: athleteName(x), price: "", attendance: "booked", invoice_id: null });
+        }
+      }
+      return out;
+    });
+  }
+  function addTeamPlayer(teamId: string, pl: { athlete_id: string | null; client_name: string | null; label: string }) {
+    setAttendees((prev) =>
+      pl.athlete_id && prev.some((x) => x.athlete_id === pl.athlete_id)
+        ? prev
+        : [...prev, { key: `p:${teamId}:${pl.athlete_id ?? pl.client_name}:${Date.now()}`, athlete_id: pl.athlete_id, team_id: teamId, client_name: pl.client_name, label: pl.label, price: "", attendance: "booked", invoice_id: null }]
+    );
+    setTeamPlayerSearch((m) => ({ ...m, [teamId]: "" }));
+  }
+  async function createTeam() {
+    const n = newTeamName.trim();
+    if (!n) return;
+    setCreatingTeam(true);
+    const { data, error } = await supabase.from("teams").insert({ name: n }).select("id, name").single();
+    setCreatingTeam(false);
+    if (error || !data) {
+      setErr(error?.message ?? "Couldn't create team.");
+      return;
+    }
+    const t = data as TeamLite;
+    setLocalTeams((p) => [...p, t]);
+    setNewTeamName("");
+    setShowNewTeam(false);
+    void addTeam(t.id, t.name);
   }
   function toggleGroup(on: boolean) {
     setIsGroup(on);
@@ -1176,7 +1258,8 @@ function EntryModal({
             const pc = a.price.trim() === "" ? null : parseMoney(a.price);
             if (pc != null && pc < 0) throw { message: `Fee for ${a.label} can't be negative.` };
           }
-          display = groupTitle.trim() || attendees.map((a) => a.label).slice(0, 3).join(", ") + (attendees.length > 3 ? ` +${attendees.length - 3}` : "");
+          const heads = attendees.filter((a) => !isTeamPlayer(a));
+          display = groupTitle.trim() || heads.map((a) => a.label).slice(0, 3).join(", ") + (heads.length > 3 ? ` +${heads.length - 3}` : "");
         } else {
           const linked = athleteId ? athletes.find((a) => a.id === athleteId) ?? null : null;
           display = linked ? athleteName(linked) : clientName.trim();
@@ -1236,6 +1319,41 @@ function EntryModal({
             );
             if (ie) throw ie;
           }
+          if (saveToRoster) {
+            const players = attendees.filter((a) => a.team_id && a.athlete_id);
+            const teamIds = [...new Set(players.map((a) => a.team_id!))];
+            if (teamIds.length) {
+              const { data: ex } = await supabase.from("athlete_teams").select("team_id, athlete_id").in("team_id", teamIds);
+              const have = new Set((ex ?? []).map((r) => `${r.team_id}:${r.athlete_id}`));
+              const add = players
+                .filter((a) => !have.has(`${a.team_id}:${a.athlete_id}`))
+                .map((a) => ({ team_id: a.team_id!, athlete_id: a.athlete_id! }));
+              if (add.length) {
+                const { error: re } = await supabase.from("athlete_teams").insert(add);
+                if (re) throw re;
+              }
+            }
+          }
+        }
+
+        // extra practitioners
+        const wantExtras = [...new Set(extraPracs.filter((id) => id !== prac.id))];
+        const { data: curBp } = await supabase.from("booking_practitioners").select("id, practitioner_id").eq("booking_id", bookingId);
+        const dropBp = (curBp ?? []).filter((r) => !wantExtras.includes(r.practitioner_id as string)).map((r) => r.id as string);
+        if (dropBp.length) {
+          const { error: be } = await supabase.from("booking_practitioners").delete().in("id", dropBp);
+          if (be) throw be;
+        }
+        const addBp = wantExtras.filter((id) => !(curBp ?? []).some((r) => r.practitioner_id === id));
+        if (addBp.length) {
+          const { error: be } = await supabase
+            .from("booking_practitioners")
+            .insert(addBp.map((practitioner_id) => ({ organisation_id: orgId, booking_id: bookingId, practitioner_id })));
+          if (be) {
+            const nm = addBp.map((id) => pracs.find((p) => p.id === id)?.full_name).filter(Boolean).join(", ");
+            if (be.code === "23P01" || /bookings_no_overlap/.test(be.message)) throw { message: `Saved, but ${nm} ${addBp.length > 1 ? "are" : "is"} already booked at that time so wasn't added.` };
+            throw be;
+          }
         }
 
         if (thenInvoice) {
@@ -1284,9 +1402,9 @@ function EntryModal({
   const input = "mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-200";
   const small = "rounded-lg border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-200";
   const dur = endMin - startMin;
-  const uninvoiced = attendees.filter((a) => !a.invoice_id && a.attendance !== "cancelled").length;
+  const uninvoiced = attendees.filter((a) => !isTeamPlayer(a) && !a.invoice_id && a.attendance !== "cancelled").length;
   const groupTotal = attendees
-    .filter((a) => a.attendance !== "cancelled")
+    .filter((a) => !isTeamPlayer(a) && a.attendance !== "cancelled")
     .reduce((s, a) => s + ((a.price.trim() === "" ? null : parseMoney(a.price)) ?? (fee.trim() === "" ? serviceFee : parseMoney(fee)) ?? 0), 0);
 
   return (
@@ -1338,6 +1456,24 @@ function EntryModal({
             <select value={pracSel} onChange={(e) => setPracSel(e.target.value)} className={input}>
               {pracs.map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}
             </select>
+            {kind === "appointment" && pracs.length > 1 ? (
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                <span className="text-[11px] text-slate-500">Also with</span>
+                {pracs.filter((p) => p.id !== pracSel).map((p) => {
+                  const on = extraPracs.includes(p.id);
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => setExtraPracs((x) => (on ? x.filter((id) => id !== p.id) : [...x, p.id]))}
+                      className={`rounded-full border px-2 py-0.5 text-[11px] ${on ? "border-lime-400 bg-lime-400/15 text-lime-200" : "border-slate-700 text-slate-400 hover:bg-slate-800"}`}
+                    >
+                      {on ? "✓ " : "+ "}{p.full_name}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
           </div>
 
           {kind === "appointment" ? (
@@ -1373,7 +1509,123 @@ function EntryModal({
                     <input value={groupTitle} onChange={(e) => setGroupTitle(e.target.value)} placeholder="e.g. U16 squad testing" className={input} />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-slate-400">Add athletes or teams</label>
+                    <label className="block text-xs font-medium text-slate-400">Team</label>
+                    <select
+                      value=""
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (v === "__new") { setShowNewTeam(true); return; }
+                        const t = allTeams.find((x) => x.id === v);
+                        if (t) void addTeam(t.id, t.name);
+                      }}
+                      className={input}
+                    >
+                      <option value="">Pick a team to load its squad…</option>
+                      {allTeams
+                        .filter((t) => !attendees.some((x) => x.team_id === t.id && isTeamRow(x)))
+                        .map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                      <option value="__new">+ New team…</option>
+                    </select>
+                    {showNewTeam ? (
+                      <div className="mt-2 flex gap-2">
+                        <input
+                          value={newTeamName}
+                          onChange={(e) => setNewTeamName(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void createTeam(); } }}
+                          placeholder="New team name"
+                          autoFocus
+                          className={`flex-1 ${small}`}
+                        />
+                        <button type="button" disabled={creatingTeam || !newTeamName.trim()} onClick={() => void createTeam()} className="rounded-lg border border-lime-500/40 px-2 text-xs text-lime-200 hover:bg-lime-500/10 disabled:opacity-40">Create</button>
+                        <button type="button" onClick={() => { setShowNewTeam(false); setNewTeamName(""); }} className="rounded-lg border border-slate-700 px-2 text-xs text-slate-400 hover:bg-slate-800">Cancel</button>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  {attendees.filter(isTeamRow).map((t) => {
+                    const tid = t.team_id!;
+                    const players = attendees.filter((x) => x.team_id === tid && isTeamPlayer(x));
+                    const q = (teamPlayerSearch[tid] ?? "").trim();
+                    const ql = q.toLowerCase();
+                    const matches = ql
+                      ? athletes.filter((a) => athleteName(a).toLowerCase().includes(ql) && !attendees.some((y) => y.athlete_id === a.id)).slice(0, 6)
+                      : [];
+                    return (
+                      <div key={t.key} className="rounded-lg border border-slate-800 bg-slate-900/40 p-2">
+                        <div className="flex items-center gap-2 text-xs text-slate-200">
+                          <span className="min-w-0 flex-1 truncate font-medium">
+                            {t.label}
+                            <span className="ml-1 rounded bg-slate-700/60 px-1 text-[9px] uppercase text-slate-300">team</span>
+                            {t.invoice_id ? <span className="ml-1 rounded bg-lime-500/20 px-1 text-[9px] uppercase text-lime-200">invoiced</span> : null}
+                            <span className="ml-1 font-normal text-slate-500">· {players.length} player{players.length === 1 ? "" : "s"}</span>
+                          </span>
+                          <input value={t.price} onChange={(e) => editAttendee(t.key, { price: e.target.value })} placeholder={fee || (serviceFee != null ? centsToInput(serviceFee) : "0.00")} title="Team fee" className={`w-20 ${small}`} />
+                          {isEdit ? (
+                            <select value={t.attendance} onChange={(e) => editAttendee(t.key, { attendance: e.target.value })} className={`w-24 ${small}`}>
+                              {ATTENDANCE.map((st) => <option key={st} value={st}>{st.replace("_", " ")}</option>)}
+                            </select>
+                          ) : null}
+                          <button type="button" onClick={() => removeAttendee(t)} title="Remove team and its players" className="w-5 text-slate-500 hover:text-rose-300">×</button>
+                        </div>
+                        <div className="mt-1.5 space-y-1 border-l border-slate-800 pl-3">
+                          {players.map((pl) => (
+                            <div key={pl.key} className="flex items-center gap-2 text-xs text-slate-300">
+                              <span className="min-w-0 flex-1 truncate">
+                                {pl.label}
+                                {!pl.athlete_id ? <span className="ml-1 text-[10px] text-slate-500">(not in system)</span> : null}
+                              </span>
+                              {isEdit ? (
+                                <select value={pl.attendance} onChange={(e) => editAttendee(pl.key, { attendance: e.target.value })} className={`w-24 ${small}`}>
+                                  {ATTENDANCE.map((st) => <option key={st} value={st}>{st.replace("_", " ")}</option>)}
+                                </select>
+                              ) : null}
+                              <button type="button" onClick={() => removeAttendee(pl)} className="w-5 text-slate-500 hover:text-rose-300">×</button>
+                            </div>
+                          ))}
+                          {players.length === 0 ? <p className="text-[11px] text-slate-500">No players on this team yet. Add them below.</p> : null}
+                          <div className="flex gap-2 pt-1">
+                            <input
+                              value={teamPlayerSearch[tid] ?? ""}
+                              onChange={(e) => setTeamPlayerSearch((m) => ({ ...m, [tid]: e.target.value }))}
+                              onKeyDown={(e) => {
+                                if (e.key !== "Enter") return;
+                                e.preventDefault();
+                                if (matches.length) addTeamPlayer(tid, { athlete_id: matches[0].id, client_name: null, label: athleteName(matches[0]) });
+                                else if (q) addTeamPlayer(tid, { athlete_id: null, client_name: q, label: q });
+                              }}
+                              placeholder={`Add player to ${t.label}…`}
+                              className={`flex-1 ${small}`}
+                            />
+                            {q && !matches.length ? (
+                              <button type="button" onClick={() => addTeamPlayer(tid, { athlete_id: null, client_name: q, label: q })} className="rounded-lg border border-slate-700 px-2 text-xs text-slate-300 hover:bg-slate-800">Add “{q}”</button>
+                            ) : null}
+                          </div>
+                          {matches.length ? (
+                            <div className="rounded-lg border border-slate-800 bg-slate-950/80 p-1">
+                              {matches.map((a) => (
+                                <button key={a.id} type="button" onClick={() => addTeamPlayer(tid, { athlete_id: a.id, client_name: null, label: athleteName(a) })} className="flex w-full items-center rounded px-2 py-1.5 text-left text-xs text-slate-200 hover:bg-slate-800">
+                                  {athleteName(a)}
+                                </button>
+                              ))}
+                              <button type="button" onClick={() => addTeamPlayer(tid, { athlete_id: null, client_name: q, label: q })} className="flex w-full items-center rounded px-2 py-1.5 text-left text-xs text-slate-400 hover:bg-slate-800">
+                                Add “{q}” as someone not in the system
+                              </button>
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {attendees.some(isTeamRow) ? (
+                    <label className="flex items-center gap-2 text-[11px] text-slate-400">
+                      <input type="checkbox" checked={saveToRoster} onChange={(e) => setSaveToRoster(e.target.checked)} className="accent-lime-400" />
+                      Add new players to the team roster when saving
+                    </label>
+                  ) : null}
+
+                  <div>
+                    <label className="block text-xs font-medium text-slate-400">{attendees.some(isTeamRow) ? "Add individual athletes (billed separately)" : "Or add individual athletes"}</label>
                     <input value={groupSearch} onChange={(e) => setGroupSearch(e.target.value)} placeholder="Search…" className={input} />
                     {groupMatches.length ? (
                       <div className="mt-1 rounded-lg border border-slate-800 bg-slate-950/80 p-1">
@@ -1390,34 +1642,35 @@ function EntryModal({
                       <button type="button" onClick={addManual} className="rounded-lg border border-slate-700 px-2 text-xs text-slate-300 hover:bg-slate-800">Add</button>
                     </div>
                   </div>
-                  {attendees.length ? (
+                  {attendees.some((a) => !a.team_id) ? (
                     <div className="space-y-1.5">
                       <div className="flex text-[10px] uppercase tracking-wide text-slate-500">
-                        <span className="flex-1">{attendees.length} attendee{attendees.length === 1 ? "" : "s"}</span>
+                        <span className="flex-1">Individuals</span>
                         <span className="w-20">Fee $</span>
                         {isEdit ? <span className="w-24">Attendance</span> : null}
                         <span className="w-5" />
                       </div>
-                      {attendees.map((a) => (
+                      {attendees.filter((a) => !a.team_id).map((a) => (
                         <div key={a.key} className="flex items-center gap-2 text-xs text-slate-200">
                           <span className="min-w-0 flex-1 truncate">
                             {a.label}
-                            {a.team_id ? <span className="ml-1 rounded bg-slate-700/60 px-1 text-[9px] uppercase text-slate-300">team</span> : null}
                             {a.invoice_id ? <span className="ml-1 rounded bg-lime-500/20 px-1 text-[9px] uppercase text-lime-200">invoiced</span> : null}
-                            {a.team_id && !a.invoice_id ? (
-                              <button type="button" onClick={() => void splitTeam(a)} className="ml-1 text-[10px] text-sky-300 hover:underline">split into athletes</button>
-                            ) : null}
                           </span>
                           <input value={a.price} onChange={(e) => editAttendee(a.key, { price: e.target.value })} placeholder={fee || (serviceFee != null ? centsToInput(serviceFee) : "0.00")} className={`w-20 ${small}`} />
                           {isEdit ? (
                             <select value={a.attendance} onChange={(e) => editAttendee(a.key, { attendance: e.target.value })} className={`w-24 ${small}`}>
-                              {ATTENDANCE.map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}
+                              {ATTENDANCE.map((st) => <option key={st} value={st}>{st.replace("_", " ")}</option>)}
                             </select>
                           ) : null}
                           <button type="button" onClick={() => removeAttendee(a)} className="w-5 text-slate-500 hover:text-rose-300">×</button>
                         </div>
                       ))}
-                      <div className="pt-1 text-right text-[11px] text-slate-400">Session total {money(groupTotal)}</div>
+                    </div>
+                  ) : null}
+                  {attendees.length ? (
+                    <div className="pt-1 text-right text-[11px] text-slate-400">
+                      {attendees.some(isTeamRow) ? "Teams are invoiced once; players under a team track attendance only. " : ""}
+                      Session total {money(groupTotal)}
                     </div>
                   ) : null}
                 </div>
