@@ -133,12 +133,19 @@ export default function SyncDashboardPage() {
         sessionsProcessed?: number;
         athletesLinked?: number;
         unmatched?: number;
+        playerdataSessions?: number;
+        days?: number;
+        noMetricSet?: number;
         error?: string;
       };
       if (json.error && !json.sessionsProcessed) {
         setPdMsg(`Error: ${json.error}`);
       } else {
-        const bits = [`Synced ${json.sessionsProcessed ?? 0} athlete session(s)`];
+        const bits = [
+          `${json.playerdataSessions ?? 0} PlayerData session(s) in the last ${json.days ?? "?"} days`,
+          `${json.sessionsProcessed ?? 0} athlete session(s) saved`,
+        ];
+        if (json.noMetricSet) bits.push(`${json.noMetricSet} with no metrics`);
         if (json.athletesLinked) bits.push(`${json.athletesLinked} athlete(s) linked by name`);
         if (json.unmatched) bits.push(`${json.unmatched} not matched (see below)`);
         setPdMsg(`${bits.join(", ")}${json.ok === false ? " (with warnings)" : ""}.`);

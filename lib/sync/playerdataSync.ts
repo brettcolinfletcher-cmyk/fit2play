@@ -30,10 +30,14 @@ export type PlayerdataSyncResult = {
   playerdataSessions: number;
   athletesLinked: number;
   unmatched: number;
+  days?: number;
+  noMetricSet?: number;
+  droppedFields?: string[];
   error?: string;
 };
 
-type Gql = <T>(query: string, variables?: Record<string, unknown>) => Promise<{ data: T | null; errors: { message: string }[] | null }>;
+type GqlError = { message: string; path?: (string | number)[] };
+type Gql = <T>(query: string, variables?: Record<string, unknown>) => Promise<{ data: T | null; errors: GqlError[] | null }>;
 
 async function getToken(): Promise<string> {
   const clientId = process.env.PLAYERDATA_CLIENT_ID;
@@ -68,7 +72,7 @@ function makeGql(token: string): Gql {
       }
       const text = await res.text();
       try {
-        const json = JSON.parse(text) as { data?: unknown; errors?: { message: string }[] };
+        const json = JSON.parse(text) as { data?: unknown; errors?: GqlError[] };
         return { data: (json.data ?? null) as never, errors: json.errors ?? null };
       } catch {
         return { data: null, errors: [{ message: `HTTP ${res.status}: ${text.slice(0, 200)}` }] };
@@ -102,14 +106,23 @@ async function resolveFields(gql: Gql): Promise<Record<MetricSetType, string[]>>
 }
 
 /** Drop fields the API says don't exist, so one renamed field can't break the whole sync. */
-function pruneUnknownFields(errors: { message: string }[], fields: Record<MetricSetType, string[]>): boolean {
+function pruneUnknownFields(errors: GqlError[], fields: Record<MetricSetType, string[]>, dropped: Set<string>): boolean {
   let pruned = false;
   for (const e of errors) {
+    // A field that errors while resolving (path ends in the field name) nulls the
+    // whole metric set, so drop that field and retry.
+    const last = e.path?.[e.path.length - 1];
+    if (typeof last === "string") {
+      for (const t of ["MatchSessionAthleteMetricSet", "TrainingSessionAthleteMetricSet"] as MetricSetType[]) {
+        const i = fields[t].indexOf(last);
+        if (i >= 0) { fields[t].splice(i, 1); pruned = true; dropped.add(last); }
+      }
+    }
     const m = /Field '(\w+)' doesn't exist on type '(\w+)'/.exec(e.message);
     if (m && (m[2] === "MatchSessionAthleteMetricSet" || m[2] === "TrainingSessionAthleteMetricSet")) {
       const list = fields[m[2] as MetricSetType];
       const i = list.indexOf(m[1]);
-      if (i >= 0) { list.splice(i, 1); pruned = true; }
+      if (i >= 0) { list.splice(i, 1); pruned = true; dropped.add(m[1]); }
     }
   }
   return pruned;
@@ -146,13 +159,21 @@ function sessionQuery(fields: Record<MetricSetType, string[]>, withMetrics: bool
 }
 
 /** Fetch one session with all metrics; falls back to one query per participation if the big query is refused. */
-async function fetchSession(gql: Gql, id: string, fields: Record<MetricSetType, string[]>): Promise<PdSession> {
-  for (let i = 0; i < 6; i++) {
+async function fetchSession(
+  gql: Gql,
+  id: string,
+  fields: Record<MetricSetType, string[]>,
+  dropped: Set<string>
+): Promise<PdSession> {
+  let lastErrors: GqlError[] | null = null;
+  for (let i = 0; i < 25; i++) {
     const { data, errors } = await gql<{ session: PdSession | null }>(sessionQuery(fields, true), { id });
     if (!errors && data?.session) return data.session;
-    if (errors && pruneUnknownFields(errors, fields)) continue;
+    lastErrors = errors;
+    if (errors && pruneUnknownFields(errors, fields, dropped)) continue;
     break;
   }
+  if (lastErrors) console.warn(`[playerdata] session ${id} full query failed: ${lastErrors.map((e) => e.message).join("; ").slice(0, 500)}`);
   // Fallback (e.g. query complexity limit): participations first, then metrics one by one.
   const { data, errors } = await gql<{ session: PdSession | null }>(sessionQuery(fields, false), { id });
   if (errors || !data?.session) throw new Error(`session ${id}: ${errors?.map((e) => e.message).join("; ") ?? "not found"}`);
@@ -196,19 +217,22 @@ export async function runPlayerdataSync(
   let playerdataSessions = 0;
   let athletesLinked = 0;
   const unmatchedSeen = new Set<string>();
+  const droppedFields = new Set<string>();
+  let noMetricSet = 0;
+  let windowDays = 0;
 
   try {
-    // First ever successful run pulls a full year; after that the nightly window is 14 days.
+    // Until any PlayerData session has been saved, pull a full year; after that the nightly window is 14 days.
     let requested = opts.days;
     if (requested == null) {
       const { count } = await supabase
-        .from("sync_log")
+        .from("sessions")
         .select("id", { count: "exact", head: true })
-        .eq("source", "playerdata")
-        .is("errors", null);
+        .eq("source", "playerdata");
       requested = (count ?? 0) === 0 ? 365 : DEFAULT_DAYS;
     }
     const days = Math.min(Math.max(Math.round(requested), 1), MAX_DAYS);
+    windowDays = days;
     const from = new Date(Date.now() - days * 86400_000).toISOString();
     const gql = makeGql(await getToken());
     const fields = await resolveFields(gql);
@@ -217,10 +241,10 @@ export async function runPlayerdataSync(
     const sessionIds: string[] = [];
     for (let offset = 0; offset < PAGE * 100; offset += PAGE) {
       const { data, errors: e } = await gql<{ sessions: { id: string }[] | null }>(
-        `query($from: ISO8601DateTime, $offset: Int) {
-          sessions(filter: { startTimeGteq: $from }, limit: ${PAGE}, offset: $offset) { id }
+        `query($from: ISO8601DateTime, $clubId: ID, $offset: Int) {
+          sessions(filter: { startTimeGteq: $from, clubIdEq: $clubId }, limit: ${PAGE}, offset: $offset) { id }
         }`,
-        { from, offset }
+        { from, clubId: null, offset }
       );
       if (e) throw new Error(`sessions list: ${e.map((x) => x.message).join("; ")}`);
       const page = data?.sessions ?? [];
@@ -299,7 +323,7 @@ export async function runPlayerdataSync(
     for (const sid of sessionIds) {
       let s: PdSession;
       try {
-        s = await fetchSession(gql, sid, fields);
+        s = await fetchSession(gql, sid, fields, droppedFields);
       } catch (e) {
         errors.push(e instanceof Error ? e.message : String(e));
         continue;
@@ -312,7 +336,10 @@ export async function runPlayerdataSync(
         const externalId = `${s.id}:${p.athlete.id}`;
         if (excluded.has(externalId)) continue;
         const metricSet = p.metricSet ?? p.athleteMetricSet ?? null;
-        if (!metricSet) continue; // no GPS data recorded for this athlete
+        if (!metricSet) {
+          noMetricSet += 1; // no GPS data, or PlayerData returned an error for it
+          continue;
+        }
 
         const athleteId = await resolveAthlete(p.athlete, s.club?.name ?? null);
         if (!athleteId) continue;
@@ -363,6 +390,9 @@ export async function runPlayerdataSync(
       }
     }
 
+    if (playerdataSessions > 0 && sessionsProcessed === 0 && noMetricSet > 0 && unmatchedSeen.size === 0) {
+      errors.push(`${noMetricSet} athlete session(s) came back with no metrics from PlayerData`);
+    }
     const errStr = errors.length ? errors.join(" | ") : null;
     await insertSyncLog(supabase, "playerdata", sessionsProcessed, errStr);
     return {
@@ -371,6 +401,9 @@ export async function runPlayerdataSync(
       playerdataSessions,
       athletesLinked,
       unmatched: unmatchedSeen.size,
+      days: windowDays,
+      noMetricSet,
+      droppedFields: [...droppedFields],
       error: errStr ?? undefined,
     };
   } catch (e) {
