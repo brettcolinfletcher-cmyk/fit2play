@@ -19,6 +19,7 @@ import ChartTypeToggle, { type ChartType } from "@/components/athletes/ChartType
 import DashboardNav from "@/components/DashboardNav";
 import DateRangeBar from "@/components/athletes/DateRangeBar";
 import DynamometrySection from "@/components/athletes/DynamometrySection";
+import GpsSection from "@/components/athletes/GpsSection";
 import ForcePlateCMJSection, {
   buildCmjDataPoints,
 } from "@/components/athletes/ForcePlateCMJSection";
@@ -230,8 +231,9 @@ type MetricRow = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function bucket(source: string | null): "hawkins" | "1080" | "csv" {
+function bucket(source: string | null): "hawkins" | "1080" | "gps" | "csv" {
   const s = (source ?? "").toLowerCase();
+  if (s === "playerdata") return "gps";
   if (s === "hawkins" || s === "hawkins_csv") return "hawkins";
   if (s === "1080" || s === "1080_csv") return "1080";
   return "csv";
@@ -829,19 +831,25 @@ export default function AthleteDetailPage() {
   }, [staffOk, id]);
 
   const grouped = useMemo(() => {
-    const h: SessionRow[] = [], m: SessionRow[] = [], c: SessionRow[] = [];
+    const h: SessionRow[] = [], m: SessionRow[] = [], g: SessionRow[] = [], c: SessionRow[] = [];
     for (const s of sessions) {
       const b = bucket(s.source);
       if (b === "1080") m.push(s);
+      else if (b === "gps") g.push(s);
       else if (b === "csv") c.push(s);
       else h.push(s);
     }
-    return { hawkins: h, motion1080: m, csv: c };
+    return { hawkins: h, motion1080: m, gps: g, csv: c };
   }, [sessions]);
 
   const filteredSessions = useMemo(
     () => sessions.filter((s) => inRange(s.session_date)),
     [sessions, rangeStart, rangeEnd]
+  );
+
+  const gpsSessions = useMemo(
+    () => filteredSessions.filter((s) => bucket(s.source) === "gps"),
+    [filteredSessions]
   );
 
   const filteredHopTests = useMemo(
@@ -1720,6 +1728,15 @@ export default function AthleteDetailPage() {
               />
             )}
 
+            {gpsSessions.length > 0 && (
+              <GpsSection
+                athleteId={id}
+                sessions={gpsSessions}
+                metricsBySession={metricsBySession}
+                sectionComment={sectionNote("gps")}
+              />
+            )}
+
             {/* ── LR session settings (Phase D-C) ── */}
             {lrSessionsByAthlete.get(id)?.length && visibility.isSectionVisible("lr_settings") ? (
               <section id="lr_settings" className="scroll-mt-28 mt-10">
@@ -1778,6 +1795,12 @@ export default function AthleteDetailPage() {
                   <div>
                     <h3 className="mb-2 text-xs font-medium text-slate-400">1080 Motion</h3>
                     {renderSessionSection(grouped.motion1080)}
+                  </div>
+                )}
+                {grouped.gps.length > 0 && (
+                  <div>
+                    <h3 className="mb-2 text-xs font-medium text-slate-400">PlayerData GPS</h3>
+                    {renderSessionSection(grouped.gps)}
                   </div>
                 )}
                 {grouped.csv.length > 0 && (

@@ -78,6 +78,8 @@ export function metricKey(field: string): string {
 
 /** Unit from the field-name suffix. */
 export function metricUnit(field: string): string | null {
+  if (/^percentage/.test(field)) return "%";
+  if (/^max(IMU)?(Acceleration|Deceleration)$/.test(field)) return "m/s²";
   if (/Kph$/.test(field)) return "km/h";
   if (/Mps$/.test(field)) return "m/s";
   if (/Bpm$/.test(field)) return "bpm";

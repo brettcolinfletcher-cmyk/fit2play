@@ -27,6 +27,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: "drop_jump_single", label: "SL drop jump", group: "detail" },
   { id: "hop_tests", label: "Hops", group: "detail" },
   { id: "dynamometry", label: "Strength", group: "detail" },
+  { id: "gps", label: "GPS", group: "detail" },
   { id: "lr_settings", label: "LR settings", group: "detail" },
   { id: "sessions", label: "Sessions", group: "detail" },
 ];
