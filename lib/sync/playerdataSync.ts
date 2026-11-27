@@ -145,55 +145,74 @@ type PdSession = {
   sessionParticipations: PdParticipation[] | null;
 };
 
-function sessionQuery(fields: Record<MetricSetType, string[]>, withMetrics: boolean): string {
-  const metrics = withMetrics
-    ? `... on TrainingSessionParticipation { athleteMetricSet { ${fields.TrainingSessionAthleteMetricSet.join(" ")} } }
-       ... on MatchSessionParticipation { metricSet { ${fields.MatchSessionAthleteMetricSet.join(" ")} } }`
-    : "";
-  return `query($id: ID!) {
-    session(id: $id) {
-      __typename id startTime timezone club { name }
-      sessionParticipations { __typename id athlete { id name dateOfBirth } ${metrics} }
-    }
-  }`;
+const BASE_SESSION_QUERY = `query($id: ID!) {
+  session(id: $id) {
+    __typename id startTime timezone club { name }
+    sessionParticipations { __typename id athlete { id name dateOfBirth } }
+  }
+}`;
+
+function chunkQuery(type: MetricSetType, chunk: string[]): string {
+  const frag =
+    type === "TrainingSessionAthleteMetricSet"
+      ? `... on TrainingSessionParticipation { athleteMetricSet { ${chunk.join(" ")} } }`
+      : `... on MatchSessionParticipation { metricSet { ${chunk.join(" ")} } }`;
+  return `query($id: ID!) { session(id: $id) { sessionParticipations { id ${frag} } } }`;
 }
 
-/** Fetch one session with all metrics; falls back to one query per participation if the big query is refused. */
+let chunkSize = 120; // PlayerData max query complexity is 200; shrinks automatically if refused
+
+/**
+ * Fetch one session: participations first, then the metric fields in batches
+ * small enough for PlayerData's complexity limit, merged per participation.
+ */
 async function fetchSession(
   gql: Gql,
   id: string,
   fields: Record<MetricSetType, string[]>,
   dropped: Set<string>
-): Promise<PdSession> {
-  let lastErrors: GqlError[] | null = null;
-  for (let i = 0; i < 25; i++) {
-    const { data, errors } = await gql<{ session: PdSession | null }>(sessionQuery(fields, true), { id });
-    if (!errors && data?.session) return data.session;
-    lastErrors = errors;
-    if (errors && pruneUnknownFields(errors, fields, dropped)) continue;
-    break;
+): Promise<{ session: PdSession; problems: string[] }> {
+  const problems: string[] = [];
+  const base = await gql<{ session: PdSession | null }>(BASE_SESSION_QUERY, { id });
+  if (base.errors || !base.data?.session) {
+    throw new Error(`session ${id}: ${base.errors?.map((e) => e.message).join("; ") ?? "not found"}`);
   }
-  if (lastErrors) console.warn(`[playerdata] session ${id} full query failed: ${lastErrors.map((e) => e.message).join("; ").slice(0, 500)}`);
-  // Fallback (e.g. query complexity limit): participations first, then metrics one by one.
-  const { data, errors } = await gql<{ session: PdSession | null }>(sessionQuery(fields, false), { id });
-  if (errors || !data?.session) throw new Error(`session ${id}: ${errors?.map((e) => e.message).join("; ") ?? "not found"}`);
-  const s = data.session;
-  for (const p of s.sessionParticipations ?? []) {
-    if (p.__typename === "MatchSessionParticipation") {
-      const r = await gql<{ matchSessionParticipation: { metricSet: Record<string, unknown> | null } | null }>(
-        `query($id: ID!) { matchSessionParticipation(id: $id) { metricSet { ${fields.MatchSessionAthleteMetricSet.join(" ")} } } }`,
-        { id: p.id }
+  const session = base.data.session;
+  const parts = session.sessionParticipations ?? [];
+  const byId = new Map(parts.map((p) => [p.id, p]));
+
+  for (const type of ["MatchSessionAthleteMetricSet", "TrainingSessionAthleteMetricSet"] as MetricSetType[]) {
+    const wanted = type === "MatchSessionAthleteMetricSet" ? "MatchSessionParticipation" : "TrainingSessionParticipation";
+    if (!parts.some((p) => p.__typename === wanted)) continue;
+    const setKey = type === "MatchSessionAthleteMetricSet" ? "metricSet" : "athleteMetricSet";
+
+    let offset = 0;
+    let guard = 0;
+    while (offset < fields[type].length && guard++ < 60) {
+      const chunk = fields[type].slice(offset, offset + chunkSize);
+      const { data, errors } = await gql<{ session: { sessionParticipations: PdParticipation[] | null } | null }>(
+        chunkQuery(type, chunk),
+        { id }
       );
-      p.metricSet = r.data?.matchSessionParticipation?.metricSet ?? null;
-    } else if (p.__typename === "TrainingSessionParticipation") {
-      const r = await gql<{ trainingSessionParticipation: { athleteMetricSet: Record<string, unknown> | null } | null }>(
-        `query($id: ID!) { trainingSessionParticipation(id: $id) { athleteMetricSet { ${fields.TrainingSessionAthleteMetricSet.join(" ")} } } }`,
-        { id: p.id }
-      );
-      p.athleteMetricSet = r.data?.trainingSessionParticipation?.athleteMetricSet ?? null;
+      if (errors?.length) {
+        if (errors.some((e) => /complexity/i.test(e.message)) && chunkSize > 20) {
+          chunkSize = Math.max(20, Math.floor(chunkSize / 2));
+          continue; // retry same offset with a smaller batch
+        }
+        if (pruneUnknownFields(errors, fields, dropped)) continue; // retry without the bad field
+        problems.push(`session ${id} metrics: ${errors.map((e) => e.message).join("; ").slice(0, 300)}`);
+      }
+      for (const p of data?.session?.sessionParticipations ?? []) {
+        const set = (p as Record<string, unknown>)[setKey] as Record<string, unknown> | null | undefined;
+        const target = byId.get(p.id);
+        if (!target || !set) continue;
+        const existing = (target as Record<string, unknown>)[setKey] as Record<string, unknown> | null | undefined;
+        (target as Record<string, unknown>)[setKey] = { ...(existing ?? {}), ...set };
+      }
+      offset += chunk.length;
     }
   }
-  return s;
+  return { session, problems };
 }
 
 /** Session date in the session's own timezone (falls back to Perth). */
@@ -323,7 +342,9 @@ export async function runPlayerdataSync(
     for (const sid of sessionIds) {
       let s: PdSession;
       try {
-        s = await fetchSession(gql, sid, fields, droppedFields);
+        const got = await fetchSession(gql, sid, fields, droppedFields);
+        s = got.session;
+        errors.push(...got.problems);
       } catch (e) {
         errors.push(e instanceof Error ? e.message : String(e));
         continue;
