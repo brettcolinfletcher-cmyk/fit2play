@@ -1189,7 +1189,7 @@ export default function AthleteDetailPage() {
                       <>
                         <span className="text-slate-500">
                           Delete this session and its {rows.length} metrics permanently?
-                          {s.source === "1080" || s.source === "hawkins"
+                          {s.source === "1080" || s.source === "hawkins" || s.source === "playerdata"
                             ? " The sync won't bring it back."
                             : ""}
                         </span>

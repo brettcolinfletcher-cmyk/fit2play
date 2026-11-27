@@ -30,6 +30,7 @@ export type SourceHealth = {
 export const SYNC_SOURCES: { source: string; label: string }[] = [
   { source: "hawkins", label: "Force plates (Hawkins)" },
   { source: "1080", label: "Speed and sprint" },
+  { source: "playerdata", label: "GPS (PlayerData)" },
 ];
 
 /** 30 h: the alert at 07:00 Perth fires if last night's 10pm run did not succeed. */

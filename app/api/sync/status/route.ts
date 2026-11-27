@@ -50,6 +50,7 @@ export async function GET(request: Request) {
   return NextResponse.json({
     hawkins: latest["hawkins"] ?? null,
     "1080": latest["1080"] ?? null,
+    playerdata: latest["playerdata"] ?? null,
     health: evaluateSyncHealth(list),
   });
 }

@@ -2,14 +2,14 @@ import { describe, expect, it } from "vitest";
 import { evaluateSyncHealth, hasSyncProblem, type SyncLogRow } from "@/lib/sync/syncHealth";
 
 const run = (source: string, iso: string, errors: string | null = null): SyncLogRow => ({ source, synced_at: iso, errors });
-const nightly = (day: string): SyncLogRow[] => [run("hawkins", `${day}T14:00:47Z`), run("1080", `${day}T14:01:09Z`)];
+const nightly = (day: string): SyncLogRow[] => [run("hawkins", `${day}T14:00:47Z`), run("1080", `${day}T14:01:09Z`), run("playerdata", `${day}T14:01:30Z`)];
 // The alert runs at 23:00 UTC (7am Perth).
 const morning = (day: string) => new Date(`${day}T23:00:00Z`);
 
 describe("evaluateSyncHealth", () => {
   it("is ok the morning after a good nightly run", () => {
     const h = evaluateSyncHealth(nightly("2026-11-01"), morning("2026-11-01"));
-    expect(h.map((x) => x.status)).toEqual(["ok", "ok"]);
+    expect(h.map((x) => x.status)).toEqual(["ok", "ok", "ok"]);
     expect(hasSyncProblem(h)).toBe(false);
   });
 

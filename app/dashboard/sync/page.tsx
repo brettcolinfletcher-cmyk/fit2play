@@ -6,6 +6,7 @@ import { formatDisplayDateTime } from "@/lib/dateDisplay";
 import { useRequireDashboardStaff } from "@/lib/useRequireDashboardStaff";
 import { staffAuthHeaders } from "@/lib/staffAuthHeaders";
 import SyncHealthBanner from "@/components/SyncHealthBanner";
+import PlayerdataUnmatched from "@/components/sync/PlayerdataUnmatched";
 
 type SourceStatus = {
   synced_at: string;
@@ -16,6 +17,7 @@ type SourceStatus = {
 type StatusPayload = {
   hawkins: SourceStatus;
   "1080": SourceStatus;
+  playerdata: SourceStatus;
 };
 
 function formatAest(iso: string) {
@@ -31,6 +33,9 @@ export default function SyncDashboardPage() {
   const [motionBusy, setMotionBusy] = useState(false);
   const [hawkinsMsg, setHawkinsMsg] = useState<string | null>(null);
   const [motionMsg, setMotionMsg] = useState<string | null>(null);
+  const [pdBusy, setPdBusy] = useState(false);
+  const [pdMsg, setPdMsg] = useState<string | null>(null);
+  const [unmatchedKey, setUnmatchedKey] = useState(0);
 
   const loadStatus = useCallback(async () => {
     setStatusLoading(true);
@@ -44,6 +49,7 @@ export default function SyncDashboardPage() {
         setStatus({
           hawkins: json.hawkins ?? null,
           "1080": json["1080"] ?? null,
+          playerdata: json.playerdata ?? null,
         });
       }
     } finally {
@@ -113,6 +119,39 @@ export default function SyncDashboardPage() {
     }
   }
 
+  async function runPlayerdata(days?: number) {
+    setPdBusy(true);
+    setPdMsg(null);
+    try {
+      const res = await fetch(`/api/sync/playerdata${days ? `?days=${days}` : ""}`, {
+        method: "POST",
+        credentials: "include",
+        headers: await staffAuthHeaders(),
+      });
+      const json = (await res.json()) as {
+        ok?: boolean;
+        sessionsProcessed?: number;
+        athletesLinked?: number;
+        unmatched?: number;
+        error?: string;
+      };
+      if (json.error && !json.sessionsProcessed) {
+        setPdMsg(`Error: ${json.error}`);
+      } else {
+        const bits = [`Synced ${json.sessionsProcessed ?? 0} athlete session(s)`];
+        if (json.athletesLinked) bits.push(`${json.athletesLinked} athlete(s) linked by name`);
+        if (json.unmatched) bits.push(`${json.unmatched} not matched (see below)`);
+        setPdMsg(`${bits.join(", ")}${json.ok === false ? " (with warnings)" : ""}.`);
+      }
+      await loadStatus();
+      setUnmatchedKey((k) => k + 1);
+    } catch (e) {
+      setPdMsg(e instanceof Error ? e.message : "Sync failed");
+    } finally {
+      setPdBusy(false);
+    }
+  }
+
   if (!staffOk) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#f8fafc] text-slate-900 athlete-frosted" data-theme="light">
@@ -129,7 +168,7 @@ export default function SyncDashboardPage() {
           Data sync
         </h1>
         <p className="mt-1 text-sm text-slate-500">
-          Pull sessions from Hawkins Dynamics and 1080 Motion into Supabase.
+          Pull sessions from Hawkins Dynamics, 1080 Motion and PlayerData GPS into Supabase.
           Runs automatically every night at 10pm Perth. If a run fails or is missed, an alert is emailed to info@f2p.au at 7am.
         </p>
 
@@ -137,7 +176,7 @@ export default function SyncDashboardPage() {
           <SyncHealthBanner showLink={false} refreshKey={statusLoading ? 0 : 1 + (status ? 1 : 0)} />
         </div>
 
-        <div className="mt-8 grid gap-6 lg:grid-cols-2">
+        <div className="mt-8 grid gap-6 lg:grid-cols-3">
           <SyncCard
             title="Hawkins Dynamics"
             description="Token refresh, athletes, and tests API."
@@ -158,7 +197,23 @@ export default function SyncDashboardPage() {
             onSync={run1080}
             formatAest={formatAest}
           />
+          <SyncCard
+            title="PlayerData GPS"
+            description="Match and training sessions, every GPS metric per athlete. Nightly run pulls the last 14 days."
+            last={status?.playerdata ?? null}
+            statusLoading={statusLoading}
+            busy={pdBusy}
+            message={pdMsg}
+            onSync={() => void runPlayerdata()}
+            formatAest={formatAest}
+          />
         </div>
+
+        <PlayerdataUnmatched
+          refreshKey={unmatchedKey}
+          backfillBusy={pdBusy}
+          onBackfill={() => void runPlayerdata(365)}
+        />
       </section>
     </main>
   );
