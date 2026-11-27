@@ -89,12 +89,17 @@ query($from: ISO8601DateTime, $clubId: ID) {
 const SESSION_METRICS = `
 query($from: ISO8601DateTime, $clubId: ID!) {
   sessions(filter: { clubIdEq: $clubId, startTimeGteq: $from }, limit: 3, offset: 0) {
+    __typename
     id
     startTime
     sessionParticipations {
+      __typename
+      athlete { id name }
       ... on TrainingSessionParticipation {
-        athlete { id name }
         athleteMetricSet { totalDistanceM maxSpeedKph }
+      }
+      ... on MatchSessionParticipation {
+        metricSet { totalDistanceM maxSpeedKph }
       }
     }
   }
