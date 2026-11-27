@@ -29,6 +29,7 @@ import {
   ChartDefs,
 } from "./chartTheme";
 import SectionComment from "./SectionComment";
+import GpsWorkload, { WORKLOAD_METRICS } from "./GpsWorkload";
 
 type SessionLike = {
   id: string;
@@ -43,6 +44,10 @@ type Props = {
   sessions: SessionLike[];
   metricsBySession: Map<string, MetricLike[]>;
   sectionComment: string | null;
+  /** All GPS sessions (unfiltered) for the EWMA workload, plus the page date range. */
+  allSessions: SessionLike[];
+  rangeStart: string | null;
+  rangeEnd: string | null;
 };
 
 /** One chart point per GPS session. */
@@ -71,7 +76,15 @@ function mean(values: number[]): number | null {
   return values.length ? values.reduce((a, b) => a + b, 0) / values.length : null;
 }
 
-export default function GpsSection({ athleteId, sessions, metricsBySession, sectionComment }: Props) {
+export default function GpsSection({
+  athleteId,
+  sessions,
+  metricsBySession,
+  sectionComment,
+  allSessions,
+  rangeStart,
+  rangeEnd,
+}: Props) {
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [openCategories, setOpenCategories] = useState<Set<string>>(() => new Set());
 
@@ -123,7 +136,9 @@ export default function GpsSection({ athleteId, sessions, metricsBySession, sect
     return { byCategory: cats, infoByKey: info, hiddenEmpty: keys.size - nonZero.size };
   }, [points]);
 
-  const coreMetrics = GPS_CORE_KEYS.filter((k) => infoByKey.has(k)).map((k) => infoByKey.get(k)!);
+  // Distance, HSR and sprint distance are charted in the workload panel, so they're left out here.
+  const workloadKeys = new Set<string>(WORKLOAD_METRICS.map((m) => m.key));
+  const coreMetrics = GPS_CORE_KEYS.filter((k) => infoByKey.has(k) && !workloadKeys.has(k)).map((k) => infoByKey.get(k)!);
   const tileMetrics = GPS_TILE_KEYS.filter((k) => infoByKey.has(k)).map((k) => infoByKey.get(k)!);
   const latest = points[points.length - 1] ?? null;
 
@@ -188,6 +203,13 @@ export default function GpsSection({ athleteId, sessions, metricsBySession, sect
               })}
             </div>
           ) : null}
+
+          <GpsWorkload
+            sessions={allSessions}
+            metricsBySession={metricsBySession}
+            rangeStart={rangeStart}
+            rangeEnd={rangeEnd}
+          />
 
           {/* Headline charts */}
           {coreMetrics.length > 0 ? (

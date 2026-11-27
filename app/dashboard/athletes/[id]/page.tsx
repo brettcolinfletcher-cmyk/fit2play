@@ -847,6 +847,7 @@ export default function AthleteDetailPage() {
     [sessions, rangeStart, rangeEnd]
   );
 
+  const allGpsSessions = useMemo(() => sessions.filter((s) => bucket(s.source) === "gps"), [sessions]);
   const gpsSessions = useMemo(
     () => filteredSessions.filter((s) => bucket(s.source) === "gps"),
     [filteredSessions]
@@ -1734,6 +1735,9 @@ export default function AthleteDetailPage() {
                 sessions={gpsSessions}
                 metricsBySession={metricsBySession}
                 sectionComment={sectionNote("gps")}
+                allSessions={allGpsSessions}
+                rangeStart={rangeStart}
+                rangeEnd={rangeEnd}
               />
             )}
 
