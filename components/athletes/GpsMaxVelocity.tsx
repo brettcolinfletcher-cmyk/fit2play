@@ -45,6 +45,7 @@ export default function GpsMaxVelocity({ athleteId, points, bests, onMaxVelocity
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [today] = useState(() => new Date().toISOString().slice(0, 10));
 
   useEffect(() => {
     let cancelled = false;
@@ -94,7 +95,11 @@ export default function GpsMaxVelocity({ athleteId, points, bests, onMaxVelocity
 
   const data = points.map((p) => ({ ...p, pct: mv && p.speed != null ? (p.speed / mv) * 100 : null }));
   const withPct = data.filter((d) => d.pct != null);
-  const hits = withPct.filter((d) => d.pct! >= HIGH).length;
+  // Days since the most recent session at or above 90% of max velocity
+  const lastHit = [...withPct].reverse().find((d) => d.pct! >= HIGH) ?? null;
+  const daysSinceHit = lastHit
+    ? Math.max(0, Math.round((Date.parse(today) - Date.parse(lastHit.date.slice(0, 10))) / 86_400_000))
+    : null;
   const fasterThanMv = usingManual && bestOverall && mv != null && bestOverall.kph > mv ? bestOverall : null;
   const yMin = Math.min(60, Math.floor(Math.min(...withPct.map((d) => d.pct!), 100) / 5) * 5 - 5);
   const yMax = Math.max(105, Math.ceil(Math.max(...withPct.map((d) => d.pct!), 0) / 5) * 5 + 2);
@@ -206,10 +211,21 @@ export default function GpsMaxVelocity({ athleteId, points, bests, onMaxVelocity
               <span className="text-slate-400"> ({f1(withPct.at(-1)!.speed)} km/h, {withPct.at(-1)!.dateLabel})</span>
             </span>
             <span>
-              <span className="text-slate-400">Sessions ≥{HIGH}% </span>
-              <span className="font-semibold text-slate-800">
-                {hits} of {withPct.length}
-              </span>
+              <span className="text-slate-400">Days since {HIGH}%+ MV </span>
+              {daysSinceHit != null && lastHit ? (
+                <>
+                  <span
+                    className={`font-semibold ${
+                      daysSinceHit > 14 ? "text-rose-600" : daysSinceHit > 7 ? "text-amber-600" : "text-slate-800"
+                    }`}
+                  >
+                    {daysSinceHit}
+                  </span>
+                  <span className="text-slate-400"> (last {lastHit.dateLabel}, {Math.round(lastHit.pct!)}%)</span>
+                </>
+              ) : (
+                <span className="font-semibold text-slate-500">none in range</span>
+              )}
             </span>
           </div>
           <ZoomableChart title="% of max velocity per session" height={180} className="mt-2 w-full rounded-xl border border-slate-200 bg-white">
