@@ -115,14 +115,14 @@ export function athleteStatus(args: {
 
 export type Flag = { athleteId: string; severity: "high" | "medium"; text: string };
 
-export function statusFlags(s: AthleteStatus): Flag[] {
+export function statusFlags(s: AthleteStatus, spikeThreshold: number = SPIKE_FLAG): Flag[] {
   const out: Flag[] = [];
   const acwr = s.last?.acwr ?? null;
   if (acwr != null && acwr > ACWR_DANGER) out.push({ athleteId: s.athleteId, severity: "high", text: `ACWR ${acwr.toFixed(2)} (above ${ACWR_DANGER})` });
   else if (acwr != null && acwr > ACWR_HIGH) out.push({ athleteId: s.athleteId, severity: "medium", text: `ACWR ${acwr.toFixed(2)} (above ${ACWR_HIGH})` });
   else if (acwr != null && acwr < ACWR_LOW) out.push({ athleteId: s.athleteId, severity: "medium", text: `ACWR ${acwr.toFixed(2)} (below ${ACWR_LOW})` });
   const spike = s.last?.diffPct ?? null;
-  if (spike != null && spike >= SPIKE_FLAG) out.push({ athleteId: s.athleteId, severity: "high", text: `Load spike +${Math.round(spike)}%` });
+  if (spike != null && spike >= spikeThreshold) out.push({ athleteId: s.athleteId, severity: "high", text: `Load spike +${Math.round(spike)}%` });
   if (s.maxVelocity && s.sessionsInRange > 0 && (s.daysSince90 == null || s.daysSince90 > MV_STALE_DAYS)) {
     out.push({
       athleteId: s.athleteId,

@@ -4,14 +4,14 @@ import Link from "next/link";
 import type { Flag } from "@/lib/gpsTeam";
 import { Card } from "./ui";
 
-export default function FlagsList({ flags, names }: { flags: Flag[]; names: Map<string, string> }) {
+export default function FlagsList({ flags, names, spikeThreshold }: { flags: Flag[]; names: Map<string, string>; spikeThreshold: number }) {
   const high = flags.filter((f) => f.severity === "high");
   const medium = flags.filter((f) => f.severity === "medium");
   return (
     <Card
       id="flags"
       title="Watch list"
-      subtitle="ACWR outside 0.8–1.3, load spike +50% or more, no 90%+ max velocity exposure in 14+ days."
+      subtitle={`ACWR outside 0.8–1.3, load spike +${spikeThreshold}% or more, no 90%+ max velocity exposure in 14+ days.`}
     >
       {flags.length === 0 ? (
         <p className="mt-3 text-xs text-lime-700">No flags in this range.</p>

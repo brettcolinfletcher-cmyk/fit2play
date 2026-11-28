@@ -14,6 +14,7 @@ import { bandRangeLabel, bandsFromThresholds, loadThresholds } from "@/lib/speed
 import { supabase } from "@/lib/supabaseClient";
 import { loadTeamGps, type TeamGpsData } from "@/lib/teamGpsData";
 import { useRequireDashboardStaff } from "@/lib/useRequireDashboardStaff";
+import { loadSpikeThreshold, saveSpikeThreshold, SPIKE_OPTIONS } from "@/lib/spikeThreshold";
 
 type RangePreset = "3m" | "6m" | "12m" | "all" | "custom";
 const MONTHS: Record<"3m" | "6m" | "12m", number> = { "3m": 3, "6m": 6, "12m": 12 };
@@ -49,6 +50,7 @@ export default function TeamGpsPage() {
   const [customTo, setCustomTo] = useState("");
   const [loadKey, setLoadKey] = useState<LoadKey>("bands");
   const [chronicWeeks, setChronicWeeks] = useState(4);
+  const [spikeThreshold, setSpikeThreshold] = useState<number>(() => (typeof window === "undefined" ? 50 : loadSpikeThreshold()));
   const [bands] = useState(() => bandsFromThresholds(typeof window === "undefined" ? [] : loadThresholds()));
   const [hidden, setHidden] = useState<Set<string>>(() => new Set());
   const enabled = useMemo(() => new Set(bands.map((b) => b.id).filter((b) => !hidden.has(b))), [bands, hidden]);
@@ -113,7 +115,7 @@ export default function TeamGpsPage() {
       }));
   }, [data, loadKey, bands, enabled, chronicWeeks, rangeStart, rangeEnd]);
 
-  const flags = useMemo(() => statuses.flatMap((s) => statusFlags(s)), [statuses]);
+  const flags = useMemo(() => statuses.flatMap((s) => statusFlags(s, spikeThreshold)), [statuses, spikeThreshold]);
   const maxVelocity = useMemo(() => new Map(statuses.map((s) => [s.athleteId, s.maxVelocity])), [statuses]);
   const loadLabel =
     loadKey === "bands"
@@ -194,6 +196,24 @@ export default function TeamGpsPage() {
             onChange={setChronicWeeks}
             options={[2, 3, 4, 5, 6, 7, 8, 9, 10].map((w) => ({ v: w, label: String(w), title: `${w * 7}-day chronic EWMA` }))}
           />
+          <label className="flex items-center gap-1.5 text-xs">
+            <span className="text-slate-400">Spike</span>
+            <select
+              value={spikeThreshold}
+              onChange={(e) => {
+                const v = Number(e.target.value);
+                setSpikeThreshold(v);
+                saveSpikeThreshold(v);
+              }}
+              className="rounded-lg border border-slate-200 bg-white px-1.5 py-1 font-medium text-slate-700"
+            >
+              {SPIKE_OPTIONS.map((o) => (
+                <option key={o} value={o}>
+                  ±{o}%
+                </option>
+              ))}
+            </select>
+          </label>
           <div className="flex flex-wrap items-center gap-1.5 text-xs">
             {bands.map((b) => {
               const on = enabled.has(b.id);
@@ -238,8 +258,8 @@ export default function TeamGpsPage() {
 
         {data && statuses.length > 0 ? (
           <>
-            <FlagsList flags={flags} names={names} />
-            <SquadTable rows={statuses} loadLabel={loadLabel} asOf={rangeEnd} />
+            <FlagsList flags={flags} names={names} spikeThreshold={spikeThreshold} />
+            <SquadTable rows={statuses} loadLabel={loadLabel} asOf={rangeEnd} spikeThreshold={spikeThreshold} />
             <TeamTrends
               statuses={statuses}
               sessions={data.sessions}

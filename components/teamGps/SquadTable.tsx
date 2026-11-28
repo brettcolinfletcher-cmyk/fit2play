@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import type { AthleteStatus } from "@/lib/gpsTeam";
-import { MV_HIGH, MV_STALE_DAYS, SPIKE_FLAG } from "@/lib/gpsTeam";
+import { MV_HIGH, MV_STALE_DAYS } from "@/lib/gpsTeam";
 import { acwrChip, Card, n0, pct, shortDate } from "./ui";
 
 type Row = AthleteStatus & { name: string };
@@ -41,7 +41,17 @@ function sortVal(r: Row, k: SortKey): number | string | null {
   }
 }
 
-export default function SquadTable({ rows, loadLabel, asOf }: { rows: Row[]; loadLabel: string; asOf: string }) {
+export default function SquadTable({
+  rows,
+  loadLabel,
+  asOf,
+  spikeThreshold,
+}: {
+  rows: Row[];
+  loadLabel: string;
+  asOf: string;
+  spikeThreshold: number;
+}) {
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: "acwr", dir: -1 });
   const sorted = [...rows].sort((a, b) => {
     const va = sortVal(a, sort.key);
@@ -106,7 +116,7 @@ export default function SquadTable({ rows, loadLabel, asOf }: { rows: Row[]; loa
                   </td>
                   <td
                     className={`py-2 text-right font-semibold tabular-nums ${
-                      spike != null && spike >= SPIKE_FLAG ? "text-rose-600" : spike != null && spike <= -SPIKE_FLAG ? "text-sky-600" : "text-slate-700"
+                      spike != null && spike >= spikeThreshold ? "text-rose-600" : spike != null && spike <= -spikeThreshold ? "text-sky-600" : "text-slate-700"
                     }`}
                   >
                     {pct(spike)}

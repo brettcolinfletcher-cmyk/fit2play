@@ -21,6 +21,7 @@ import { dailyTotals, dayMs, ewmaSeries, isoDay, type EwmaPoint } from "@/lib/ew
 import { loadAthletePhases, phaseStyle, type AthleteTeam, type SeasonPhase } from "@/lib/seasonPhases";
 import { CHART_AXIS_LINE, CHART_AXIS_TICK, CHART_GRID, CHART_TOOLTIP_STYLE, ChartDefs } from "./chartTheme";
 import SeasonPhaseEditor from "./SeasonPhaseEditor";
+import { loadSpikeThreshold, saveSpikeThreshold, SPIKE_OPTIONS } from "@/lib/spikeThreshold";
 
 /** "bands" = sum of the speed bands switched on (falls back to total distance without band data). */
 export const WORKLOAD_METRICS = [
@@ -44,8 +45,7 @@ const SWEET_LOW = 0.8;
 const SWEET_HIGH = 1.3;
 const DANGER = 1.5;
 /** Spike labels: only increases this big are labelled on the chart (all are in the tooltip). */
-/** Load spike = (acute - chronic) / chronic. Labelled on session days at or beyond ±50%; every day in the tooltip. */
-const SPIKE_LABEL = 50;
+/** Load spike = (acute - chronic) / chronic. Labelled on session days at or beyond ±threshold (picker, saved per browser). */
 
 type SessionLike = { id: string; session_date: string | null };
 type MetricLike = { key: string; value: number | null };
@@ -147,6 +147,7 @@ export default function GpsWorkload({
   const [today] = useState(() => isoDay(Date.now()));
 
   const [showSpikes, setShowSpikes] = useState(true);
+  const [spikeThreshold, setSpikeThreshold] = useState<number>(() => (typeof window === "undefined" ? 50 : loadSpikeThreshold()));
   const [metricKey, setMetricKey] = useState<string>(WORKLOAD_METRICS[0].key);
   const chronicDays = chronicWeeks * 7;
 
@@ -209,16 +210,36 @@ export default function GpsWorkload({
           >
             Season phases{phases.length ? ` (${phases.length})` : ""}
           </button>
-          <button
-            type="button"
-            onClick={() => setShowSpikes((v) => !v)}
-            className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
+          <div
+            className={`flex items-center overflow-hidden rounded-full border text-xs font-medium ${
               showSpikes ? "border-amber-300 bg-amber-50 text-amber-700" : "border-slate-200 text-slate-400"
             }`}
-            title={`Label session days where acute is ${SPIKE_LABEL}% or more above or below chronic`}
           >
-            Load spike ±{SPIKE_LABEL}% {showSpikes ? "on" : "off"}
-          </button>
+            <button
+              type="button"
+              onClick={() => setShowSpikes((v) => !v)}
+              className="py-1 pl-2.5 pr-1.5"
+              title={`Label session days where acute is ${spikeThreshold}% or more above or below chronic`}
+            >
+              Load spike {showSpikes ? "on" : "off"}
+            </button>
+            <select
+              value={spikeThreshold}
+              onChange={(e) => {
+                const v = Number(e.target.value);
+                setSpikeThreshold(v);
+                saveSpikeThreshold(v);
+              }}
+              className="border-l border-inherit bg-transparent py-1 pl-1.5 pr-1 font-semibold focus:outline-none"
+              title="Spike threshold"
+            >
+              {SPIKE_OPTIONS.map((o) => (
+                <option key={o} value={o}>
+                  ±{o}%
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
@@ -287,7 +308,7 @@ export default function GpsWorkload({
           <LegendSwatch kind="acute" label={`Acute ${ACUTE_DAYS} d`} />
           <LegendSwatch kind="chronic" label={`Chronic ${chronicWeeks} wk`} />
           <LegendSwatch kind="gap" label="Acute above / below chronic" />
-          {showSpikes ? <LegendSwatch kind="spike" label={`Spike ±${SPIKE_LABEL}%`} /> : null}
+          {showSpikes ? <LegendSwatch kind="spike" label={`Spike ±${spikeThreshold}%`} /> : null}
         </div>
       </div>
 
@@ -297,6 +318,7 @@ export default function GpsWorkload({
         label={labelFor(active)}
         chronicWeeks={chronicWeeks}
         showSpikes={showSpikes}
+        spikeThreshold={spikeThreshold}
         phases={phases}
         today={today}
         namesByDate={namesByDate}
@@ -412,7 +434,8 @@ function WorkloadTooltip({
   unit,
   phases,
   namesByDate,
-}: TipProps & { unit: string; phases: SeasonPhase[]; namesByDate: Map<string, string[]> }) {
+  spikeThreshold,
+}: TipProps & { unit: string; phases: SeasonPhase[]; namesByDate: Map<string, string[]>; spikeThreshold: number }) {
   if (!active || !payload?.length) return null;
   const p = payload[0].payload;
   const phase = phaseAt(p.t, phases);
@@ -436,7 +459,7 @@ function WorkloadTooltip({
         <div className="mt-1 border-t border-slate-700 pt-1">
           <p className="flex items-center justify-between gap-4">
             <span className="text-slate-300">Load spike (% difference)</span>
-            <b className={`tabular-nums ${diff >= SPIKE_LABEL ? "text-rose-400" : diff <= -SPIKE_LABEL ? "text-sky-300" : "text-white"}`}>
+            <b className={`tabular-nums ${diff >= spikeThreshold ? "text-rose-400" : diff <= -spikeThreshold ? "text-sky-300" : "text-white"}`}>
               {pct(diff)}
             </b>
           </p>
@@ -469,6 +492,7 @@ function WorkloadChart({
   label,
   chronicWeeks,
   showSpikes,
+  spikeThreshold,
   phases,
   today,
   namesByDate,
@@ -479,6 +503,7 @@ function WorkloadChart({
   label: string;
   chronicWeeks: number;
   showSpikes: boolean;
+  spikeThreshold: number;
   phases: SeasonPhase[];
   today: string;
 }) {
@@ -515,7 +540,7 @@ function WorkloadChart({
                 label={{ value: "chronic building", position: "insideTopLeft", fill: "#94a3b8", fontSize: 10 }}
               />
             ) : null}
-            <Tooltip content={<WorkloadTooltip unit={unit} phases={phases} namesByDate={namesByDate} />} cursor={{ stroke: "#94a3b8", strokeDasharray: "3 3" }} />
+            <Tooltip content={<WorkloadTooltip unit={unit} phases={phases} namesByDate={namesByDate} spikeThreshold={spikeThreshold} />} cursor={{ stroke: "#94a3b8", strokeDasharray: "3 3" }} />
             <Area dataKey="gapUp" type="monotone" stroke="none" fill={GAP_UP_FILL} fillOpacity={0.45} isAnimationActive={false} activeDot={false} />
             <Area dataKey="gapDown" type="monotone" stroke="none" fill={GAP_DOWN_FILL} fillOpacity={0.6} isAnimationActive={false} activeDot={false} />
             <Bar dataKey="load" fill="url(#f2pBar)" barSize={barSize} radius={[3, 3, 0, 0]} isAnimationActive={false}>
@@ -525,7 +550,7 @@ function WorkloadChart({
                   content={(props) => {
                     const { x, y, width, index } = props as { x?: number; y?: number; width?: number; index?: number };
                     const p = index != null ? points[index] : null;
-                    if (!p || p.load == null || p.diffPct == null || Math.abs(p.diffPct) < SPIKE_LABEL || x == null || y == null) return null;
+                    if (!p || p.load == null || p.diffPct == null || Math.abs(p.diffPct) < spikeThreshold || x == null || y == null) return null;
                     const color = p.diffPct > 0 ? "#e11d48" : "#2563eb";
                     return (
                       <text x={x + (width ?? 0) / 2} y={y - 6} textAnchor="middle" fontSize={10} fontWeight={700} fill={color}>
