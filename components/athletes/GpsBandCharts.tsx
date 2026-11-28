@@ -144,8 +144,7 @@ export default function GpsBandCharts({
       byWeek.set(w, cur);
     }
     // Weekly acute/chronic: the week's average daily EWMA × 7 (weekly equivalent). Averaging over the
-    // week avoids one day (e.g. a Sunday match) driving the whole week's value. Chronic is left out
-    // for weeks where it is still building.
+    // week avoids one day (e.g. a Sunday match) driving the whole week's value.
     const weeklyRows = [...byWeek.entries()]
       .sort((a, b) => a[0] - b[0])
       .map(([w, v]) => {
@@ -153,8 +152,8 @@ export default function GpsBandCharts({
         const days = [0, 1, 2, 3, 4, 5, 6].map((k) => ewmaByT.get(w + k * DAY_MS)).filter((p): p is EwmaPoint => !!p);
         if (days.length === 0) return { ...r, acute: null, chronic: null };
         const mean = (f: (p: EwmaPoint) => number) => days.reduce((a, p) => a + f(p), 0) / days.length;
-        const built = !days[days.length - 1].building;
-        return { ...r, acute: mean((p) => p.acute) * 7, chronic: built ? mean((p) => p.chronic) * 7 : null };
+        // Weeks before the athlete's first session count as zero load (EWMA starts at 0), so early weeks show too
+        return { ...r, acute: mean((p) => p.acute) * 7, chronic: mean((p) => p.chronic) * 7 };
       });
     return { daily: dailyRows, weekly: weeklyRows, missing: missingCount, hasAny: any };
   }, [sessions, metricsBySession, rangeStart, rangeEnd, bands, enabled, ewma]);
