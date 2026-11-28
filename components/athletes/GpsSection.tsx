@@ -14,7 +14,9 @@ import {
 } from "recharts";
 import ZoomableChart from "@/components/charts/ZoomableChart";
 import { formatDisplayDate } from "@/lib/dateDisplay";
+import GpsSessionList from "./GpsSessionList";
 import {
+  sessionDisplayName,
   GPS_CATEGORY_ORDER,
   GPS_CORE_KEYS,
   GPS_TILE_KEYS,
@@ -44,6 +46,8 @@ type SessionLike = {
   id: string;
   session_date: string | null;
   test_sub_type: string | null;
+  session_name?: string | null;
+  external_name?: string | null;
 };
 type MetricLike = { key: string; value: number | null; rep_index?: number | null };
 
@@ -68,6 +72,7 @@ type Point = {
   date: string;
   dateLabel: string;
   type: string;
+  name: string;
   [metricKey: string]: number | string | null;
 };
 
@@ -98,6 +103,20 @@ export default function GpsSection({
   sprintBest,
 }: Props) {
   const [mvKph, setMvKph] = useState<number | null>(null);
+  // Names typed in this view, applied before the page reloads its sessions
+  const [renamed, setRenamed] = useState<Map<string, string | null>>(() => new Map());
+  const nameOf = (s: SessionLike) =>
+    sessionDisplayName({ ...s, session_name: renamed.has(s.id) ? renamed.get(s.id) : s.session_name });
+  const namesByDate = useMemo(() => {
+    const m = new Map<string, string[]>();
+    for (const s of allSessions) {
+      if (!s.session_date) continue;
+      const d = s.session_date.slice(0, 10);
+      m.set(d, [...(m.get(d) ?? []), nameOf(s)]);
+    }
+    return m;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allSessions, renamed]);
   const [thresholds, setThresholds] = useState<number[]>(() => (typeof window === "undefined" ? [] : loadThresholds()));
   const bands = useMemo(() => bandsFromThresholds(thresholds.length ? thresholds : loadThresholds()), [thresholds]);
   const [hiddenBands, setHiddenBands] = useState<Set<string>>(() => new Set());
@@ -139,13 +158,15 @@ export default function GpsSection({
         date: s.session_date!.slice(0, 10),
         dateLabel: formatDisplayDate(s.session_date),
         type: s.test_sub_type ?? "",
+        name: nameOf(s),
       };
       for (const m of metricsBySession.get(s.id) ?? []) {
         if (m.key.startsWith("gps_") && m.key !== SPEED_BUCKET_KEY && m.value != null) p[m.key] = Number(m.value);
       }
       return p;
     });
-  }, [sessions, metricsBySession, typeFilter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessions, metricsBySession, typeFilter, renamed]);
 
   /** Every gps_ metric with at least one non-zero value in range, grouped by category. */
   const { byCategory, infoByKey, hiddenEmpty } = useMemo(() => {
@@ -195,6 +216,7 @@ export default function GpsSection({
     date: p.date,
     dateLabel: p.dateLabel,
     type: p.type,
+    name: p.name,
     speed: typeof p.gps_max_speed_kph === "number" ? (p.gps_max_speed_kph as number) : null,
   }));
 
@@ -266,6 +288,7 @@ export default function GpsSection({
 
           <GpsBandCharts
             sessions={allSessions}
+            namesByDate={namesByDate}
             metricsBySession={metricsBySession}
             rangeStart={rangeStart}
             rangeEnd={rangeEnd}
@@ -291,6 +314,7 @@ export default function GpsSection({
 
           <GpsWorkload
             athleteId={athleteId}
+            namesByDate={namesByDate}
             bandLoad={bandLoad.size > 0 ? bandLoad : null}
             bandLabel={bandLabel}
             sessions={allSessions}
@@ -300,6 +324,24 @@ export default function GpsSection({
           />
 
           <GpsMaxVelocity athleteId={athleteId} points={speedPoints} bests={bests} onMaxVelocity={setMvKph} />
+
+          <GpsSessionList
+            rows={sessions.map((s) => {
+              const ms = metricsBySession.get(s.id) ?? [];
+              const top = ms.find((m) => m.key === "gps_max_speed_kph")?.value;
+              return {
+                id: s.id,
+                session_date: s.session_date,
+                test_sub_type: s.test_sub_type,
+                session_name: renamed.has(s.id) ? renamed.get(s.id) : s.session_name,
+                external_name: s.external_name,
+                distance: ms.find((m) => m.key === "gps_total_distance_m")?.value ?? null,
+                topSpeed: top ?? null,
+                pctMv: top != null && mvKph ? (Number(top) / mvKph) * 100 : null,
+              };
+            })}
+            onRenamed={(id, name) => setRenamed((prev) => new Map(prev).set(id, name))}
+          />
 
           {/* Headline charts */}
           {coreMetrics.length > 0 ? (
@@ -412,7 +454,7 @@ function GpsMetricChart({ metric, points, height }: { metric: GpsMetricInfo; poi
                 itemStyle={{ color: "#e2e8f0" }}
                 labelFormatter={(i) => {
                   const p = points[Number(i)];
-                  return p ? `${p.dateLabel}${p.type ? ` · ${p.type}` : ""}` : "";
+                  return p ? `${p.dateLabel} · ${p.name}` : "";
                 }}
                 formatter={(v) => [`${fmt(Number(v), metric.unit)}${metric.unit ? ` ${metric.unit}` : ""}`, metric.label]}
               />

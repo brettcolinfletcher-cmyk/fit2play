@@ -219,6 +219,8 @@ type SessionRow = {
   clinician_notes?: string | null;
   lr_starting_leg?: "left" | "right" | null;
   lr_side_swap?: boolean;
+  session_name?: string | null;
+  external_name?: string | null;
 };
 
 type MetricRow = {
@@ -726,11 +728,20 @@ export default function AthleteDetailPage() {
       if (cancelled) return;
       if (aErr || !a) { setError(aErr?.message ?? "Athlete not found"); setLoading(false); return; }
 
-      const { data: s, error: sErr } = await supabase
-        .from("sessions")
-        .select("id, session_date, test_type, test_sub_type, source, clinician_notes, lr_starting_leg, lr_side_swap")
-        .eq("athlete_id", id)
-        .order("session_date", { ascending: false });
+      const SESSION_COLS = "id, session_date, test_type, test_sub_type, source, clinician_notes, lr_starting_leg, lr_side_swap";
+      const loadSessions = (cols: string) =>
+        supabase.from("sessions").select(cols).eq("athlete_id", id).order("session_date", { ascending: false });
+      let { data: s, error: sErr } = (await loadSessions(`${SESSION_COLS}, session_name, external_name`)) as unknown as {
+        data: SessionRow[] | null;
+        error: { message: string } | null;
+      };
+      // Session name columns not migrated yet: load without them.
+      if (sErr && /session_name|external_name/.test(sErr.message)) {
+        ({ data: s, error: sErr } = (await loadSessions(SESSION_COLS)) as unknown as {
+          data: SessionRow[] | null;
+          error: { message: string } | null;
+        });
+      }
 
       if (cancelled) return;
       if (sErr) { setError(sErr.message); setLoading(false); return; }

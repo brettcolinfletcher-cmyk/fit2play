@@ -143,13 +143,14 @@ type PdSession = {
   id: string;
   startTime: string;
   timezone: string | null;
+  description?: string | null;
   club: { name: string } | null;
   sessionParticipations: PdParticipation[] | null;
 };
 
 const BASE_SESSION_QUERY = `query($id: ID!) {
   session(id: $id) {
-    __typename id startTime timezone club { name }
+    __typename id startTime timezone description club { name }
     sessionParticipations { __typename id athlete { id name dateOfBirth } }
   }
 }`;
@@ -405,10 +406,7 @@ export async function runPlayerdataSync(
         }
         if (rows.length === 0) continue;
 
-        const { data: sess, error: sErr } = await supabase
-          .from("sessions")
-          .upsert(
-            {
+        const sessionRow = {
               athlete_id: athleteId,
               test_type: "gps",
               test_sub_type: subType,
@@ -418,11 +416,21 @@ export async function runPlayerdataSync(
               session_date: sessionDate,
               device: "PlayerData",
               sync_dedupe_key: `playerdata:${externalId}`,
-            },
-            { onConflict: "sync_dedupe_key" }
-          )
+        };
+        const externalName = s.description?.trim() || null;
+        let { data: sess, error: sErr } = await supabase
+          .from("sessions")
+          .upsert({ ...sessionRow, external_name: externalName }, { onConflict: "sync_dedupe_key" })
           .select("id")
           .single();
+        if (sErr && /external_name/.test(sErr.message)) {
+          // session name columns not migrated yet
+          ({ data: sess, error: sErr } = await supabase
+            .from("sessions")
+            .upsert(sessionRow, { onConflict: "sync_dedupe_key" })
+            .select("id")
+            .single());
+        }
         if (sErr || !sess?.id) {
           errors.push(`session ${externalId}: ${sErr?.message ?? "no id"}`);
           continue;

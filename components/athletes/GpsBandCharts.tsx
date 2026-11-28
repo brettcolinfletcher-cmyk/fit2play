@@ -34,6 +34,8 @@ type Props = {
   onToggleTotal: () => void;
   thresholds: number[];
   onThresholds: (t: number[]) => void;
+  /** Session names by day (YYYY-MM-DD) for tooltips. */
+  namesByDate: Map<string, string[]>;
 };
 
 type Row = { t: number; label: string; total: number | null; [band: string]: number | string | null };
@@ -68,6 +70,7 @@ export default function GpsBandCharts({
   onToggleTotal,
   thresholds,
   onThresholds,
+  namesByDate,
 }: Props) {
   const [editing, setEditing] = useState(false);
 
@@ -188,7 +191,7 @@ export default function GpsBandCharts({
                 minTickGap={28}
               />
               <YAxis tick={CHART_AXIS_TICK} axisLine={false} tickLine={false} width={52} tickFormatter={(v: number) => n0(v)} />
-              <Tooltip content={<BandTooltip bands={bands} enabled={enabled} />} cursor={{ fill: "rgba(148,163,184,0.12)" }} />
+              <Tooltip content={<BandTooltip bands={bands} enabled={enabled} namesByDate={namesByDate} />} cursor={{ fill: "rgba(148,163,184,0.12)" }} />
               {bands.map((b) => (
                 <Bar
                   key={b.id}
@@ -241,9 +244,16 @@ export default function GpsBandCharts({
   );
 }
 
-type TipProps = { active?: boolean; payload?: { payload: Row }[]; bands: SpeedBand[]; enabled: Set<string>; weekly?: boolean };
+type TipProps = {
+  active?: boolean;
+  payload?: { payload: Row }[];
+  bands: SpeedBand[];
+  enabled: Set<string>;
+  weekly?: boolean;
+  namesByDate?: Map<string, string[]>;
+};
 
-function BandTooltip({ active, payload, bands, enabled, weekly }: TipProps) {
+function BandTooltip({ active, payload, bands, enabled, weekly, namesByDate }: TipProps) {
   if (!active || !payload?.length) return null;
   const r = payload[0].payload;
   const shown = bands.filter((b) => enabled.has(b.id));
@@ -251,6 +261,9 @@ function BandTooltip({ active, payload, bands, enabled, weekly }: TipProps) {
   return (
     <div style={CHART_TOOLTIP_STYLE} className="min-w-[190px] px-3 py-2 text-[11px] text-slate-200">
       <p className="mb-1 text-slate-400">{weekly ? `Week ${r.label}` : isoDay(r.t).split("-").reverse().join("/")}</p>
+      {!weekly && namesByDate?.get(isoDay(r.t))?.length ? (
+        <p className="mb-1 font-medium text-lime-300">{namesByDate.get(isoDay(r.t))!.join(" + ")}</p>
+      ) : null}
       {[...shown].reverse().map((b) => (
         <p key={b.id} className="flex items-center justify-between gap-4 py-0.5">
           <span className="flex items-center gap-1.5 text-slate-300">

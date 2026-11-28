@@ -18,7 +18,7 @@ import { formatDisplayDate } from "@/lib/dateDisplay";
 import { supabase } from "@/lib/supabaseClient";
 import { CHART_AXIS_LINE, CHART_AXIS_TICK, CHART_GRID, CHART_TOOLTIP_STYLE } from "./chartTheme";
 
-export type SpeedPoint = { idx: number; date: string; dateLabel: string; type: string; speed: number | null };
+export type SpeedPoint = { idx: number; date: string; dateLabel: string; type: string; name?: string; speed: number | null };
 export type BestSpeed = { kph: number; date: string; source: "GPS" | "1080 sprint" };
 
 const HIGH = 90; // % of max velocity worth flagging as a true high-speed exposure
@@ -261,7 +261,7 @@ export default function GpsMaxVelocity({ athleteId, points, bests, onMaxVelocity
                     itemStyle={{ color: "#e2e8f0" }}
                     labelFormatter={(i) => {
                       const p = data[Number(i)];
-                      return p ? `${p.dateLabel}${p.type ? ` · ${p.type}` : ""}` : "";
+                      return p ? `${p.dateLabel} · ${p.name ?? p.type}` : "";
                     }}
                     formatter={(v, _n, item) => {
                       const sp = (item?.payload as { speed?: number } | undefined)?.speed;

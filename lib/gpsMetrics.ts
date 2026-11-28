@@ -195,3 +195,12 @@ export function gpsMetricInfo(key: string): GpsMetricInfo {
     kind: gpsKind(key),
   };
 }
+
+/** Session label: staff-typed name, else the source system's name, else the session type. */
+export function sessionDisplayName(s: {
+  session_name?: string | null;
+  external_name?: string | null;
+  test_sub_type?: string | null;
+}): string {
+  return s.session_name?.trim() || s.external_name?.trim() || s.test_sub_type || "Session";
+}

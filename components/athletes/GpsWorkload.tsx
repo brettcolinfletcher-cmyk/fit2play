@@ -56,6 +56,8 @@ type Props = {
   /** Selected speed-band distance per session id; null when no band data exists. */
   bandLoad: Map<string, number> | null;
   bandLabel: string;
+  /** Session names by day (YYYY-MM-DD) for tooltips. */
+  namesByDate: Map<string, string[]>;
   /** ALL of the athlete's GPS sessions (not range-filtered): EWMA needs the full history. */
   sessions: SessionLike[];
   metricsBySession: Map<string, MetricLike[]>;
@@ -120,7 +122,7 @@ function Toggle<T extends string | number>({
 /** Chart row: EWMA point plus the acute/chronic gap as [low, high] ranges for shading. */
 type ChartPoint = EwmaPoint & { gapUp: [number, number]; gapDown: [number, number] };
 
-export default function GpsWorkload({ athleteId, bandLoad, bandLabel, sessions, metricsBySession, rangeStart, rangeEnd }: Props) {
+export default function GpsWorkload({ athleteId, bandLoad, bandLabel, namesByDate, sessions, metricsBySession, rangeStart, rangeEnd }: Props) {
   const [phases, setPhases] = useState<SeasonPhase[]>([]);
   const [teams, setTeams] = useState<AthleteTeam[]>([]);
   const [phasesMissing, setPhasesMissing] = useState(false);
@@ -308,6 +310,7 @@ export default function GpsWorkload({ athleteId, bandLoad, bandLabel, sessions, 
         showSpikes={showSpikes}
         phases={phases}
         today={today}
+        namesByDate={namesByDate}
       />
       <AcwrChart points={pts} label={labelFor(active)} phases={phases} today={today} />
     </div>
@@ -414,7 +417,13 @@ function todayLine(points: EwmaPoint[], today: string, withLabel: boolean) {
 
 type TipProps = { active?: boolean; payload?: { payload: ChartPoint }[] };
 
-function WorkloadTooltip({ active, payload, unit, phases }: TipProps & { unit: string; phases: SeasonPhase[] }) {
+function WorkloadTooltip({
+  active,
+  payload,
+  unit,
+  phases,
+  namesByDate,
+}: TipProps & { unit: string; phases: SeasonPhase[]; namesByDate: Map<string, string[]> }) {
   if (!active || !payload?.length) return null;
   const p = payload[0].payload;
   const phase = phaseAt(p.t, phases);
@@ -426,6 +435,9 @@ function WorkloadTooltip({ active, payload, unit, phases }: TipProps & { unit: s
         {shortDate(p.t)}
         {p.load == null ? " · rest day" : ""}
       </p>
+      {p.load != null && namesByDate.get(p.date)?.length ? (
+        <p className="mb-1 font-medium text-lime-300">{namesByDate.get(p.date)!.join(" + ")}</p>
+      ) : null}
       {p.load != null ? (
         <Row label="Session load" value={`${n0(p.load)} ${unit}`} />
       ) : null}
@@ -457,7 +469,9 @@ function WorkloadChart({
   showSpikes,
   phases,
   today,
+  namesByDate,
 }: {
+  namesByDate: Map<string, string[]>;
   points: EwmaPoint[];
   unit: string;
   label: string;
@@ -499,7 +513,7 @@ function WorkloadChart({
                 label={{ value: "chronic building", position: "insideTopLeft", fill: "#94a3b8", fontSize: 10 }}
               />
             ) : null}
-            <Tooltip content={<WorkloadTooltip unit={unit} phases={phases} />} cursor={{ stroke: "#94a3b8", strokeDasharray: "3 3" }} />
+            <Tooltip content={<WorkloadTooltip unit={unit} phases={phases} namesByDate={namesByDate} />} cursor={{ stroke: "#94a3b8", strokeDasharray: "3 3" }} />
             <Area dataKey="gapUp" type="monotone" stroke="none" fill={GAP_UP_FILL} fillOpacity={0.45} isAnimationActive={false} activeDot={false} />
             <Area dataKey="gapDown" type="monotone" stroke="none" fill={GAP_DOWN_FILL} fillOpacity={0.6} isAnimationActive={false} activeDot={false} />
             <Bar dataKey="load" fill="url(#f2pBar)" barSize={barSize} radius={[3, 3, 0, 0]} isAnimationActive={false}>
