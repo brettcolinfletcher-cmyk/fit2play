@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import {
   Bar,
-  BarChart,
   CartesianGrid,
   ComposedChart,
   LabelList,
@@ -38,7 +37,7 @@ type Props = {
   namesByDate: Map<string, string[]>;
 };
 
-type Row = { t: number; label: string; total: number | null; [band: string]: number | string | null };
+type Row = { t: number; label: string; total: number | null; hasBands: number; [band: string]: number | string | null };
 
 const DAY_MS = 86_400_000;
 const TOTAL_COLOR = "#0f172a";
@@ -77,7 +76,7 @@ export default function GpsBandCharts({
   const { daily, weekly, missing, hasAny } = useMemo(() => {
     const from = rangeStart ? dayMs(rangeStart) : -Infinity;
     const to = rangeEnd ? dayMs(rangeEnd) : Infinity;
-    const byDay = new Map<number, { bands: number[]; total: number }>();
+    const byDay = new Map<number, { bands: number[]; total: number; has: boolean }>();
     let missingCount = 0;
     let any = false;
     for (const s of sessions) {
@@ -92,23 +91,27 @@ export default function GpsBandCharts({
       const total = rows.find((r) => r.key === "gps_total_distance_m")?.value;
       if (!dist) missingCount += 1;
       else any = true;
-      const cur = byDay.get(t) ?? { bands: bands.map(() => 0), total: 0 };
-      if (dist) dist.forEach((v, i) => (cur.bands[i] += v));
+      const cur = byDay.get(t) ?? { bands: bands.map(() => 0), total: 0, has: false };
+      if (dist) {
+        dist.forEach((v, i) => (cur.bands[i] += v));
+        cur.has = true;
+      }
       cur.total += total != null ? Number(total) : dist ? dist.reduce((a, b) => a + b, 0) : 0;
       byDay.set(t, cur);
     }
-    const toRow = (t: number, v: { bands: number[]; total: number }, label: string): Row => {
-      const r: Row = { t, label, total: v.total };
+    const toRow = (t: number, v: { bands: number[]; total: number; has: boolean }, label: string): Row => {
+      const r: Row = { t, label, total: v.total, hasBands: v.has ? 1 : 0 };
       bands.forEach((b, i) => (r[b.id] = enabled.has(b.id) ? v.bands[i] : 0));
       return r;
     };
     const dailyRows = [...byDay.entries()].sort((a, b) => a[0] - b[0]).map(([t, v]) => toRow(t, v, dmy(t)));
-    const byWeek = new Map<number, { bands: number[]; total: number }>();
+    const byWeek = new Map<number, { bands: number[]; total: number; has: boolean }>();
     for (const [t, v] of byDay) {
       const w = weekStart(t);
-      const cur = byWeek.get(w) ?? { bands: bands.map(() => 0), total: 0 };
+      const cur = byWeek.get(w) ?? { bands: bands.map(() => 0), total: 0, has: false };
       v.bands.forEach((x, i) => (cur.bands[i] += x));
       cur.total += v.total;
+      cur.has = cur.has || v.has;
       byWeek.set(w, cur);
     }
     const weeklyRows = [...byWeek.entries()]
@@ -129,7 +132,7 @@ export default function GpsBandCharts({
             type="button"
             onClick={() => onToggleBand(b.id)}
             title={`${bandRangeLabel(b)}. Click to ${on ? "hide" : "show"}`}
-            className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 ${
+            className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-400 ${
               on ? "border-slate-200 bg-white text-slate-700" : "border-dashed border-slate-200 bg-slate-50 text-slate-400 line-through"
             }`}
           >
@@ -142,7 +145,7 @@ export default function GpsBandCharts({
       <button
         type="button"
         onClick={onToggleTotal}
-        className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 ${
+        className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-400 ${
           showTotal ? "border-slate-200 bg-white text-slate-700" : "border-dashed border-slate-200 bg-slate-50 text-slate-400 line-through"
         }`}
       >
@@ -218,25 +221,20 @@ export default function GpsBandCharts({
       <ZoomableChart title="Weekly distance by speed band" height={220} zoomedHeight={480} className="mt-1 w-full rounded-xl border border-slate-200 bg-white">
         {(h) => (
           <ResponsiveContainer width="100%" height={h}>
-            <BarChart data={weekly} margin={{ top: 22, right: 16, left: 0, bottom: -6 }} barCategoryGap="22%">
+            <ComposedChart data={weekly} margin={{ top: 22, right: 16, left: 0, bottom: -6 }} barCategoryGap="22%">
               <CartesianGrid {...CHART_GRID} />
               <XAxis dataKey="label" tick={CHART_AXIS_TICK} axisLine={CHART_AXIS_LINE} tickLine={false} interval="preserveStartEnd" />
               <YAxis tick={CHART_AXIS_TICK} axisLine={false} tickLine={false} width={52} tickFormatter={(v: number) => n0(v)} />
               <Tooltip content={<BandTooltip bands={bands} enabled={enabled} weekly />} cursor={{ fill: "rgba(148,163,184,0.12)" }} />
-              {bands.map((b, i) => (
-                <Bar key={b.id} dataKey={b.id} stackId="bands" fill={b.color} isAnimationActive={false}>
-                  {showTotal && i === bands.length - 1 ? (
-                    <LabelList
-                      dataKey="total"
-                      position="top"
-                      offset={6}
-                      formatter={(v) => n0(Number(v))}
-                      style={{ fontSize: 10, fill: "#334155", fontWeight: 600 }}
-                    />
-                  ) : null}
-                </Bar>
+              {bands.map((b) => (
+                <Bar key={b.id} dataKey={b.id} stackId="bands" fill={b.color} isAnimationActive={false} />
               ))}
-            </BarChart>
+              {showTotal ? (
+                <Line dataKey="total" stroke="none" dot={{ r: 3, fill: TOTAL_COLOR, stroke: "none" }} activeDot={false} isAnimationActive={false}>
+                  <LabelList dataKey="total" position="top" offset={6} formatter={(v) => n0(Number(v))} style={{ fontSize: 10, fill: "#334155", fontWeight: 600 }} />
+                </Line>
+              ) : null}
+            </ComposedChart>
           </ResponsiveContainer>
         )}
       </ZoomableChart>
@@ -264,7 +262,8 @@ function BandTooltip({ active, payload, bands, enabled, weekly, namesByDate }: T
       {!weekly && namesByDate?.get(isoDay(r.t))?.length ? (
         <p className="mb-1 font-medium text-lime-300">{namesByDate.get(isoDay(r.t))!.join(" + ")}</p>
       ) : null}
-      {[...shown].reverse().map((b) => (
+      {!r.hasBands ? <p className="py-0.5 text-amber-300">No speed band data yet</p> : null}
+      {(r.hasBands ? [...shown].reverse() : []).map((b) => (
         <p key={b.id} className="flex items-center justify-between gap-4 py-0.5">
           <span className="flex items-center gap-1.5 text-slate-300">
             <span className="h-2 w-2 rounded-sm" style={{ background: b.color }} />
@@ -273,7 +272,7 @@ function BandTooltip({ active, payload, bands, enabled, weekly, namesByDate }: T
           <b className="tabular-nums text-white">{n0(Number(r[b.id] ?? 0))}</b>
         </p>
       ))}
-      {shown.length < bands.length ? (
+      {r.hasBands && shown.length < bands.length ? (
         <p className="flex justify-between gap-4 border-t border-slate-700 pt-1">
           <span className="text-slate-300">Selected bands</span>
           <b className="tabular-nums text-white">{n0(shownSum)}</b>
@@ -316,7 +315,7 @@ function BandEditor({ thresholds, onSave }: { thresholds: number[]; onSave: (t: 
         <button type="button" onClick={() => setDraft(DEFAULT_THRESHOLDS.map(String))} className="px-2 py-1 text-slate-400 underline">
           Reset
         </button>
-        <button type="button" disabled={!valid} onClick={() => onSave(nums)} className="rounded-full bg-slate-900 px-3 py-1 font-semibold text-white disabled:opacity-40">
+        <button type="button" disabled={!valid} onClick={() => onSave(nums)} className="rounded-full bg-[#0f172a] px-3 py-1 font-semibold text-white disabled:opacity-40">
           Save
         </button>
       </div>

@@ -241,7 +241,7 @@ export default function GpsSection({
                 onClick={() => setTypeFilter(t)}
                 className={
                   t === typeFilter
-                    ? "rounded-md bg-slate-900 px-2.5 py-1 text-white"
+                    ? "rounded-md bg-[#0f172a] px-2.5 py-1 text-white"
                     : "rounded-md px-2.5 py-1 text-slate-500 hover:text-slate-800"
                 }
               >

@@ -147,7 +147,7 @@ export default function SeasonPhaseEditor({ athleteId, phases, teams, onChanged,
           type="button"
           disabled={busy || !valid}
           onClick={() => void add()}
-          className="rounded-full bg-slate-900 px-3 py-1.5 font-semibold text-white disabled:opacity-40"
+          className="rounded-full bg-[#0f172a] px-3 py-1.5 font-semibold text-white disabled:opacity-40"
         >
           Add phase
         </button>

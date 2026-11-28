@@ -107,7 +107,7 @@ function Toggle<T extends string | number>({
             onClick={() => onChange(o.v)}
             className={
               o.v === value
-                ? "rounded-md bg-slate-900 px-2 py-1 text-white"
+                ? "rounded-md bg-[#0f172a] px-2 py-1 text-white"
                 : "rounded-md px-2 py-1 text-slate-500 hover:text-slate-800"
             }
           >
@@ -260,8 +260,8 @@ export default function GpsWorkload({ athleteId, bandLoad, bandLabel, namesByDat
               key={m.key}
               type="button"
               onClick={() => setMetricKey(m.key)}
-              className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-left transition ${
-                on ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+              className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-400 ${
+                on ? "border-[#0f172a] bg-[#0f172a] text-white" : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
               }`}
             >
               <span className="text-sm font-medium">{labelFor(m)}</span>
@@ -549,7 +549,7 @@ function AcwrChart({ points, label, phases, today }: { points: EwmaPoint[]; labe
   return (
     <ZoomableChart
       title={`${label}: ACWR`}
-      height={120}
+      height={140}
       zoomedHeight={320}
       className="mt-2 w-full rounded-xl border border-slate-200 bg-white"
     >
@@ -563,12 +563,18 @@ function AcwrChart({ points, label, phases, today }: { points: EwmaPoint[]; labe
               axisLine={false}
               tickLine={false}
               width={52}
-              ticks={[SWEET_LOW, SWEET_HIGH, DANGER]}
+              ticks={[0, SWEET_LOW, SWEET_HIGH]}
+              interval={0}
               tickFormatter={(v: number) => v.toFixed(1)}
             />
             {phaseBands(points, phases, false)}
             <ReferenceArea y1={SWEET_LOW} y2={SWEET_HIGH} fill="#bef264" fillOpacity={0.35} ifOverflow="hidden" />
-            <ReferenceLine y={DANGER} stroke="#fb7185" strokeDasharray="4 4" />
+            <ReferenceLine
+              y={DANGER}
+              stroke="#fb7185"
+              strokeDasharray="4 4"
+              label={{ value: `${DANGER}`, position: "insideTopRight", fill: "#e11d48", fontSize: 10 }}
+            />
             <ReferenceLine y={SWEET_HIGH} stroke="#fbbf24" strokeDasharray="2 4" />
             <Tooltip
               contentStyle={CHART_TOOLTIP_STYLE}

@@ -133,7 +133,7 @@ export default function GpsMaxVelocity({ athleteId, points, bests, onMaxVelocity
                 type="button"
                 disabled={saving || !(Number(draft) > 5 && Number(draft) < 45)}
                 onClick={() => void save(Math.round(Number(draft) * 10) / 10)}
-                className="rounded-full bg-slate-900 px-3 py-1 font-semibold text-white disabled:opacity-40"
+                className="rounded-full bg-[#0f172a] px-3 py-1 font-semibold text-white disabled:opacity-40"
               >
                 Save
               </button>
