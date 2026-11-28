@@ -44,12 +44,11 @@ const SWEET_LOW = 0.8;
 const SWEET_HIGH = 1.3;
 const DANGER = 1.5;
 /** Spike labels: only increases this big are labelled on the chart (all are in the tooltip). */
-const SPIKE_SHOW = 15;
-const SPIKE_HIGH = 50;
+/** Load spike = (acute - chronic) / chronic. Labelled on session days at or beyond ±50%; every day in the tooltip. */
+const SPIKE_LABEL = 50;
 
 type SessionLike = { id: string; session_date: string | null };
 type MetricLike = { key: string; value: number | null };
-type EndMode = "today" | "last";
 
 type Props = {
   athleteId: string;
@@ -137,23 +136,14 @@ export default function GpsWorkload({ athleteId, bandLoad, bandLabel, namesByDat
   useEffect(() => reloadPhases(), [reloadPhases]);
 
   const [today] = useState(() => isoDay(Date.now()));
-  const lastSession = useMemo(
-    () => sessions.reduce<string | null>((m, s) => (s.session_date && (!m || s.session_date > m) ? s.session_date.slice(0, 10) : m), null),
-    [sessions]
-  );
-  const staleData = lastSession != null && dayMs(today) - dayMs(lastSession) > 21 * DAY_MS;
 
   const [chronicWeeks, setChronicWeeks] = useState<number>(4);
-  const [endMode, setEndMode] = useState<EndMode>(staleData ? "last" : "today");
   const [showSpikes, setShowSpikes] = useState(true);
   const [metricKey, setMetricKey] = useState<string>(WORKLOAD_METRICS[0].key);
   const chronicDays = chronicWeeks * 7;
 
-  const endDate = useMemo(() => {
-    let end = endMode === "last" && lastSession ? isoDay(Math.min(dayMs(lastSession) + 7 * DAY_MS, dayMs(today))) : today;
-    if (rangeEnd && rangeEnd.slice(0, 10) < end) end = rangeEnd.slice(0, 10);
-    return end;
-  }, [endMode, lastSession, today, rangeEnd]);
+  // The GPS date range sets the window; EWMA still runs over the full history before it.
+  const endDate = rangeEnd && rangeEnd.slice(0, 10) < today ? rangeEnd.slice(0, 10) : today;
 
   const series = useMemo(() => {
     const out = new Map<string, EwmaPoint[]>();
@@ -204,15 +194,6 @@ export default function GpsWorkload({ athleteId, bandLoad, bandLabel, namesByDat
             onChange={setChronicWeeks}
             options={CHRONIC_WEEKS.map((w) => ({ v: w, label: String(w), title: `${w * 7}-day chronic EWMA` }))}
           />
-          <Toggle
-            label="Up to"
-            value={endMode}
-            onChange={setEndMode}
-            options={[
-              { v: "today", label: "Today" },
-              { v: "last", label: "Last session" },
-            ]}
-          />
           <button
             type="button"
             onClick={() => setEditingPhases((v) => !v)}
@@ -226,9 +207,9 @@ export default function GpsWorkload({ athleteId, bandLoad, bandLabel, namesByDat
             className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
               showSpikes ? "border-amber-300 bg-amber-50 text-amber-700" : "border-slate-200 text-slate-400"
             }`}
-            title={`Label sessions where acute load rose ${SPIKE_SHOW}% or more since the previous session`}
+            title={`Label session days where acute is ${SPIKE_LABEL}% or more above or below chronic`}
           >
-            Spike % {showSpikes ? "on" : "off"}
+            Load spike ±{SPIKE_LABEL}% {showSpikes ? "on" : "off"}
           </button>
         </div>
       </div>
@@ -298,7 +279,7 @@ export default function GpsWorkload({ athleteId, bandLoad, bandLabel, namesByDat
           <LegendSwatch kind="acute" label={`Acute ${ACUTE_DAYS} d`} />
           <LegendSwatch kind="chronic" label={`Chronic ${chronicWeeks} wk`} />
           <LegendSwatch kind="gap" label="Acute above / below chronic" />
-          {showSpikes ? <LegendSwatch kind="spike" label={`Spike ≥${SPIKE_SHOW}%`} /> : null}
+          {showSpikes ? <LegendSwatch kind="spike" label={`Spike ±${SPIKE_LABEL}%`} /> : null}
         </div>
       </div>
 
@@ -427,7 +408,7 @@ function WorkloadTooltip({
   if (!active || !payload?.length) return null;
   const p = payload[0].payload;
   const phase = phaseAt(p.t, phases);
-  const diff = p.chronic > 1e-6 && !p.building ? ((p.acute - p.chronic) / p.chronic) * 100 : null;
+  const diff = p.diffPct;
   return (
     <div style={CHART_TOOLTIP_STYLE} className="min-w-[200px] px-3 py-2 text-[11px] text-slate-200">
       {phase ? <p className="font-semibold text-white">{phase.name}</p> : null}
@@ -443,8 +424,21 @@ function WorkloadTooltip({
       ) : null}
       <Row label="Acute (7 d)" value={n0(p.acute)} swatch={ACUTE_COLOR} />
       <Row label="Chronic" value={n0(p.chronic)} swatch={CHRONIC_STROKE} />
-      {diff != null ? <Row label="Acute vs chronic" value={pct(diff)} /> : null}
-      {p.spikePct != null ? <Row label="Spike since last session" value={pct(p.spikePct)} /> : null}
+      {diff != null ? (
+        <div className="mt-1 border-t border-slate-700 pt-1">
+          <p className="flex items-center justify-between gap-4">
+            <span className="text-slate-300">Load spike (% difference)</span>
+            <b className={`tabular-nums ${diff >= SPIKE_LABEL ? "text-rose-400" : diff <= -SPIKE_LABEL ? "text-sky-300" : "text-white"}`}>
+              {pct(diff)}
+            </b>
+          </p>
+          <p className="text-[10px] text-slate-500">
+            ({n0(p.acute)} − {n0(p.chronic)}) / {n0(p.chronic)} × 100
+          </p>
+        </div>
+      ) : p.building ? (
+        <p className="mt-1 text-[10px] text-slate-500">Chronic still building: no spike yet</p>
+      ) : null}
     </div>
   );
 }
@@ -523,11 +517,11 @@ function WorkloadChart({
                   content={(props) => {
                     const { x, y, width, index } = props as { x?: number; y?: number; width?: number; index?: number };
                     const p = index != null ? points[index] : null;
-                    if (!p || p.spikePct == null || p.spikePct < SPIKE_SHOW || x == null || y == null) return null;
-                    const color = p.spikePct >= SPIKE_HIGH ? "#e11d48" : "#d97706";
+                    if (!p || p.diffPct == null || Math.abs(p.diffPct) < SPIKE_LABEL || x == null || y == null) return null;
+                    const color = p.diffPct > 0 ? "#e11d48" : "#2563eb";
                     return (
                       <text x={x + (width ?? 0) / 2} y={y - 6} textAnchor="middle" fontSize={10} fontWeight={700} fill={color}>
-                        {pct(p.spikePct)}
+                        {pct(p.diffPct)}
                       </text>
                     );
                   }}

@@ -25,6 +25,8 @@ export type EwmaPoint = {
    * while the acute average is still building (first `acuteDays` days).
    */
   spikePct: number | null;
+  /** Load spike: (acute - chronic) / chronic * 100, every day once chronic has built. */
+  diffPct: number | null;
 };
 
 const DAY_MS = 86_400_000;
@@ -91,6 +93,7 @@ export function ewmaSeries(
       acwr: !building && chronic > 1e-6 ? acute / chronic : null,
       building,
       spikePct,
+      diffPct: !building && chronic > 1e-6 ? ((acute - chronic) / chronic) * 100 : null,
     });
   }
   return out;

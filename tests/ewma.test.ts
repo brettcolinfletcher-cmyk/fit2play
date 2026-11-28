@@ -29,6 +29,7 @@ describe("ewma", () => {
     const last = s[s.length - 1];
     expect(last.chronic).toBeCloseTo(500, 0);
     expect(last.acwr).toBeCloseTo(1, 2);
+    expect(last.diffPct).toBeCloseTo(0, 0);
     expect(s[10].acwr).toBeNull();
     expect(s[10].building).toBe(true);
   });

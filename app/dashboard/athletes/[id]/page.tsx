@@ -874,11 +874,6 @@ export default function AthleteDetailPage() {
     }
     return best;
   }, [sessions, metricsBySession]);
-  const gpsSessions = useMemo(
-    () => filteredSessions.filter((s) => bucket(s.source) === "gps"),
-    [filteredSessions]
-  );
-
   const filteredHopTests = useMemo(
     () => hopTests.filter((h) => inRange(h.session_date)),
     [hopTests, rangeStart, rangeEnd]
@@ -1755,15 +1750,12 @@ export default function AthleteDetailPage() {
               />
             )}
 
-            {gpsSessions.length > 0 && (
+            {allGpsSessions.length > 0 && (
               <GpsSection
                 athleteId={id}
-                sessions={gpsSessions}
                 metricsBySession={metricsBySession}
                 sectionComment={sectionNote("gps")}
                 allSessions={allGpsSessions}
-                rangeStart={rangeStart}
-                rangeEnd={rangeEnd}
                 sprintBest={sprintBest}
               />
             )}

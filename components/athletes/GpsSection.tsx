@@ -53,14 +53,10 @@ type MetricLike = { key: string; value: number | null; rep_index?: number | null
 
 type Props = {
   athleteId: string;
-  /** PlayerData sessions for this athlete, already filtered to the page date range. */
-  sessions: SessionLike[];
   metricsBySession: Map<string, MetricLike[]>;
   sectionComment: string | null;
-  /** All GPS sessions (unfiltered) for the EWMA workload, plus the page date range. */
+  /** All of the athlete's GPS sessions. The section has its own date range (default 3 months). */
   allSessions: SessionLike[];
-  rangeStart: string | null;
-  rangeEnd: string | null;
   /** Fastest 1080 sprint top speed (km/h) across all history, for max velocity. */
   sprintBest: BestSpeed | null;
 };
@@ -92,16 +88,50 @@ function mean(values: number[]): number | null {
   return values.length ? values.reduce((a, b) => a + b, 0) / values.length : null;
 }
 
-export default function GpsSection({
-  athleteId,
-  sessions,
-  metricsBySession,
-  sectionComment,
-  allSessions,
-  rangeStart,
-  rangeEnd,
-  sprintBest,
-}: Props) {
+type RangePreset = "3m" | "6m" | "12m" | "all" | "custom";
+const PRESET_MONTHS: Record<Exclude<RangePreset, "all" | "custom">, number> = { "3m": 3, "6m": 6, "12m": 12 };
+const DAY = 86_400_000;
+
+function isoUtc(ms: number) {
+  return new Date(ms).toISOString().slice(0, 10);
+}
+function addMonths(iso: string, months: number) {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCMonth(d.getUTCMonth() + months);
+  return d.toISOString().slice(0, 10);
+}
+
+export default function GpsSection({ athleteId, metricsBySession, sectionComment, allSessions, sprintBest }: Props) {
+  // ── GPS date range (independent of the page range) ──
+  const [today] = useState(() => isoUtc(Date.now()));
+  const lastSessionDate = useMemo(
+    () => allSessions.reduce<string | null>((m, s) => (s.session_date && (!m || s.session_date > m) ? s.session_date.slice(0, 10) : m), null),
+    [allSessions]
+  );
+  const [preset, setPreset] = useState<RangePreset>("3m");
+  // Old data: anchor the window on the last session (+7 days) so it isn't empty
+  const [upTo, setUpTo] = useState<"today" | "last">(() =>
+    lastSessionDate && Date.parse(today) - Date.parse(lastSessionDate) > 21 * DAY ? "last" : "today"
+  );
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
+  const rangeEnd =
+    preset === "custom"
+      ? customTo || today
+      : upTo === "last" && lastSessionDate
+        ? isoUtc(Math.min(Date.parse(lastSessionDate) + 7 * DAY, Date.parse(today)))
+        : today;
+  const rangeStart: string | null =
+    preset === "custom" ? customFrom || null : preset === "all" ? null : addMonths(rangeEnd, -PRESET_MONTHS[preset]);
+  const sessions = useMemo(
+    () =>
+      allSessions.filter((s) => {
+        const d = s.session_date?.slice(0, 10);
+        return !!d && (!rangeStart || d >= rangeStart) && d <= rangeEnd;
+      }),
+    [allSessions, rangeStart, rangeEnd]
+  );
+
   const [mvKph, setMvKph] = useState<number | null>(null);
   // Names typed in this view, applied before the page reloads its sessions
   const [renamed, setRenamed] = useState<Map<string, string | null>>(() => new Map());
@@ -220,7 +250,7 @@ export default function GpsSection({
     speed: typeof p.gps_max_speed_kph === "number" ? (p.gps_max_speed_kph as number) : null,
   }));
 
-  if (sessions.length === 0) return null;
+  if (allSessions.length === 0) return null;
 
   return (
     <section id="gps" className="scroll-mt-28 mt-10">
@@ -228,10 +258,55 @@ export default function GpsSection({
         <div>
           <h2 className="text-sm font-semibold uppercase tracking-wide text-lime-300">GPS load</h2>
           <p className="mt-1 text-xs text-slate-500">
-            PlayerData · {points.length} session{points.length === 1 ? "" : "s"} in range
+            PlayerData · {rangeStart ? formatDisplayDate(rangeStart) : "first session"} to {formatDisplayDate(rangeEnd)} ·{" "}
+            {points.length} session{points.length === 1 ? "" : "s"}
             {latest ? ` · latest ${latest.dateLabel}${latest.type ? ` (${latest.type})` : ""}` : ""}
           </p>
         </div>
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <div className="flex rounded-lg border border-slate-200 bg-white p-0.5 font-medium">
+            {(["3m", "6m", "12m", "all", "custom"] as RangePreset[]).map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => setPreset(p)}
+                className={
+                  p === preset
+                    ? "rounded-md bg-[#0f172a] px-2.5 py-1 text-white"
+                    : "rounded-md px-2.5 py-1 text-slate-500 hover:text-slate-800"
+                }
+              >
+                {p === "all" ? "All" : p === "custom" ? "Custom" : `${PRESET_MONTHS[p]} mo`}
+              </button>
+            ))}
+          </div>
+          {preset === "custom" ? (
+            <span className="flex items-center gap-1.5">
+              <input type="date" value={customFrom} max={customTo || today} onChange={(e) => setCustomFrom(e.target.value)} className="rounded-lg border border-slate-200 bg-white px-2 py-1" />
+              <span className="text-slate-400">to</span>
+              <input type="date" value={customTo} min={customFrom || undefined} max={today} onChange={(e) => setCustomTo(e.target.value)} className="rounded-lg border border-slate-200 bg-white px-2 py-1" />
+            </span>
+          ) : (
+            <div className="flex items-center gap-1.5">
+              <span className="text-slate-400">Up to</span>
+              <div className="flex rounded-lg border border-slate-200 bg-white p-0.5 font-medium">
+                {(["today", "last"] as const).map((u) => (
+                  <button
+                    key={u}
+                    type="button"
+                    onClick={() => setUpTo(u)}
+                    className={
+                      u === upTo
+                        ? "rounded-md bg-[#0f172a] px-2.5 py-1 text-white"
+                        : "rounded-md px-2.5 py-1 text-slate-500 hover:text-slate-800"
+                    }
+                  >
+                    {u === "today" ? "Today" : "Last session"}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         {typesPresent.size > 1 ? (
           <div className="flex rounded-lg border border-slate-200 bg-white p-0.5 text-xs font-medium">
             {(["all", "Match", "Training"] as TypeFilter[]).map((t) => (
@@ -250,6 +325,7 @@ export default function GpsSection({
             ))}
           </div>
         ) : null}
+        </div>
       </div>
 
       {points.length === 0 ? (
