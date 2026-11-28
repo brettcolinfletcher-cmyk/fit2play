@@ -143,14 +143,18 @@ export default function GpsBandCharts({
       cur.has = cur.has || v.has;
       byWeek.set(w, cur);
     }
-    // Weekly acute/chronic: EWMA at the end of the week (or the last day shown) × 7 = weekly equivalent
-    const lastT = ewma.at(-1)?.t ?? null;
+    // Weekly acute/chronic: the week's average daily EWMA × 7 (weekly equivalent). Averaging over the
+    // week avoids one day (e.g. a Sunday match) driving the whole week's value. Chronic is left out
+    // for weeks where it is still building.
     const weeklyRows = [...byWeek.entries()]
       .sort((a, b) => a[0] - b[0])
       .map(([w, v]) => {
         const r = toRow(w, v, `${dmy(w)} – ${dmy(w + 6 * DAY_MS)}`);
-        const at = lastT == null ? null : ewmaByT.get(Math.min(w + 6 * DAY_MS, lastT));
-        return { ...r, acute: at ? at.acute * 7 : null, chronic: at ? at.chronic * 7 : null };
+        const days = [0, 1, 2, 3, 4, 5, 6].map((k) => ewmaByT.get(w + k * DAY_MS)).filter((p): p is EwmaPoint => !!p);
+        if (days.length === 0) return { ...r, acute: null, chronic: null };
+        const mean = (f: (p: EwmaPoint) => number) => days.reduce((a, p) => a + f(p), 0) / days.length;
+        const built = !days[days.length - 1].building;
+        return { ...r, acute: mean((p) => p.acute) * 7, chronic: built ? mean((p) => p.chronic) * 7 : null };
       });
     return { daily: dailyRows, weekly: weeklyRows, missing: missingCount, hasAny: any };
   }, [sessions, metricsBySession, rangeStart, rangeEnd, bands, enabled, ewma]);
@@ -288,7 +292,7 @@ export default function GpsBandCharts({
       </ZoomableChart>
 
       <p className="mt-5 text-center text-[0.7rem] font-semibold uppercase tracking-widest text-slate-500">
-        Weekly (Mon–Sun){showAcute || showChronic ? " · acute/chronic as weekly equivalent (×7)" : ""}
+        Weekly (Mon–Sun){showAcute || showChronic ? " · acute/chronic = week's average daily EWMA ×7" : ""}
       </p>
       <ZoomableChart title="Weekly distance by speed band" height={220} zoomedHeight={480} className="mt-1 w-full rounded-xl border border-slate-200 bg-white">
         {(h) => (
@@ -375,13 +379,13 @@ function BandTooltip({ active, payload, bands, enabled, weekly, namesByDate, sho
         <div className="mt-1 border-t border-slate-700 pt-1">
           {showAcute && r.acute != null ? (
             <p className="flex justify-between gap-4">
-              <span style={{ color: ACUTE_COLOR }}>Acute{weekly ? " (×7)" : ""}</span>
+              <span style={{ color: ACUTE_COLOR }}>Acute{weekly ? " (week avg ×7)" : ""}</span>
               <b className="tabular-nums text-white">{n0(r.acute)}</b>
             </p>
           ) : null}
           {showChronic && r.chronic != null ? (
             <p className="flex justify-between gap-4">
-              <span className="text-slate-300">Chronic{weekly ? " (×7)" : ""}</span>
+              <span className="text-slate-300">Chronic{weekly ? " (week avg ×7)" : ""}</span>
               <b className="tabular-nums text-white">{n0(r.chronic)}</b>
             </p>
           ) : null}
