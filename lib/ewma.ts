@@ -19,6 +19,12 @@ export type EwmaPoint = {
   /** acute / chronic, null while building or when chronic is ~0 */
   acwr: number | null;
   building: boolean;
+  /**
+   * Session-to-session acute load change, %: acute on this session day vs acute
+   * on the previous session day. Null on rest days, the first session, and
+   * while the acute average is still building (first `acuteDays` days).
+   */
+  spikePct: number | null;
 };
 
 const DAY_MS = 86_400_000;
@@ -61,6 +67,7 @@ export function ewmaSeries(
   const out: EwmaPoint[] = [];
   let acute = 0;
   let chronic = 0;
+  let prevSessionAcute: number | null = null;
   for (let t = start, i = 0; t <= end; t += DAY_MS, i++) {
     const date = isoDay(t);
     const has = totals.has(date);
@@ -68,6 +75,13 @@ export function ewmaSeries(
     acute = load * la + acute * (1 - la);
     chronic = load * lc + chronic * (1 - lc);
     const building = i < opts.chronicDays - 1;
+    let spikePct: number | null = null;
+    if (has) {
+      if (i >= opts.acuteDays && prevSessionAcute != null && prevSessionAcute > 1e-6) {
+        spikePct = ((acute - prevSessionAcute) / prevSessionAcute) * 100;
+      }
+      prevSessionAcute = acute;
+    }
     out.push({
       date,
       t,
@@ -76,6 +90,7 @@ export function ewmaSeries(
       chronic,
       acwr: !building && chronic > 1e-6 ? acute / chronic : null,
       building,
+      spikePct,
     });
   }
   return out;

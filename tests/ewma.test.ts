@@ -33,6 +33,20 @@ describe("ewma", () => {
     expect(s[10].building).toBe(true);
   });
 
+  it("spike % compares acute on consecutive session days, after the acute warm-up", () => {
+    const totals = new Map([
+      ["2026-08-03", 2583], ["2026-08-06", 6610], ["2026-08-09", 8087],
+      ["2026-08-13", 4081], ["2026-08-15", 10297],
+    ]);
+    const s = ewmaSeries(totals, { acuteDays: 7, chronicDays: 28, endDate: "2026-08-15" });
+    const byDate = new Map(s.map((p) => [p.date, p]));
+    expect(byDate.get("2026-08-03")!.spikePct).toBeNull(); // first session
+    expect(byDate.get("2026-08-06")!.spikePct).toBeNull(); // acute still building
+    expect(byDate.get("2026-08-04")!.spikePct).toBeNull(); // rest day
+    expect(byDate.get("2026-08-13")!.spikePct).toBeCloseTo(-32.4, 0);
+    expect(byDate.get("2026-08-15")!.spikePct).toBeCloseTo(90.6, 0);
+  });
+
   it("returns nothing without load", () => {
     expect(ewmaSeries(new Map(), { acuteDays: 7, chronicDays: 28, endDate: "2026-01-01" })).toEqual([]);
   });

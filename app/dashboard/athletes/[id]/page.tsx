@@ -848,6 +848,21 @@ export default function AthleteDetailPage() {
   );
 
   const allGpsSessions = useMemo(() => sessions.filter((s) => bucket(s.source) === "gps"), [sessions]);
+  // Fastest 1080 top speed ever (m/s -> km/h), one of the max velocity sources for GPS % of MV
+  const sprintBest = useMemo(() => {
+    let best: { kph: number; date: string; source: "1080 sprint" } | null = null;
+    for (const s of sessions) {
+      if (bucket(s.source) !== "1080" || !s.session_date) continue;
+      for (const m of metricsBySession.get(s.id) ?? []) {
+        if (m.key !== "top_speed" || m.value == null) continue;
+        const kph = Number(m.value) * 3.6;
+        if (Number.isFinite(kph) && kph > 0 && kph < 50 && (!best || kph > best.kph)) {
+          best = { kph, date: s.session_date, source: "1080 sprint" };
+        }
+      }
+    }
+    return best;
+  }, [sessions, metricsBySession]);
   const gpsSessions = useMemo(
     () => filteredSessions.filter((s) => bucket(s.source) === "gps"),
     [filteredSessions]
@@ -1738,6 +1753,7 @@ export default function AthleteDetailPage() {
                 allSessions={allGpsSessions}
                 rangeStart={rangeStart}
                 rangeEnd={rangeEnd}
+                sprintBest={sprintBest}
               />
             )}
 

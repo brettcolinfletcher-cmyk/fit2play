@@ -30,6 +30,7 @@ import {
 } from "./chartTheme";
 import SectionComment from "./SectionComment";
 import GpsWorkload, { WORKLOAD_METRICS } from "./GpsWorkload";
+import GpsMaxVelocity, { type BestSpeed } from "./GpsMaxVelocity";
 
 type SessionLike = {
   id: string;
@@ -48,6 +49,8 @@ type Props = {
   allSessions: SessionLike[];
   rangeStart: string | null;
   rangeEnd: string | null;
+  /** Fastest 1080 sprint top speed (km/h) across all history, for max velocity. */
+  sprintBest: BestSpeed | null;
 };
 
 /** One chart point per GPS session. */
@@ -84,7 +87,9 @@ export default function GpsSection({
   allSessions,
   rangeStart,
   rangeEnd,
+  sprintBest,
 }: Props) {
+  const [mvKph, setMvKph] = useState<number | null>(null);
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [openCategories, setOpenCategories] = useState<Set<string>>(() => new Set());
 
@@ -137,10 +142,31 @@ export default function GpsSection({
   }, [points]);
 
   // Distance, HSR and sprint distance are charted in the workload panel, so they're left out here.
-  const workloadKeys = new Set<string>(WORKLOAD_METRICS.map((m) => m.key));
+  // Top speed is charted in the max velocity block.
+  const workloadKeys = new Set<string>([...WORKLOAD_METRICS.map((m) => m.key), "gps_max_speed_kph"]);
   const coreMetrics = GPS_CORE_KEYS.filter((k) => infoByKey.has(k) && !workloadKeys.has(k)).map((k) => infoByKey.get(k)!);
   const tileMetrics = GPS_TILE_KEYS.filter((k) => infoByKey.has(k)).map((k) => infoByKey.get(k)!);
   const latest = points[points.length - 1] ?? null;
+
+  // Fastest GPS session across all history (not just the range)
+  const gpsBest: BestSpeed | null = useMemo(() => {
+    let best: BestSpeed | null = null;
+    for (const s of allSessions) {
+      const v = (metricsBySession.get(s.id) ?? []).find((m) => m.key === "gps_max_speed_kph")?.value;
+      if (v != null && s.session_date && (!best || Number(v) > best.kph)) {
+        best = { kph: Number(v), date: s.session_date, source: "GPS" };
+      }
+    }
+    return best;
+  }, [allSessions, metricsBySession]);
+  const bests = [gpsBest, sprintBest].filter((b): b is BestSpeed => b != null);
+  const speedPoints = points.map((p) => ({
+    idx: p.idx,
+    date: p.date,
+    dateLabel: p.dateLabel,
+    type: p.type,
+    speed: typeof p.gps_max_speed_kph === "number" ? (p.gps_max_speed_kph as number) : null,
+  }));
 
   if (sessions.length === 0) return null;
 
@@ -192,7 +218,11 @@ export default function GpsSection({
                       {fmt(v, m.unit)}
                       {m.unit ? <span className="ml-1 text-xs font-normal text-slate-400">{m.unit}</span> : null}
                     </p>
-                    {delta != null && points.length > 1 ? (
+                    {m.key === "gps_max_speed_kph" && v != null && mvKph ? (
+                      <p className={`text-xs tabular-nums ${v / mvKph >= 0.9 ? "text-lime-700" : "text-slate-500"}`}>
+                        {Math.round((v / mvKph) * 100)}% of max velocity
+                      </p>
+                    ) : delta != null && points.length > 1 ? (
                       <p className={`text-xs tabular-nums ${delta >= 0 ? "text-lime-700" : "text-slate-500"}`}>
                         {delta >= 0 ? "+" : ""}
                         {delta.toFixed(0)}% vs avg {fmt(avg, m.unit)}
@@ -205,11 +235,14 @@ export default function GpsSection({
           ) : null}
 
           <GpsWorkload
+            athleteId={athleteId}
             sessions={allSessions}
             metricsBySession={metricsBySession}
             rangeStart={rangeStart}
             rangeEnd={rangeEnd}
           />
+
+          <GpsMaxVelocity athleteId={athleteId} points={speedPoints} bests={bests} onMaxVelocity={setMvKph} />
 
           {/* Headline charts */}
           {coreMetrics.length > 0 ? (
