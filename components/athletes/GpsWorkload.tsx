@@ -22,8 +22,9 @@ import { loadAthletePhases, phaseStyle, type AthleteTeam, type SeasonPhase } fro
 import { CHART_AXIS_LINE, CHART_AXIS_TICK, CHART_GRID, CHART_TOOLTIP_STYLE, ChartDefs } from "./chartTheme";
 import SeasonPhaseEditor from "./SeasonPhaseEditor";
 
+/** "bands" = sum of the speed bands switched on (falls back to total distance without band data). */
 export const WORKLOAD_METRICS = [
-  { key: "gps_total_distance_m", label: "Total distance", unit: "m" },
+  { key: "bands", label: "Speed bands", unit: "m" },
   { key: "gps_high_speed_run_distance_m", label: "High-speed running", unit: "m" },
   { key: "gps_total_sprint_distance_m", label: "Sprint distance", unit: "m" },
 ] as const;
@@ -52,6 +53,9 @@ type EndMode = "today" | "last";
 
 type Props = {
   athleteId: string;
+  /** Selected speed-band distance per session id; null when no band data exists. */
+  bandLoad: Map<string, number> | null;
+  bandLabel: string;
   /** ALL of the athlete's GPS sessions (not range-filtered): EWMA needs the full history. */
   sessions: SessionLike[];
   metricsBySession: Map<string, MetricLike[]>;
@@ -116,7 +120,7 @@ function Toggle<T extends string | number>({
 /** Chart row: EWMA point plus the acute/chronic gap as [low, high] ranges for shading. */
 type ChartPoint = EwmaPoint & { gapUp: [number, number]; gapDown: [number, number] };
 
-export default function GpsWorkload({ athleteId, sessions, metricsBySession, rangeStart, rangeEnd }: Props) {
+export default function GpsWorkload({ athleteId, bandLoad, bandLabel, sessions, metricsBySession, rangeStart, rangeEnd }: Props) {
   const [phases, setPhases] = useState<SeasonPhase[]>([]);
   const [teams, setTeams] = useState<AthleteTeam[]>([]);
   const [phasesMissing, setPhasesMissing] = useState(false);
@@ -157,7 +161,12 @@ export default function GpsWorkload({ athleteId, sessions, metricsBySession, ran
       const rows: { date: string; value: number }[] = [];
       for (const s of sessions) {
         if (!s.session_date) continue;
-        const v = (metricsBySession.get(s.id) ?? []).find((r) => r.key === m.key)?.value;
+        let v: number | null | undefined;
+        if (m.key === "bands") {
+          v = bandLoad ? bandLoad.get(s.id) : (metricsBySession.get(s.id) ?? []).find((r) => r.key === "gps_total_distance_m")?.value;
+        } else {
+          v = (metricsBySession.get(s.id) ?? []).find((r) => r.key === m.key)?.value;
+        }
         if (v != null) rows.push({ date: s.session_date, value: Number(v) });
       }
       // EWMA runs over the full history; only the display is cut to the range.
@@ -165,7 +174,10 @@ export default function GpsWorkload({ athleteId, sessions, metricsBySession, ran
       out.set(m.key, full.filter((p) => p.t >= from && p.t <= to));
     }
     return out;
-  }, [sessions, metricsBySession, chronicDays, endDate, rangeStart]);
+  }, [sessions, metricsBySession, chronicDays, endDate, rangeStart, bandLoad]);
+
+  const labelFor = (m: (typeof WORKLOAD_METRICS)[number]) =>
+    m.key === "bands" ? (bandLoad ? `Distance: ${bandLabel}` : "Total distance") : m.label;
 
   const available = WORKLOAD_METRICS.filter((m) => (series.get(m.key) ?? []).length > 0);
   if (available.length === 0) return null;
@@ -250,7 +262,7 @@ export default function GpsWorkload({ athleteId, sessions, metricsBySession, ran
                 on ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
               }`}
             >
-              <span className="text-sm font-medium">{m.label}</span>
+              <span className="text-sm font-medium">{labelFor(m)}</span>
               <span className={`rounded-full px-2 py-0.5 text-[0.7rem] font-semibold tabular-nums ${tone.chip}`}>
                 {lp.acwr != null ? lp.acwr.toFixed(2) : lp.building ? "building" : "—"}
               </span>
@@ -291,13 +303,13 @@ export default function GpsWorkload({ athleteId, sessions, metricsBySession, ran
       <WorkloadChart
         points={pts}
         unit={active.unit}
-        label={active.label}
+        label={labelFor(active)}
         chronicWeeks={chronicWeeks}
         showSpikes={showSpikes}
         phases={phases}
         today={today}
       />
-      <AcwrChart points={pts} label={active.label} phases={phases} today={today} />
+      <AcwrChart points={pts} label={labelFor(active)} phases={phases} today={today} />
     </div>
   );
 }

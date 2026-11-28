@@ -129,7 +129,9 @@ function pruneUnknownFields(errors: GqlError[], fields: Record<MetricSetType, st
 }
 
 type PdAthlete = { id: string; name: string; dateOfBirth: string | null };
+type SpeedBucket = { startInclusive: number; endExclusive: number; value: number };
 type PdParticipation = {
+  speedBuckets?: SpeedBucket[];
   __typename: string;
   id: string;
   athlete: PdAthlete;
@@ -210,6 +212,22 @@ async function fetchSession(
         (target as Record<string, unknown>)[setKey] = { ...(existing ?? {}), ...set };
       }
       offset += chunk.length;
+    }
+
+    // Distance at each speed (km/h buckets): drives the speed-band charts.
+    const { data: bdata, errors: berrors } = await gql<{ session: { sessionParticipations: PdParticipation[] | null } | null }>(
+      `query($id: ID!) { session(id: $id) { sessionParticipations { id
+        ... on ${wanted} { ${setKey} { distanceMAtKph { startInclusive endExclusive value } } }
+      } } }`,
+      { id }
+    );
+    if (berrors?.length) {
+      problems.push(`session ${id} speed buckets: ${berrors.map((e) => e.message).join("; ").slice(0, 200)}`);
+    }
+    for (const p of bdata?.session?.sessionParticipations ?? []) {
+      const set = (p as Record<string, unknown>)[setKey] as { distanceMAtKph?: SpeedBucket[] } | null | undefined;
+      const target = byId.get(p.id);
+      if (target && Array.isArray(set?.distanceMAtKph)) target.speedBuckets = set.distanceMAtKph;
     }
   }
   return { session, problems };
@@ -374,6 +392,17 @@ export async function runPlayerdataSync(
             side: null as string | null,
             unit: metricUnit(field),
           }));
+        // Distance per speed bucket: key gps_dist_at_kph, rep_index = bucket start in tenths of km/h.
+        for (const b of p.speedBuckets ?? []) {
+          if (!Number.isFinite(b.value) || b.value <= 0 || !Number.isFinite(b.startInclusive)) continue;
+          rows.push({
+            key: "gps_dist_at_kph",
+            value: b.value,
+            rep_index: Math.round(b.startInclusive * 10),
+            side: null,
+            unit: "m",
+          });
+        }
         if (rows.length === 0) continue;
 
         const { data: sess, error: sErr } = await supabase

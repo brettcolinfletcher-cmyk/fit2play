@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import {
   CartesianGrid,
+  LabelList,
   Line,
   LineChart,
   ReferenceArea,
@@ -214,7 +215,7 @@ export default function GpsMaxVelocity({ athleteId, points, bests, onMaxVelocity
           <ZoomableChart title="% of max velocity per session" height={180} className="mt-2 w-full rounded-xl border border-slate-200 bg-white">
             {(h) => (
               <ResponsiveContainer width="100%" height={h}>
-                <LineChart data={data} margin={{ top: 10, right: 16, left: 0, bottom: -6 }}>
+                <LineChart data={data} margin={{ top: 22, right: 16, left: 0, bottom: -6 }}>
                   <CartesianGrid {...CHART_GRID} />
                   <XAxis
                     dataKey="idx"
@@ -273,13 +274,32 @@ export default function GpsMaxVelocity({ athleteId, points, bests, onMaxVelocity
                         />
                       );
                     }}
-                  />
+                  >
+                    {data.length <= 30 ? (
+                      <LabelList
+                        dataKey="pct"
+                        position="top"
+                        offset={9}
+                        formatter={(v) => (v == null ? "" : Number(v).toFixed(1))}
+                        style={{ fontSize: 10, fill: "#334155", fontWeight: 600 }}
+                      />
+                    ) : null}
+                    {data.length <= 30 ? (
+                      <LabelList
+                        dataKey="speed"
+                        position="bottom"
+                        offset={9}
+                        formatter={(v) => (v == null ? "" : Number(v).toFixed(1))}
+                        style={{ fontSize: 9.5, fill: "#e11d48" }}
+                      />
+                    ) : null}
+                  </Line>
                 </LineChart>
               </ResponsiveContainer>
             )}
           </ZoomableChart>
           <p className="mt-1.5 text-[0.7rem] text-slate-400">
-            Green zone: ≥{HIGH}% of max velocity. Dashed line {NEAR}%.
+            Dark labels: % of max velocity. Red labels: session top speed (km/h). Green zone ≥{HIGH}%, dashed line {NEAR}%.
           </p>
         </>
       ) : (

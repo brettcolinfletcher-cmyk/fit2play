@@ -31,13 +31,21 @@ import {
 import SectionComment from "./SectionComment";
 import GpsWorkload, { WORKLOAD_METRICS } from "./GpsWorkload";
 import GpsMaxVelocity, { type BestSpeed } from "./GpsMaxVelocity";
+import GpsBandCharts from "./GpsBandCharts";
+import {
+  bandsFromThresholds,
+  loadThresholds,
+  saveThresholds,
+  sessionBandDistances,
+  SPEED_BUCKET_KEY,
+} from "@/lib/speedBands";
 
 type SessionLike = {
   id: string;
   session_date: string | null;
   test_sub_type: string | null;
 };
-type MetricLike = { key: string; value: number | null };
+type MetricLike = { key: string; value: number | null; rep_index?: number | null };
 
 type Props = {
   athleteId: string;
@@ -90,6 +98,28 @@ export default function GpsSection({
   sprintBest,
 }: Props) {
   const [mvKph, setMvKph] = useState<number | null>(null);
+  const [thresholds, setThresholds] = useState<number[]>(() => (typeof window === "undefined" ? [] : loadThresholds()));
+  const bands = useMemo(() => bandsFromThresholds(thresholds.length ? thresholds : loadThresholds()), [thresholds]);
+  const [hiddenBands, setHiddenBands] = useState<Set<string>>(() => new Set());
+  const [showTotal, setShowTotal] = useState(true);
+  const enabledBands = useMemo(() => new Set(bands.map((b) => b.id).filter((id) => !hiddenBands.has(id))), [bands, hiddenBands]);
+
+  // Selected-band distance per session (all history), the load used by the workload panel.
+  const bandLoad = useMemo(() => {
+    const out = new Map<string, number>();
+    for (const s of allSessions) {
+      const rows = (metricsBySession.get(s.id) ?? []).map((r) => ({ key: r.key, value: r.value, rep_index: r.rep_index ?? null }));
+      const dist = sessionBandDistances(rows, bands);
+      if (dist) out.set(s.id, dist.reduce((a, v, i) => a + (enabledBands.has(bands[i].id) ? v : 0), 0));
+    }
+    return out;
+  }, [allSessions, metricsBySession, bands, enabledBands]);
+  const bandLabel =
+    enabledBands.size === bands.length
+      ? "All speed bands"
+      : enabledBands.size === 0
+        ? "No bands selected"
+        : bands.filter((b) => enabledBands.has(b.id)).map((b) => b.label.replace("Band ", "B")).join(" + ");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [openCategories, setOpenCategories] = useState<Set<string>>(() => new Set());
 
@@ -111,7 +141,7 @@ export default function GpsSection({
         type: s.test_sub_type ?? "",
       };
       for (const m of metricsBySession.get(s.id) ?? []) {
-        if (m.key.startsWith("gps_") && m.value != null) p[m.key] = Number(m.value);
+        if (m.key.startsWith("gps_") && m.key !== SPEED_BUCKET_KEY && m.value != null) p[m.key] = Number(m.value);
       }
       return p;
     });
@@ -143,7 +173,7 @@ export default function GpsSection({
 
   // Distance, HSR and sprint distance are charted in the workload panel, so they're left out here.
   // Top speed is charted in the max velocity block.
-  const workloadKeys = new Set<string>([...WORKLOAD_METRICS.map((m) => m.key), "gps_max_speed_kph"]);
+  const workloadKeys = new Set<string>([...WORKLOAD_METRICS.map((m) => m.key), "gps_total_distance_m", "gps_max_speed_kph"]);
   const coreMetrics = GPS_CORE_KEYS.filter((k) => infoByKey.has(k) && !workloadKeys.has(k)).map((k) => infoByKey.get(k)!);
   const tileMetrics = GPS_TILE_KEYS.filter((k) => infoByKey.has(k)).map((k) => infoByKey.get(k)!);
   const latest = points[points.length - 1] ?? null;
@@ -234,8 +264,35 @@ export default function GpsSection({
             </div>
           ) : null}
 
+          <GpsBandCharts
+            sessions={allSessions}
+            metricsBySession={metricsBySession}
+            rangeStart={rangeStart}
+            rangeEnd={rangeEnd}
+            bands={bands}
+            enabled={enabledBands}
+            onToggleBand={(id) =>
+              setHiddenBands((prev) => {
+                const next = new Set(prev);
+                if (next.has(id)) next.delete(id);
+                else next.add(id);
+                return next;
+              })
+            }
+            showTotal={showTotal}
+            onToggleTotal={() => setShowTotal((v) => !v)}
+            thresholds={thresholds.length ? thresholds : bands.slice(1).map((b) => b.from)}
+            onThresholds={(t) => {
+              saveThresholds(t);
+              setThresholds(t);
+              setHiddenBands(new Set());
+            }}
+          />
+
           <GpsWorkload
             athleteId={athleteId}
+            bandLoad={bandLoad.size > 0 ? bandLoad : null}
+            bandLabel={bandLabel}
             sessions={allSessions}
             metricsBySession={metricsBySession}
             rangeStart={rangeStart}

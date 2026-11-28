@@ -213,6 +213,17 @@ export default function SyncDashboardPage() {
             message={pdMsg}
             onSync={() => void runPlayerdata()}
             formatAest={formatAest}
+            extra={
+              <button
+                type="button"
+                disabled={pdBusy}
+                onClick={() => void runPlayerdata(365)}
+                className="ml-3 text-xs text-slate-500 underline hover:text-slate-700 disabled:opacity-50"
+                title="Re-pull every session from the last 12 months (loads speed bands for older sessions)"
+              >
+                Pull 12 months
+              </button>
+            }
           />
         </div>
 
@@ -235,6 +246,7 @@ function SyncCard({
   message,
   onSync,
   formatAest,
+  extra,
 }: {
   title: string;
   description: string;
@@ -244,6 +256,7 @@ function SyncCard({
   message: string | null;
   onSync: () => void;
   formatAest: (iso: string) => string;
+  extra?: React.ReactNode;
 }) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -300,6 +313,7 @@ function SyncCard({
           "Sync now"
         )}
       </button>
+      {extra}
 
       {message ? (
         <p
