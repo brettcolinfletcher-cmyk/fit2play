@@ -55,6 +55,8 @@ type Props = {
   /** Selected speed-band distance per session id; null when no band data exists. */
   bandLoad: Map<string, number> | null;
   bandLabel: string;
+  chronicWeeks: number;
+  onChronicWeeks: (w: number) => void;
   /** Session names by day (YYYY-MM-DD) for tooltips. */
   namesByDate: Map<string, string[]>;
   /** ALL of the athlete's GPS sessions (not range-filtered): EWMA needs the full history. */
@@ -121,7 +123,14 @@ function Toggle<T extends string | number>({
 /** Chart row: EWMA point plus the acute/chronic gap as [low, high] ranges for shading. */
 type ChartPoint = EwmaPoint & { gapUp: [number, number]; gapDown: [number, number] };
 
-export default function GpsWorkload({ athleteId, bandLoad, bandLabel, namesByDate, sessions, metricsBySession, rangeStart, rangeEnd }: Props) {
+export default function GpsWorkload({
+  athleteId,
+  bandLoad,
+  bandLabel,
+  chronicWeeks,
+  onChronicWeeks: setChronicWeeks,
+  namesByDate,
+  sessions, metricsBySession, rangeStart, rangeEnd }: Props) {
   const [phases, setPhases] = useState<SeasonPhase[]>([]);
   const [teams, setTeams] = useState<AthleteTeam[]>([]);
   const [phasesMissing, setPhasesMissing] = useState(false);
@@ -137,7 +146,6 @@ export default function GpsWorkload({ athleteId, bandLoad, bandLabel, namesByDat
 
   const [today] = useState(() => isoDay(Date.now()));
 
-  const [chronicWeeks, setChronicWeeks] = useState<number>(4);
   const [showSpikes, setShowSpikes] = useState(true);
   const [metricKey, setMetricKey] = useState<string>(WORKLOAD_METRICS[0].key);
   const chronicDays = chronicWeeks * 7;
@@ -410,14 +418,14 @@ function WorkloadTooltip({
   const phase = phaseAt(p.t, phases);
   const diff = p.diffPct;
   return (
-    <div style={CHART_TOOLTIP_STYLE} className="min-w-[200px] px-3 py-2 text-[11px] text-slate-200">
+    <div style={CHART_TOOLTIP_STYLE} className="w-[240px] px-3 py-2 text-[11px] text-slate-200">
       {phase ? <p className="font-semibold text-white">{phase.name}</p> : null}
       <p className="mb-1.5 text-slate-400">
         {shortDate(p.t)}
         {p.load == null ? " · rest day" : ""}
       </p>
       {p.load != null && namesByDate.get(p.date)?.length ? (
-        <p className="mb-1 font-medium text-lime-300">{namesByDate.get(p.date)!.join(" + ")}</p>
+        <p className="mb-1 truncate font-medium text-lime-300">{namesByDate.get(p.date)!.join(" + ")}</p>
       ) : null}
       {p.load != null ? (
         <Row label="Session load" value={`${n0(p.load)} ${unit}`} />
@@ -517,7 +525,7 @@ function WorkloadChart({
                   content={(props) => {
                     const { x, y, width, index } = props as { x?: number; y?: number; width?: number; index?: number };
                     const p = index != null ? points[index] : null;
-                    if (!p || p.diffPct == null || Math.abs(p.diffPct) < SPIKE_LABEL || x == null || y == null) return null;
+                    if (!p || p.load == null || p.diffPct == null || Math.abs(p.diffPct) < SPIKE_LABEL || x == null || y == null) return null;
                     const color = p.diffPct > 0 ? "#e11d48" : "#2563eb";
                     return (
                       <text x={x + (width ?? 0) / 2} y={y - 6} textAnchor="middle" fontSize={10} fontWeight={700} fill={color}>

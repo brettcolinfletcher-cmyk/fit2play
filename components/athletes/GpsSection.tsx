@@ -15,6 +15,7 @@ import {
 import ZoomableChart from "@/components/charts/ZoomableChart";
 import { formatDisplayDate } from "@/lib/dateDisplay";
 import GpsSessionList from "./GpsSessionList";
+import { dailyTotals, dayMs, ewmaSeries } from "@/lib/ewma";
 import {
   sessionDisplayName,
   GPS_CATEGORY_ORDER,
@@ -133,6 +134,7 @@ export default function GpsSection({ athleteId, metricsBySession, sectionComment
   );
 
   const [mvKph, setMvKph] = useState<number | null>(null);
+  const [chronicWeeks, setChronicWeeks] = useState(4);
   // Names typed in this view, applied before the page reloads its sessions
   const [renamed, setRenamed] = useState<Map<string, string | null>>(() => new Map());
   const nameOf = (s: SessionLike) =>
@@ -163,6 +165,22 @@ export default function GpsSection({ athleteId, metricsBySession, sectionComment
     }
     return out;
   }, [allSessions, metricsBySession, bands, enabledBands]);
+  // Acute/chronic of the selected bands (total distance when no band data), for the band charts
+  const bandEwma = useMemo(() => {
+    const rows: { date: string; value: number }[] = [];
+    for (const s of allSessions) {
+      if (!s.session_date) continue;
+      const v =
+        bandLoad.size > 0
+          ? bandLoad.get(s.id)
+          : (metricsBySession.get(s.id) ?? []).find((r) => r.key === "gps_total_distance_m")?.value;
+      if (v != null) rows.push({ date: s.session_date, value: Number(v) });
+    }
+    const from = rangeStart ? dayMs(rangeStart) : -Infinity;
+    return ewmaSeries(dailyTotals(rows), { acuteDays: 7, chronicDays: chronicWeeks * 7, endDate: rangeEnd }).filter(
+      (p) => p.t >= from && p.t <= dayMs(rangeEnd)
+    );
+  }, [allSessions, bandLoad, metricsBySession, chronicWeeks, rangeStart, rangeEnd]);
   const bandLabel =
     enabledBands.size === bands.length
       ? "All speed bands"
@@ -363,6 +381,8 @@ export default function GpsSection({ athleteId, metricsBySession, sectionComment
           ) : null}
 
           <GpsBandCharts
+            ewma={bandEwma}
+            chronicWeeks={chronicWeeks}
             sessions={allSessions}
             namesByDate={namesByDate}
             metricsBySession={metricsBySession}
@@ -390,6 +410,8 @@ export default function GpsSection({ athleteId, metricsBySession, sectionComment
 
           <GpsWorkload
             athleteId={athleteId}
+            chronicWeeks={chronicWeeks}
+            onChronicWeeks={setChronicWeeks}
             namesByDate={namesByDate}
             bandLoad={bandLoad.size > 0 ? bandLoad : null}
             bandLabel={bandLabel}

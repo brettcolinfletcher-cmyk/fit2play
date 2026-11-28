@@ -358,6 +358,14 @@ export default function TeamsPage() {
                           Team report
                         </button>
                       ) : null}
+                      {members.length > 0 ? (
+                        <a
+                          href={`/dashboard/teams/${team.id}/gps`}
+                          className="rounded-lg border border-lime-400/50 px-2.5 py-1 text-xs font-medium text-lime-300 hover:bg-lime-400/10"
+                        >
+                          GPS report
+                        </a>
+                      ) : null}
                       <button
                         type="button"
                         onClick={() => openEdit(team)}

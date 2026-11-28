@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { formatDisplayDate } from "@/lib/dateDisplay";
 import { supabase } from "@/lib/supabaseClient";
+import { EXTERNAL_NAME_MAX, sessionNote } from "@/lib/gpsMetrics";
 
 export type GpsSessionRow = {
   id: string;
@@ -27,6 +28,7 @@ export default function GpsSessionList({
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [openNotes, setOpenNotes] = useState<Set<string>>(() => new Set());
 
   async function save(r: GpsSessionRow) {
     const draft = drafts[r.id];
@@ -80,7 +82,10 @@ export default function GpsSessionList({
                   <td className="py-1.5">
                     <input
                       value={drafts[r.id] ?? r.session_name ?? ""}
-                      placeholder={r.external_name || (r.test_sub_type === "Match" ? "Match v …" : "Training session")}
+                      placeholder={
+                        (r.external_name && r.external_name.length <= EXTERNAL_NAME_MAX ? r.external_name : null) ||
+                        (r.test_sub_type === "Match" ? "Match v …" : "Training session")
+                      }
                       onChange={(e) => setDrafts((d) => ({ ...d, [r.id]: e.target.value }))}
                       onBlur={() => void save(r)}
                       onKeyDown={(e) => {
@@ -89,6 +94,25 @@ export default function GpsSessionList({
                       disabled={saving === r.id}
                       className="w-full max-w-xs rounded-md border border-transparent bg-transparent px-1.5 py-0.5 text-slate-800 hover:border-slate-200 focus:border-slate-300 focus:bg-white focus:outline-none"
                     />
+                    {sessionNote(r) ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setOpenNotes((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(r.id)) next.delete(r.id);
+                            else next.add(r.id);
+                            return next;
+                          })
+                        }
+                        className={`mt-0.5 block max-w-md px-1.5 text-left text-[0.7rem] text-slate-400 hover:text-slate-600 ${
+                          openNotes.has(r.id) ? "whitespace-normal" : "truncate"
+                        }`}
+                        title={openNotes.has(r.id) ? "Collapse note" : "Show full note"}
+                      >
+                        Note: {sessionNote(r)}
+                      </button>
+                    ) : null}
                   </td>
                   <td className="py-1.5 text-right tabular-nums text-slate-700">
                     {r.distance != null ? `${Math.round(r.distance).toLocaleString("en-AU")} m` : "—"}

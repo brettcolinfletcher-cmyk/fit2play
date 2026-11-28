@@ -202,5 +202,16 @@ export function sessionDisplayName(s: {
   external_name?: string | null;
   test_sub_type?: string | null;
 }): string {
-  return s.session_name?.trim() || s.external_name?.trim() || s.test_sub_type || "Session";
+  const ext = s.external_name?.trim();
+  // PlayerData "descriptions" are often long athlete notes, not names: only short ones are used as a name.
+  const extName = ext && ext.length <= EXTERNAL_NAME_MAX ? ext : null;
+  return s.session_name?.trim() || extName || s.test_sub_type || "Session";
+}
+
+export const EXTERNAL_NAME_MAX = 60;
+
+/** Long source descriptions are treated as session notes. */
+export function sessionNote(s: { external_name?: string | null }): string | null {
+  const ext = s.external_name?.trim();
+  return ext && ext.length > EXTERNAL_NAME_MAX ? ext : null;
 }
